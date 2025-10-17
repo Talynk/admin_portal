@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,136 +28,135 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, MoreHorizontal, UserPlus, Ban, Shield, Eye, Mail, Calendar, Users } from "lucide-react"
-
-// Mock user data
-const mockUsers = [
-  {
-    id: "U001",
-    username: "dancer_pro",
-    email: "sarah.johnson@email.com",
-    fullName: "Sarah Johnson",
-    status: "active",
-    role: "user",
-    followers: 125000,
-    following: 890,
-    videos: 234,
-    joinDate: "2024-01-15",
-    lastActive: "2024-03-15",
-    verified: true,
-  },
-  {
-    id: "U002",
-    username: "chef_master",
-    email: "mike.chen@email.com",
-    fullName: "Mike Chen",
-    status: "suspended",
-    role: "user",
-    followers: 89000,
-    following: 456,
-    videos: 156,
-    joinDate: "2024-02-20",
-    lastActive: "2024-03-10",
-    verified: false,
-  },
-  {
-    id: "U003",
-    username: "pet_lover",
-    email: "emma.davis@email.com",
-    fullName: "Emma Davis",
-    status: "active",
-    role: "creator",
-    followers: 234000,
-    following: 1200,
-    videos: 445,
-    joinDate: "2023-11-08",
-    lastActive: "2024-03-16",
-    verified: true,
-  },
-  {
-    id: "U004",
-    username: "tech_reviewer",
-    email: "alex.kim@email.com",
-    fullName: "Alex Kim",
-    status: "pending",
-    role: "user",
-    followers: 45000,
-    following: 234,
-    videos: 89,
-    joinDate: "2024-03-01",
-    lastActive: "2024-03-14",
-    verified: false,
-  },
-  {
-    id: "U005",
-    username: "fitness_guru",
-    email: "lisa.martinez@email.com",
-    fullName: "Lisa Martinez",
-    status: "active",
-    role: "creator",
-    followers: 178000,
-    following: 567,
-    videos: 312,
-    joinDate: "2023-12-12",
-    lastActive: "2024-03-16",
-    verified: true,
-  },
-]
+import { Search, MoreHorizontal, UserPlus, Ban, Shield, Eye, Mail, Calendar, Users, AlertCircle, Loader2 } from "lucide-react"
+import { useUsers } from "@/hooks/use-users"
+import { toast } from "@/hooks/use-toast"
 
 export default function UsersPage() {
-  const [users, setUsers] = useState(mockUsers)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [roleFilter, setRoleFilter] = useState("all")
-  const [selectedUser, setSelectedUser] = useState<(typeof mockUsers)[0] | null>(null)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"suspend" | "activate" | "delete" | null>(null)
   const [actionReason, setActionReason] = useState("")
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false)
+  const [newUser, setNewUser] = useState({
+    username: "",
+    email: "",
+    fullName: "",
+    role: "user",
+  })
+  const [isActionLoading, setIsActionLoading] = useState(false)
+  const [isCreateLoading, setIsCreateLoading] = useState(false)
 
-  // Filter users based on search and filters
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.id.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
-    const matchesRole = roleFilter === "all" || user.role === roleFilter
-
-    return matchesSearch && matchesStatus && matchesRole
+  // Use the API hook
+  const {
+    users,
+    loading,
+    error,
+    total,
+    totalPages,
+    refetch,
+    createUser,
+    updateUser,
+    deleteUser,
+    suspendUser,
+    activateUser,
+  } = useUsers({
+    search: searchTerm || undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+    role: roleFilter !== "all" ? roleFilter : undefined,
   })
 
-  const handleUserAction = (user: (typeof mockUsers)[0], action: "suspend" | "activate" | "delete") => {
+  const handleUserAction = (user: any, action: "suspend" | "activate" | "delete") => {
     setSelectedUser(user)
     setActionType(action)
     setActionDialogOpen(true)
   }
 
-  const executeAction = () => {
+  const executeAction = async () => {
     if (!selectedUser || !actionType) return
 
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id === selectedUser.id) {
-          if (actionType === "suspend") {
-            return { ...user, status: "suspended" }
-          } else if (actionType === "activate") {
-            return { ...user, status: "active" }
-          }
-        }
-        return user
-      }),
-    )
+    setIsActionLoading(true)
+    try {
+      let result
+      switch (actionType) {
+        case "suspend":
+          result = await suspendUser(selectedUser.id, actionReason)
+          break
+        case "activate":
+          result = await activateUser(selectedUser.id, actionReason)
+          break
+        case "delete":
+          result = await deleteUser(selectedUser.id)
+          break
+      }
 
-    if (actionType === "delete") {
-      setUsers((prev) => prev.filter((user) => user.id !== selectedUser.id))
+      if (result?.success) {
+        toast({
+          title: "Success",
+          description: `User ${actionType}d successfully`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result?.error || "Failed to perform action",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsActionLoading(false)
     }
 
     setActionDialogOpen(false)
     setSelectedUser(null)
     setActionType(null)
     setActionReason("")
+  }
+
+  const handleCreateUser = async () => {
+    if (!newUser.username || !newUser.email || !newUser.fullName) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsCreateLoading(true)
+    try {
+      const result = await createUser(newUser)
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "User created successfully",
+        })
+        setCreateUserDialogOpen(false)
+        setNewUser({ username: "", email: "", fullName: "", role: "user" })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create user",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreateLoading(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -193,11 +192,35 @@ export default function UsersPage() {
               <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
               <p className="text-muted-foreground">Manage and monitor platform users</p>
             </div>
-            <Button>
+            <Button 
+              onClick={() => setCreateUserDialogOpen(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
+            >
               <UserPlus className="mr-2 h-4 w-4" />
               Add User
             </Button>
           </div>
+
+          {/* Error Display */}
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-red-800">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="font-medium">Error loading users</span>
+                </div>
+                <p className="text-red-600 mt-1">{error}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refetch}
+                  className="mt-2 hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -207,8 +230,8 @@ export default function UsersPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.length}</div>
-                <p className="text-xs text-muted-foreground">+12% from last month</p>
+                <div className="text-2xl font-bold">{loading ? "..." : total}</div>
+                <p className="text-xs text-muted-foreground">Total registered users</p>
               </CardContent>
             </Card>
             <Card>
@@ -217,8 +240,10 @@ export default function UsersPage() {
                 <Shield className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.status === "active").length}</div>
-                <p className="text-xs text-muted-foreground">85% of total users</p>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : users.filter((u) => u.status === "active").length}
+                </div>
+                <p className="text-xs text-muted-foreground">Currently active</p>
               </CardContent>
             </Card>
             <Card>
@@ -227,7 +252,9 @@ export default function UsersPage() {
                 <Ban className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.status === "suspended").length}</div>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : users.filter((u) => u.status === "suspended").length}
+                </div>
                 <p className="text-xs text-muted-foreground">Requires attention</p>
               </CardContent>
             </Card>
@@ -237,7 +264,9 @@ export default function UsersPage() {
                 <UserPlus className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.role === "creator").length}</div>
+                <div className="text-2xl font-bold">
+                  {loading ? "..." : users.filter((u) => u.role === "creator").length}
+                </div>
                 <p className="text-xs text-muted-foreground">Content creators</p>
               </CardContent>
             </Card>
@@ -257,11 +286,11 @@ export default function UsersPage() {
                     placeholder="Search by username, email, ID, or name..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 hover:border-blue-300 focus:border-blue-500 transition-colors"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -272,7 +301,7 @@ export default function UsersPage() {
                   </SelectContent>
                 </Select>
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
                     <SelectValue placeholder="Filter by role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -284,103 +313,113 @@ export default function UsersPage() {
               </div>
 
               {/* Users Table */}
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Stats</TableHead>
-                      <TableHead>Join Date</TableHead>
-                      <TableHead>Last Active</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarImage src={`/generic-placeholder-graphic.png?height=40&width=40`} />
-                              <AvatarFallback>{user.fullName.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium">@{user.username}</p>
-                                {user.verified && <Shield className="h-4 w-4 text-blue-500" />}
-                              </div>
-                              <p className="text-sm text-muted-foreground">{user.fullName}</p>
-                              <p className="text-xs text-muted-foreground">{user.email}</p>
-                              <p className="text-xs text-muted-foreground">ID: {user.id}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(user.status)}</TableCell>
-                        <TableCell>{getRoleBadge(user.role)}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <p>{user.followers.toLocaleString()} followers</p>
-                            <p className="text-muted-foreground">{user.videos} videos</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            {new Date(user.joinDate).toLocaleDateString()}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm text-muted-foreground">
-                            {new Date(user.lastActive).toLocaleDateString()}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Profile
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Mail className="mr-2 h-4 w-4" />
-                                Send Message
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {user.status === "active" ? (
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() => handleUserAction(user, "suspend")}
-                                >
-                                  <Ban className="mr-2 h-4 w-4" />
-                                  Suspend User
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem
-                                  className="text-green-600"
-                                  onClick={() => handleUserAction(user, "activate")}
-                                >
-                                  <Shield className="mr-2 h-4 w-4" />
-                                  Activate User
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-muted-foreground">Loading users...</span>
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Stats</TableHead>
+                        <TableHead>Join Date</TableHead>
+                        <TableHead>Last Active</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage src={`/generic-placeholder-graphic.png?height=40&width=40`} />
+                                <AvatarFallback>{user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium">@{user.username}</p>
+                                  {user.verified && <Shield className="h-4 w-4 text-blue-500" />}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{user.fullName}</p>
+                                <p className="text-xs text-muted-foreground">{user.email}</p>
+                                <p className="text-xs text-muted-foreground">ID: {user.id}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(user.status)}</TableCell>
+                          <TableCell>{getRoleBadge(user.role)}</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <p>{user.followers?.toLocaleString() || 0} followers</p>
+                              <p className="text-muted-foreground">{user.videos || 0} videos</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              {new Date(user.joinDate).toLocaleDateString()}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(user.lastActive).toLocaleDateString()}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  className="h-8 w-8 p-0 hover:bg-muted hover:scale-105 transition-all duration-200"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem className="hover:bg-blue-50 transition-colors">
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Profile
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="hover:bg-green-50 transition-colors">
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  Send Message
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {user.status === "active" ? (
+                                  <DropdownMenuItem
+                                    className="text-red-600 hover:bg-red-50 transition-colors"
+                                    onClick={() => handleUserAction(user, "suspend")}
+                                  >
+                                    <Ban className="mr-2 h-4 w-4" />
+                                    Suspend User
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    className="text-green-600 hover:bg-green-50 transition-colors"
+                                    onClick={() => handleUserAction(user, "activate")}
+                                  >
+                                    <Shield className="mr-2 h-4 w-4" />
+                                    Activate User
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
 
-              {filteredUsers.length === 0 && (
+              {users.length === 0 && !loading && (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">No users found matching your criteria.</p>
                 </div>
@@ -415,17 +454,119 @@ export default function UsersPage() {
                   placeholder="Enter reason for this action..."
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
+                  className="hover:border-blue-300 focus:border-blue-500 transition-colors"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setActionDialogOpen(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setActionDialogOpen(false)}
+                disabled={isActionLoading}
+                className="hover:bg-gray-50 transition-colors"
+              >
                 Cancel
               </Button>
-              <Button variant={actionType === "delete" ? "destructive" : "default"} onClick={executeAction}>
-                {actionType === "suspend" && "Suspend User"}
-                {actionType === "activate" && "Activate User"}
-                {actionType === "delete" && "Delete User"}
+              <Button 
+                variant={actionType === "delete" ? "destructive" : "default"} 
+                onClick={executeAction}
+                disabled={isActionLoading}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                {isActionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    {actionType === "suspend" && "Suspend User"}
+                    {actionType === "activate" && "Activate User"}
+                    {actionType === "delete" && "Delete User"}
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create User Dialog */}
+        <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>
+                Add a new user to the platform
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  id="username"
+                  placeholder="Enter username"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  className="hover:border-blue-300 focus:border-blue-500 transition-colors"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  className="hover:border-blue-300 focus:border-blue-500 transition-colors"
+                />
+              </div>
+              <div>
+                <Label htmlFor="fullName">Full Name *</Label>
+                <Input
+                  id="fullName"
+                  placeholder="Enter full name"
+                  value={newUser.fullName}
+                  onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })}
+                  className="hover:border-blue-300 focus:border-blue-500 transition-colors"
+                />
+              </div>
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
+                  <SelectTrigger className="hover:border-blue-300 transition-colors">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="creator">Creator</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setCreateUserDialogOpen(false)}
+                disabled={isCreateLoading}
+                className="hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateUser}
+                disabled={isCreateLoading}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                {isCreateLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create User"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

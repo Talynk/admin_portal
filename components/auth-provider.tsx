@@ -4,6 +4,7 @@ import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { apiClient } from "@/lib/api-client"
 
 interface User {
   id: string
@@ -32,33 +33,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userData = localStorage.getItem("talynk_admin_user")
 
     if (token && userData) {
-      setUser(JSON.parse(userData))
+      try {
+        const parsedUser = JSON.parse(userData)
+        setUser(parsedUser)
+        // Set token in API client
+        apiClient.setToken(token)
+      } catch (error) {
+        // Invalid user data, clear storage
+        localStorage.removeItem("talynk_admin_token")
+        localStorage.removeItem("talynk_admin_user")
+      }
     }
 
     setIsLoading(false)
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication
-    if (email === "admin@talynk.com" && password === "admin123") {
-      const userData = {
-        id: "1",
-        email: "admin@talynk.com",
-        name: "Admin User",
-        role: "admin",
+    try {
+      const response = await apiClient.login(email, password)
+      
+      if (response.success && response.data) {
+        const { accessToken, user } = response.data as { accessToken: string; user: any }
+        const userData = {
+          id: user.id,
+          email: user.email,
+          name: user.name || user.fullName || user.display_name,
+          role: user.role,
+        }
+        setUser(userData)
+        return true
       }
-
-      localStorage.setItem("talynk_admin_token", "mock-jwt-token")
-      localStorage.setItem("talynk_admin_user", JSON.stringify(userData))
-      setUser(userData)
-      return true
+      return false
+    } catch (error) {
+      console.error('Login error:', error)
+      return false
     }
-    return false
   }
 
   const logout = () => {
-    localStorage.removeItem("talynk_admin_token")
-    localStorage.removeItem("talynk_admin_user")
+    apiClient.logout()
     setUser(null)
     router.push("/")
   }
