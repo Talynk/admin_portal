@@ -210,6 +210,22 @@ class ApiClient {
     return this.request(`/posts/all${queryString ? `?${queryString}` : ''}`)
   }
 
+  async getPostsAnalytics(params?: {
+    page?: number
+    limit?: number
+    status?: 'all' | 'pending' | 'approved' | 'rejected' | 'frozen'
+    sort?: 'newest' | 'oldest' | 'most_liked' | 'most_viewed' | 'most_reported'
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.sort) queryParams.append('sort', params.sort)
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/posts/analytics${queryString ? `?${queryString}` : ''}`)
+  }
+
   async getPostById(postId: string) {
     return this.request(`/admin/videos/${postId}`)
   }
@@ -249,17 +265,28 @@ class ApiClient {
   }
 
   async freezePost(postId: string, reason?: string) {
-    return this.request(`/admin/videos/${postId}/freeze`, {
-      method: 'POST',
+    return this.request(`/admin/posts/${postId}/freeze`, {
+      method: 'PUT',
       body: JSON.stringify({ reason }),
     })
   }
 
   async unfreezePost(postId: string, reason?: string) {
-    return this.request(`/admin/videos/${postId}/unfreeze`, {
-      method: 'POST',
+    return this.request(`/admin/posts/${postId}/unfreeze`, {
+      method: 'PUT',
       body: JSON.stringify({ reason }),
     })
+  }
+
+  async setPostFeatured(postId: string, featured: boolean) {
+    return this.request(`/admin/posts/${postId}/featured`, {
+      method: 'PUT',
+      body: JSON.stringify({ featured }),
+    })
+  }
+
+  async getPostReports(postId: string) {
+    return this.request(`/admin/posts/${postId}/reports`)
   }
 
   async featurePost(postId: string, reason?: string) {
@@ -292,11 +319,13 @@ class ApiClient {
 
   // Analytics Endpoints
   async getAnalytics(params?: {
+    period?: '1h' | '1d' | '7d' | '1m' | '3m' | '1y'
     startDate?: string
     endDate?: string
     metric?: string
   }) {
     const queryParams = new URLSearchParams()
+    if (params?.period) queryParams.append('period', params.period)
     if (params?.startDate) queryParams.append('startDate', params.startDate)
     if (params?.endDate) queryParams.append('endDate', params.endDate)
     if (params?.metric) queryParams.append('metric', params.metric)
@@ -305,8 +334,18 @@ class ApiClient {
     return this.request(`/admin/analytics${queryString ? `?${queryString}` : ''}`)
   }
 
-  async getDashboardStats() {
-    return this.request('/admin/dashboard/stats')
+  async getDashboardStats(params?: {
+    period?: '1h' | '1d' | '7d' | '1m' | '3m' | '1y'
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.period) queryParams.append('period', params.period)
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/dashboard/stats${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getContentManagementStats() {
+    return this.request('/admin/content-management/stats')
   }
 
   // Activity Logs
@@ -451,6 +490,42 @@ class ApiClient {
   async markAllNotificationsAsRead() {
     return this.request('/admin/notifications/read-all', {
       method: 'PUT',
+    })
+  }
+
+  async sendBroadcastNotification(data: {
+    title: string
+    message: string
+    type?: string
+  }) {
+    return this.request('/admin/notifications/broadcast', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  // Appeals Management
+  async getAppeals(params?: {
+    page?: number
+    limit?: number
+    status?: 'pending' | 'approved' | 'rejected'
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/appeals${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async reviewAppeal(appealId: string, data: {
+    status: 'approved' | 'rejected'
+    adminNotes?: string
+  }) {
+    return this.request(`/admin/appeals/${appealId}/review`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     })
   }
 
