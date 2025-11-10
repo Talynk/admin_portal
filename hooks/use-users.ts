@@ -11,9 +11,10 @@ interface User {
   followers?: number
   following?: number
   videos?: number
-  joinDate: string
+  createdAt: string
   lastActive: string
   verified: boolean
+  posts_count: number
 }
 
 interface UsersResponse {
@@ -45,6 +46,10 @@ export function useUsers(params: UseUsersParams = {}) {
       setError(null)
       
       const response = await apiClient.getUsers(params)
+      /*
+      //check the users repsonse object 
+      console.log(`Users Response ----> ${response}`) */
+      
       
       if (response.success && response.data) {
         const data = response.data as UsersResponse
