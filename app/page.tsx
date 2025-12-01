@@ -141,9 +141,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Demo credentials: admin@talynk.com / admin123</p>
-          </div>
+          
         </CardContent>
       </Card>
     </div>
