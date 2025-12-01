@@ -11,7 +11,6 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Talynk Admin Portal",
   description: "Social Media Platform Administration",
-  generator: "v0.app",
 }
 
 export default function RootLayout({

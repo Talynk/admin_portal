@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.talentix.net/api'
 
 interface ApiResponse<T> {
   success: boolean
@@ -172,14 +172,14 @@ class ApiClient {
   async suspendUser(userId: string, reason?: string) {
     return this.request('/admin/accounts/manage', {
       method: 'POST',
-      body: JSON.stringify({ userId, action: 'suspend', reason }),
+      body: JSON.stringify({ id: userId, action: 'freeze', reason }),
     })
   }
 
   async activateUser(userId: string, reason?: string) {
     return this.request('/admin/accounts/manage', {
       method: 'POST',
-      body: JSON.stringify({ userId, action: 'activate', reason }),
+      body: JSON.stringify({ id: userId, action: 'reactivate', reason }),
     })
   }
 
@@ -424,10 +424,8 @@ class ApiClient {
 
   async createApprover(approverData: {
     username: string
+    password: string
     email: string
-    fullName: string
-    department?: string
-    level?: number
   }) {
     return this.request('/admin/approvers', {
       method: 'POST',
@@ -438,9 +436,6 @@ class ApiClient {
   async updateApprover(approverId: string, approverData: {
     username?: string
     email?: string
-    fullName?: string
-    department?: string
-    level?: number
     status?: string
   }) {
     return this.request(`/admin/approvers/${approverId}`, {
@@ -449,10 +444,34 @@ class ApiClient {
     })
   }
 
+  async activateApprover(approverId: string) {
+    return this.request(`/admin/approvers/${approverId}/activate`, {
+      method: 'PUT',
+    })
+  }
+
+  async deactivateApprover(approverId: string) {
+    return this.request(`/admin/approvers/${approverId}/deactivate`, {
+      method: 'PUT',
+    })
+  }
+
   async deleteApprover(approverId: string) {
     return this.request(`/admin/approvers/${approverId}`, {
       method: 'DELETE',
     })
+  }
+
+  async getApproverPosts(approverId: string, params?: {
+    page?: number
+    limit?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/approvers/${approverId}/posts${queryString ? `?${queryString}` : ''}`)
   }
 
   async assignApprover(postId: string, approverId: string) {
@@ -539,6 +558,11 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(settings),
     })
+  }
+
+  // Countries
+  async getCountries() {
+    return this.request('/countries')
   }
 }
 

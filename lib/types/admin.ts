@@ -239,30 +239,26 @@ export interface Approver {
   id: string
   username: string
   email: string
-  fullName: string
-  department?: string
-  level: number
   status: 'active' | 'inactive'
-  createdAt: string
+  joinedDate: string
+  lastActive: string | null
+  totalApprovedPosts: number
+  totalPosts: number
+  performance: {
+    approvalRate: number
+    averageResponseTime: number
+  }
 }
 
 export interface ApproversResponse {
   approvers: Approver[]
-  pagination: {
-    currentPage: number
-    totalPages: number
-    totalCount: number
-    hasNext: boolean
-    hasPrev: boolean
-  }
+  total: number
 }
 
 export interface CreateApproverData {
   username: string
+  password: string
   email: string
-  fullName: string
-  department?: string
-  level?: number
 }
 
 export interface UpdateApproverData {

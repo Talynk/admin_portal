@@ -5,16 +5,25 @@ interface User {
   id: string
   username: string
   email: string
-  fullName: string
-  status: 'active' | 'suspended' | 'pending'
+  fullName?: string
+  status: 'active' | 'suspended' | 'pending' | 'frozen'
   role: 'user' | 'creator' | 'admin'
   followers?: number
   following?: number
   videos?: number
   createdAt: string
-  lastActive: string
-  verified: boolean
+  last_active_date: string
+  verified?: boolean
   posts_count: number
+  profile_picture: string | null
+  date_of_birth: string | null
+  country_id: number | null
+  phone1?: string | null
+  phone2?: string | null
+  last_login?: string | null
+  follower_count?: number
+  postsApproved?: number
+  postsPending?: number
 }
 
 interface UsersResponse {
@@ -31,6 +40,7 @@ interface UseUsersParams {
   search?: string
   status?: string
   role?: string
+  country_id?: number
 }
 
 export function useUsers(params: UseUsersParams = {}) {
@@ -46,9 +56,9 @@ export function useUsers(params: UseUsersParams = {}) {
       setError(null)
       
       const response = await apiClient.getUsers(params)
-      /*
+      
       //check the users repsonse object 
-      console.log(`Users Response ----> ${response}`) */
+      console.log(response) 
       
       
       if (response.success && response.data) {

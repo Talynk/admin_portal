@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '@/lib/api-client'
 
 interface DashboardStats {
+  period: string
   totalUsers: number
   totalVideos: number
   pendingReviews: number
+  flaggedContents: number
+  totalViews: number
+  totalPosts: number
+  totalEngagements: number
   engagementRate: number
-  userGrowth: number
-  videoGrowth: number
-  recentActivity: any[]
+  recentContent: any[]
 }
 
 interface UseDashboardReturn {
@@ -29,37 +32,39 @@ export function useDashboard(): UseDashboardReturn {
       setError(null)
 
       // Fetch dashboard stats
-      const [dashboardResponse, usersResponse, videosResponse] = await Promise.all([
-        apiClient.getDashboardStats(),
-        apiClient.getUsers({ limit: 1 }), // Just to get total count
-        apiClient.getPosts({ limit: 1 }) // Just to get total count
-      ])
+      const dashboardResponse = await apiClient.getDashboardStats()
 
       if (dashboardResponse.success && dashboardResponse.data) {
-        const dashboardData = dashboardResponse.data as any
+        const responseData = dashboardResponse.data as any
+        // Handle nested structure: data.data.stats and data.data.recentContent
+        const data = responseData.data || responseData
+        const statsData = data.stats || {}
         
         setStats({
-          totalUsers: dashboardData.totalUsers || 0,
-          totalVideos: dashboardData.totalVideos || 0,
-          pendingReviews: dashboardData.pendingReviews || 0,
-          engagementRate: dashboardData.engagementRate || 0,
-          userGrowth: dashboardData.userGrowth || 0,
-          videoGrowth: dashboardData.videoGrowth || 0,
-          recentActivity: dashboardData.recentActivity || []
+          period: data.period || '7d',
+          totalUsers: statsData.totalUsers || 0,
+          totalVideos: statsData.totalVideos || 0,
+          pendingReviews: statsData.pendingReviews || 0,
+          flaggedContents: statsData.flaggedContents || 0,
+          totalViews: statsData.totalViews || 0,
+          totalPosts: statsData.totalPosts || 0,
+          totalEngagements: statsData.totalEngagements || 0,
+          engagementRate: statsData.engagementRate || 0,
+          recentContent: data.recentContent || []
         })
       } else {
-        // Fallback to individual API calls if dashboard stats not available
-        const usersCount = usersResponse.success ? (usersResponse.data as any)?.total || 0 : 0
-        const videosCount = videosResponse.success ? (videosResponse.data as any)?.total || 0 : 0
-        
+        // Fallback to empty stats if API fails
         setStats({
-          totalUsers: usersCount,
-          totalVideos: videosCount,
+          period: '7d',
+          totalUsers: 0,
+          totalVideos: 0,
           pendingReviews: 0,
+          flaggedContents: 0,
+          totalViews: 0,
+          totalPosts: 0,
+          totalEngagements: 0,
           engagementRate: 0,
-          userGrowth: 0,
-          videoGrowth: 0,
-          recentActivity: []
+          recentContent: []
         })
       }
     } catch (err) {

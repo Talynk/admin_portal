@@ -61,12 +61,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { useUsers } from "@/hooks/use-users";
+import { useCountries } from "@/hooks/use-countries";
 import { toast } from "@/hooks/use-toast";
 
 export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
@@ -82,6 +84,9 @@ export default function UsersPage() {
   });
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isCreateLoading, setIsCreateLoading] = useState(false);
+
+  // Use the countries hook
+  const { countries, getCountryById } = useCountries();
 
   // Use the API hook
   const {
@@ -100,6 +105,7 @@ export default function UsersPage() {
     search: searchTerm || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     role: roleFilter !== "all" ? roleFilter : undefined,
+    country_id: countryFilter !== "all" ? parseInt(countryFilter) : undefined,
   });
 
   const handleUserAction = (
@@ -209,6 +215,12 @@ export default function UsersPage() {
             Suspended
           </Badge>
         );
+      case "frozen":
+        return (
+          <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+            Frozen
+          </Badge>
+        );
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
@@ -222,10 +234,10 @@ export default function UsersPage() {
 
   const getRoleBadge = (role: string) => {
     switch (role) {
-      case "creator":
+      case "approver":
         return (
           <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-            Creator
+            Approver
           </Badge>
         );
       case "user":
@@ -316,34 +328,33 @@ export default function UsersPage() {
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Suspended</CardTitle>
+                <CardTitle className="text-sm font-medium">Frozen</CardTitle>
                 <Ban className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {loading
                     ? "..."
-                    : users.filter((u) => u.status === "suspended").length}
-                    
+                    : users.filter((u) => u.status === "frozen").length}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Requires attention
+                  Frozen accounts
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Creators</CardTitle>
-                <UserPlus className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Pending Posts</CardTitle>
+                <AlertCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
                   {loading
                     ? "..."
-                    : users.filter((u) => u.role === "creator").length}
+                    : users.reduce((sum, u) => sum + (u.postsPending || 0), 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Content creators
+                  Posts awaiting approval
                 </p>
               </CardContent>
             </Card>
@@ -372,21 +383,25 @@ export default function UsersPage() {
                   <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                      <SelectItem value="frozen">Frozen</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
                 </Select>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <Select value={countryFilter} onValueChange={setCountryFilter}>
                   <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
-                    <SelectValue placeholder="Filter by role" />
+                    <SelectValue placeholder="Filter by country" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="creator">Creator</SelectItem>
+                    <SelectItem value="all">All Countries</SelectItem>
+                    {countries.map((country) => (
+                      <SelectItem key={country.id} value={country.id.toString()}>
+                        {country.flag_emoji} {country.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -406,7 +421,7 @@ export default function UsersPage() {
                       <TableRow>
                         <TableHead>User</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Role</TableHead>
+                        <TableHead>Country</TableHead>
                         <TableHead>Stats</TableHead>
                         <TableHead>Join Date</TableHead>
                         <TableHead>Last Active</TableHead>
@@ -423,7 +438,7 @@ export default function UsersPage() {
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-10 w-10">
                                 <AvatarImage
-                                  src={`/generic-placeholder-graphic.png?height=40&width=40`}
+                                  src={user.profile_picture || `/generic-placeholder-graphic.png?height=40&width=40`}
                                 />
                                 <AvatarFallback>
                                   {user.fullName?.charAt(0) ||
@@ -449,19 +464,38 @@ export default function UsersPage() {
                                 <p className="text-xs text-muted-foreground">
                                   ID: {user.id}
                                 </p>
+                                {user.date_of_birth && (
+                                  <p className="text-xs text-muted-foreground">
+                                    DOB: {user.date_of_birth}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(user.status)}</TableCell>
-                          <TableCell>{getRoleBadge(user.role)}</TableCell>
+                          <TableCell>
+                            {user.country_id ? (
+                              <div className="flex items-center gap-1">
+                                <span>{getCountryById(user.country_id)?.flag_emoji || ""}</span>
+                                <span className="text-sm">
+                                  {getCountryById(user.country_id)?.name || "Unknown"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">N/A</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="text-sm">
                               <p>
-                                {user.followers?.toLocaleString() || 0}{" "}
+                                {user.follower_count?.toLocaleString() || 0}{" "}
                                 followers
                               </p>
                               <p className="text-muted-foreground">
                                 {user.posts_count || 0} posts
+                              </p>
+                              <p className="text-muted-foreground">
+                                {user.postsApproved || 0} approved, {user.postsPending || 0} pending
                               </p>
                             </div>
                           </TableCell>
@@ -473,7 +507,7 @@ export default function UsersPage() {
                           </TableCell>
                           <TableCell>
                             <div className="text-sm text-muted-foreground">
-                              {new Date(user.lastActive).toLocaleDateString()}
+                              {new Date(user.last_active_date).toLocaleDateString()}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
@@ -489,11 +523,11 @@ export default function UsersPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem className="hover:bg-blue-50 transition-colors">
-                                  <Eye className="mr-2 h-4 w-4" />
+                                  <Eye className="mr-2 h-4 w-4"/>
                                   View Profile
                                 </DropdownMenuItem>
                                 <DropdownMenuItem className="hover:bg-green-50 transition-colors">
-                                  <Mail className="mr-2 h-4 w-4" />
+                                  <Mail className="mr-2 h-4 w-4"/>
                                   Send Message
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -664,7 +698,6 @@ export default function UsersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="creator">Creator</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>

@@ -32,6 +32,8 @@ import {
   Eye,
   MoreHorizontal,
   ExternalLink,
+  AlertCircle,
+  Loader2,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -42,159 +44,188 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
-const mockApprovers = [
-  {
-    id: "A001",
-    name: "Sarah Johnson",
-    email: "sarah.johnson@talynk.com",
-    username: "sarah_approver",
-    role: "Senior Approver",
-    status: "active",
-    joinDate: "2024-01-15",
-    lastActive: "2024-03-16T10:30:00Z",
-    totalReviews: 1247,
-    approvalRate: 94.2,
-    averageReviewTime: "2.3 min",
-    permissions: ["content_review", "user_management", "reports"],
-    avatar: "/generic-placeholder-graphic.png",
-    department: "Content Moderation",
-    phone: "+1 (555) 123-4567",
-  },
-  {
-    id: "A002",
-    name: "Michael Chen",
-    email: "michael.chen@talynk.com",
-    username: "mike_approver",
-    role: "Content Approver",
-    status: "active",
-    joinDate: "2024-02-01",
-    lastActive: "2024-03-16T09:15:00Z",
-    totalReviews: 892,
-    approvalRate: 91.8,
-    averageReviewTime: "3.1 min",
-    permissions: ["content_review"],
-    avatar: "/generic-placeholder-graphic.png",
-    department: "Content Moderation",
-    phone: "+1 (555) 234-5678",
-  },
-  {
-    id: "A003",
-    name: "Emily Rodriguez",
-    email: "emily.rodriguez@talynk.com",
-    username: "emily_approver",
-    role: "Junior Approver",
-    status: "inactive",
-    joinDate: "2024-02-20",
-    lastActive: "2024-03-10T16:45:00Z",
-    totalReviews: 456,
-    approvalRate: 89.5,
-    averageReviewTime: "4.2 min",
-    permissions: ["content_review"],
-    avatar: "/generic-placeholder-graphic.png",
-    department: "Content Moderation",
-    phone: "+1 (555) 345-6789",
-  },
-  {
-    id: "A004",
-    name: "David Kim",
-    email: "david.kim@talynk.com",
-    username: "david_approver",
-    role: "Lead Approver",
-    status: "active",
-    joinDate: "2023-11-10",
-    lastActive: "2024-03-16T11:20:00Z",
-    totalReviews: 2156,
-    approvalRate: 96.1,
-    averageReviewTime: "1.8 min",
-    permissions: ["content_review", "user_management", "reports", "admin"],
-    avatar: "/generic-placeholder-graphic.png",
-    department: "Content Moderation",
-    phone: "+1 (555) 456-7890",
-  },
-]
-
-const mockApproverStats = {
-  totalApprovers: mockApprovers.length,
-  activeApprovers: mockApprovers.filter((a) => a.status === "active").length,
-  inactiveApprovers: mockApprovers.filter((a) => a.status === "inactive").length,
-  averageApprovalRate: Math.round(mockApprovers.reduce((acc, a) => acc + a.approvalRate, 0) / mockApprovers.length),
-  totalReviewsToday: 47,
-  pendingInvitations: 2,
-}
+import { useApprovers } from "@/hooks/use-approvers"
+import { useDashboard } from "@/hooks/use-dashboard"
+import { toast } from "@/hooks/use-toast"
+import { Approver } from "@/lib/types/admin"
 
 export default function ApproversPage() {
-  const [approvers, setApprovers] = useState(mockApprovers)
-  const [selectedApprover, setSelectedApprover] = useState<(typeof mockApprovers)[0] | null>(null)
+  const [selectedApprover, setSelectedApprover] = useState<Approver | null>(null)
   const [addApproverDialogOpen, setAddApproverDialogOpen] = useState(false)
   const [viewApproverDialogOpen, setViewApproverDialogOpen] = useState(false)
   const [editApproverDialogOpen, setEditApproverDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [roleFilter, setRoleFilter] = useState("all")
+  const [isActionLoading, setIsActionLoading] = useState(false)
 
   const [newApprover, setNewApprover] = useState({
-    name: "",
     email: "",
     username: "",
-    role: "",
-    department: "",
-    phone: "",
     password: "",
-    permissions: [] as string[],
   })
 
-  // Filter approvers
+  // Use the API hook
+  const {
+    approvers,
+    loading,
+    error,
+    total,
+    totalPages,
+    refetch,
+    createApprover,
+    updateApprover,
+    activateApprover,
+    deactivateApprover,
+    deleteApprover,
+  } = useApprovers({
+    search: searchTerm || undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+  })
+
+  // Fetch dashboard stats for content ratio
+  const { stats: dashboardStats } = useDashboard()
+
+  // Filter approvers (client-side filtering for role/level if needed)
   const filteredApprovers = approvers.filter((approver) => {
     const matchesSearch =
-      approver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      approver.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      approver.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      approver.id.toLowerCase().includes(searchTerm.toLowerCase())
+      approver.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      approver.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      approver.id?.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus = statusFilter === "all" || approver.status === statusFilter
-    const matchesRole = roleFilter === "all" || approver.role === roleFilter
 
-    return matchesSearch && matchesStatus && matchesRole
+    return matchesSearch && matchesStatus
   })
 
-  const handleAddApprover = () => {
-    const approver = {
-      id: `A${String(approvers.length + 1).padStart(3, "0")}`,
-      ...newApprover,
-      status: "active" as const,
-      joinDate: new Date().toISOString().split("T")[0],
-      lastActive: new Date().toISOString(),
-      totalReviews: 0,
-      approvalRate: 0,
-      averageReviewTime: "0 min",
-      avatar: "/generic-placeholder-graphic.png",
+  // Calculate approver-to-content ratio
+  const activeApproversCount = approvers.filter((a) => a.status === "active").length
+  const pendingReviews = dashboardStats?.pendingReviews || 0
+  const totalPosts = dashboardStats?.totalPosts || 0
+  
+  // Calculate approver-to-content ratio
+  const postsPerApprover = activeApproversCount > 0 
+    ? (totalPosts / activeApproversCount).toFixed(1) 
+    : totalPosts > 0 ? "∞" : "0"
+  
+  const pendingPerApprover = activeApproversCount > 0 
+    ? (pendingReviews / activeApproversCount).toFixed(1) 
+    : pendingReviews > 0 ? "∞" : "0"
+
+  // Determine if approvers are sufficient (threshold: < 50 posts per approver is good)
+  const isSufficient = activeApproversCount > 0 && parseFloat(postsPerApprover) < 50
+  const ratioStatus = activeApproversCount === 0 
+    ? "No active approvers" 
+    : isSufficient 
+      ? "Well balanced" 
+      : "Needs more approvers"
+
+  const handleAddApprover = async () => {
+    if (!newApprover.username || !newApprover.email || !newApprover.password) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
     }
 
-    setApprovers((prev) => [...prev, approver])
-    setAddApproverDialogOpen(false)
-    setNewApprover({
-      name: "",
-      email: "",
-      username: "",
-      role: "",
-      department: "",
-      phone: "",
-      password: "",
-      permissions: [],
-    })
+    setIsActionLoading(true)
+    try {
+      const result = await createApprover({
+        username: newApprover.username,
+        email: newApprover.email,
+        password: newApprover.password,
+      })
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Approver created successfully",
+        })
+        setAddApproverDialogOpen(false)
+        setNewApprover({
+          email: "",
+          username: "",
+          password: "",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create approver",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
   }
 
-  const handleDeleteApprover = (approverId: string) => {
-    setApprovers((prev) => prev.filter((a) => a.id !== approverId))
+  const handleDeleteApprover = async (approverId: string) => {
+    setIsActionLoading(true)
+    try {
+      const result = await deleteApprover(approverId)
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Approver deleted successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete approver",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
   }
 
-  const handleToggleStatus = (approverId: string) => {
-    setApprovers((prev) =>
-      prev.map((a) =>
-        a.id === approverId ? { ...a, status: a.status === "active" ? "inactive" : ("active" as const) } : a,
-      ),
-    )
+  const handleToggleStatus = async (approverId: string) => {
+    const approver = approvers.find((a) => a.id === approverId)
+    if (!approver) return
+
+    setIsActionLoading(true)
+    try {
+      let result
+      if (approver.status === "active") {
+        result = await deactivateApprover(approverId)
+      } else {
+        result = await activateApprover(approverId)
+      }
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Approver ${approver.status === "active" ? "deactivated" : "activated"} successfully`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update approver status",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -208,19 +239,15 @@ export default function ApproversPage() {
     }
   }
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "Lead Approver":
-        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Lead</Badge>
-      case "Senior Approver":
-        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Senior</Badge>
-      case "Content Approver":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Approver</Badge>
-      case "Junior Approver":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Junior</Badge>
-      default:
-        return <Badge variant="secondary">{role}</Badge>
-    }
+
+  // Calculate stats from real data
+  const approverStats = {
+    totalApprovers: total || approvers.length,
+    activeApprovers: approvers.filter((a) => a.status === "active").length,
+    inactiveApprovers: approvers.filter((a) => a.status === "inactive").length,
+    averageApprovalRate: 0, // Not available in API
+    totalReviewsToday: 0, // Not available in API
+    pendingInvitations: 0, // Not available in API
   }
 
   return (
@@ -238,6 +265,27 @@ export default function ApproversPage() {
             </Button>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-red-800">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="font-medium">Error loading approvers</span>
+                </div>
+                <p className="text-red-600 mt-1">{error}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refetch}
+                  className="mt-2 hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Tabs defaultValue="approvers" className="space-y-6">
             <TabsList>
               <TabsTrigger value="approvers">All Approvers</TabsTrigger>
@@ -253,7 +301,9 @@ export default function ApproversPage() {
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{mockApproverStats.totalApprovers}</div>
+                    <div className="text-2xl font-bold">
+                      {loading ? "..." : approverStats.totalApprovers}
+                    </div>
                     <p className="text-xs text-muted-foreground">Registered accounts</p>
                   </CardContent>
                 </Card>
@@ -263,28 +313,39 @@ export default function ApproversPage() {
                     <CheckCircle className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{mockApproverStats.activeApprovers}</div>
+                    <div className="text-2xl font-bold">
+                      {loading ? "..." : approverStats.activeApprovers}
+                    </div>
                     <p className="text-xs text-muted-foreground">Currently working</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Reviews Today</CardTitle>
-                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Inactive Approvers</CardTitle>
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{mockApproverStats.totalReviewsToday}</div>
-                    <p className="text-xs text-muted-foreground">Content reviewed</p>
+                    <div className="text-2xl font-bold">
+                      {loading ? "..." : approverStats.inactiveApprovers}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Not active</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Avg Approval Rate</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Workload Ratio</CardTitle>
+                    <AlertTriangle className={`h-4 w-4 ${isSufficient ? 'text-green-600' : 'text-orange-600'}`} />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{mockApproverStats.averageApprovalRate}%</div>
-                    <p className="text-xs text-muted-foreground">Team average</p>
+                    <div className="text-2xl font-bold">
+                      {loading ? "..." : `${postsPerApprover} posts/approver`}
+                    </div>
+                    <p className={`text-xs ${isSufficient ? 'text-green-600' : 'text-orange-600'}`}>
+                      {ratioStatus}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {pendingPerApprover} pending per approver
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -316,126 +377,150 @@ export default function ApproversPage() {
                         <SelectItem value="inactive">Inactive</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={roleFilter} onValueChange={setRoleFilter}>
-                      <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filter by role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Roles</SelectItem>
-                        <SelectItem value="Lead Approver">Lead Approver</SelectItem>
-                        <SelectItem value="Senior Approver">Senior Approver</SelectItem>
-                        <SelectItem value="Content Approver">Content Approver</SelectItem>
-                        <SelectItem value="Junior Approver">Junior Approver</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
 
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Approver</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Reviews</TableHead>
-                          <TableHead>Approval Rate</TableHead>
-                          <TableHead>Last Active</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredApprovers.map((approver) => (
-                          <TableRow key={approver.id} className="hover:bg-muted/50 transition-colors">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={approver.avatar || "/placeholder.svg"} />
-                                  <AvatarFallback>
-                                    {approver.name
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">{approver.name}</p>
-                                  <p className="text-sm text-muted-foreground">{approver.email}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>{getRoleBadge(approver.role)}</TableCell>
-                            <TableCell>{getStatusBadge(approver.status)}</TableCell>
-                            <TableCell>{approver.totalReviews.toLocaleString()}</TableCell>
-                            <TableCell>{approver.approvalRate}%</TableCell>
-                            <TableCell>{new Date(approver.lastActive).toLocaleDateString()}</TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted transition-colors">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem
-                                    onClick={() => window.open(`/dashboard/approvers/${approver.id}`, '_blank')}
-                                  >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    View Full Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedApprover(approver)
-                                      setViewApproverDialogOpen(true)
-                                    }}
-                                  >
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Quick View
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedApprover(approver)
-                                      setEditApproverDialogOpen(true)
-                                    }}
-                                  >
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => handleToggleStatus(approver.id)}>
-                                    {approver.status === "active" ? (
-                                      <>
-                                        <XCircle className="mr-2 h-4 w-4" />
-                                        Deactivate
-                                      </>
-                                    ) : (
-                                      <>
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        Activate
-                                      </>
-                                    )}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleDeleteApprover(approver.id)}
-                                    className="text-red-600"
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {filteredApprovers.length === 0 && (
-                    <div className="text-center py-8">
-                      <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">No approvers found matching your criteria.</p>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-muted-foreground">Loading approvers...</span>
                     </div>
+                  ) : (
+                    <>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                          <TableRow>
+                            <TableHead>Approver</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Performance</TableHead>
+                            <TableHead>Posts</TableHead>
+                            <TableHead>Join Date</TableHead>
+                            <TableHead>Last Active</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredApprovers.map((approver) => (
+                              <TableRow key={approver.id} className="hover:bg-muted/50 transition-colors">
+                                <TableCell>
+                                  <div className="flex items-center gap-3">
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src="/generic-placeholder-graphic.png" />
+                                      <AvatarFallback>
+                                        {approver.username
+                                          ?.charAt(0)
+                                          .toUpperCase() || "A"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                      <p className="font-medium">@{approver.username}</p>
+                                      <p className="text-sm text-muted-foreground">{approver.email}</p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{getStatusBadge(approver.status)}</TableCell>
+                                <TableCell>
+                                  <div className="text-sm">
+                                    <p>Rate: {approver.performance?.approvalRate || 0}%</p>
+                                    <p className="text-muted-foreground">
+                                      Avg: {approver.performance?.averageResponseTime || 0}s
+                                    </p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">
+                                    <p>{approver.totalApprovedPosts || 0} approved</p>
+                                    <p className="text-muted-foreground">{approver.totalPosts || 0} total</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  {approver.joinedDate
+                                    ? new Date(approver.joinedDate).toLocaleDateString()
+                                    : "N/A"}
+                                </TableCell>
+                                <TableCell>
+                                  {approver.lastActive
+                                    ? new Date(approver.lastActive).toLocaleDateString()
+                                    : "Never"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 hover:bg-muted transition-colors"
+                                        disabled={isActionLoading}
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                      <DropdownMenuItem
+                                        onClick={() => window.open(`/dashboard/approvers/${approver.id}`, '_blank')}
+                                      >
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        View Full Details
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setSelectedApprover(approver)
+                                          setViewApproverDialogOpen(true)
+                                        }}
+                                      >
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Quick View
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setSelectedApprover(approver)
+                                          setEditApproverDialogOpen(true)
+                                        }}
+                                      >
+                                        <Edit className="mr-2 h-4 w-4" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={() => handleToggleStatus(approver.id)}
+                                        disabled={isActionLoading}
+                                      >
+                                        {approver.status === "active" ? (
+                                          <>
+                                            <XCircle className="mr-2 h-4 w-4" />
+                                            Deactivate
+                                          </>
+                                        ) : (
+                                          <>
+                                            <CheckCircle className="mr-2 h-4 w-4" />
+                                            Activate
+                                          </>
+                                        )}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleDeleteApprover(approver.id)}
+                                        className="text-red-600"
+                                        disabled={isActionLoading}
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {filteredApprovers.length === 0 && !loading && (
+                        <div className="text-center py-8">
+                          <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No approvers found matching your criteria.</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -443,45 +528,53 @@ export default function ApproversPage() {
 
             <TabsContent value="stats" className="space-y-6">
               {/* Team Performance Stats */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {approvers
-                  .filter((a) => a.status === "active")
-                  .map((approver) => (
-                    <Card key={approver.id}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={approver.avatar || "/placeholder.svg"} />
-                            <AvatarFallback>
-                              {approver.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <CardTitle className="text-sm font-medium">{approver.name}</CardTitle>
-                        </div>
-                        {getRoleBadge(approver.role)}
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Reviews:</span>
-                            <span className="font-medium">{approver.totalReviews}</span>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Loading stats...</span>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {approvers
+                    .filter((a) => a.status === "active")
+                    .map((approver) => (
+                      <Card key={approver.id}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src="/generic-placeholder-graphic.png" />
+                              <AvatarFallback>
+                                {approver.username?.charAt(0).toUpperCase() || "A"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <CardTitle className="text-sm font-medium">@{approver.username}</CardTitle>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Approval Rate:</span>
-                            <span className="font-medium">{approver.approvalRate}%</span>
+                          {getStatusBadge(approver.status)}
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Approval Rate:</span>
+                              <span className="font-medium">{approver.performance?.approvalRate || 0}%</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Avg Response:</span>
+                              <span className="font-medium">{approver.performance?.averageResponseTime || 0}s</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Posts Reviewed:</span>
+                              <span className="font-medium">{approver.totalPosts || 0}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Approved:</span>
+                              <span className="font-medium">{approver.totalApprovedPosts || 0}</span>
+                            </div>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Avg Time:</span>
-                            <span className="font-medium">{approver.averageReviewTime}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -497,130 +590,59 @@ export default function ApproversPage() {
             </DialogHeader>
 
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    value={newApprover.name}
-                    onChange={(e) => setNewApprover((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    value={newApprover.username}
-                    onChange={(e) => setNewApprover((prev) => ({ ...prev, username: e.target.value }))}
-                    placeholder="john_approver"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newApprover.email}
-                    onChange={(e) => setNewApprover((prev) => ({ ...prev, email: e.target.value }))}
-                    placeholder="john.doe@talynk.com"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    value={newApprover.phone}
-                    onChange={(e) => setNewApprover((prev) => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="role">Role</Label>
-                  <Select
-                    value={newApprover.role}
-                    onValueChange={(value) => setNewApprover((prev) => ({ ...prev, role: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Junior Approver">Junior Approver</SelectItem>
-                      <SelectItem value="Content Approver">Content Approver</SelectItem>
-                      <SelectItem value="Senior Approver">Senior Approver</SelectItem>
-                      <SelectItem value="Lead Approver">Lead Approver</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
-                    value={newApprover.department}
-                    onChange={(e) => setNewApprover((prev) => ({ ...prev, department: e.target.value }))}
-                    placeholder="Content Moderation"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  id="username"
+                  value={newApprover.username}
+                  onChange={(e) => setNewApprover((prev) => ({ ...prev, username: e.target.value }))}
+                  placeholder="approver5"
+                />
               </div>
 
               <div>
-                <Label htmlFor="password">Initial Password</Label>
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newApprover.email}
+                  onChange={(e) => setNewApprover((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="approver5@talynk.com"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="password">Password *</Label>
                 <Input
                   id="password"
                   type="password"
                   value={newApprover.password}
                   onChange={(e) => setNewApprover((prev) => ({ ...prev, password: e.target.value }))}
-                  placeholder="Set initial password"
+                  placeholder="Enter password"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  User will be required to change password on first login
-                </p>
-              </div>
-
-              <div>
-                <Label>Permissions</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {["content_review", "user_management", "reports", "admin"].map((permission) => (
-                    <label key={permission} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={newApprover.permissions.includes(permission)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setNewApprover((prev) => ({
-                              ...prev,
-                              permissions: [...prev.permissions, permission],
-                            }))
-                          } else {
-                            setNewApprover((prev) => ({
-                              ...prev,
-                              permissions: prev.permissions.filter((p) => p !== permission),
-                            }))
-                          }
-                        }}
-                      />
-                      <span className="text-sm capitalize">{permission.replace("_", " ")}</span>
-                    </label>
-                  ))}
-                </div>
               </div>
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddApproverDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setAddApproverDialogOpen(false)}
+                disabled={isActionLoading}
+              >
                 Cancel
               </Button>
               <Button
                 onClick={handleAddApprover}
-                disabled={!newApprover.name || !newApprover.email || !newApprover.username || !newApprover.password}
+                disabled={!newApprover.email || !newApprover.username || !newApprover.password || isActionLoading}
               >
-                Create Approver Account
+                {isActionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Approver Account"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -638,19 +660,15 @@ export default function ApproversPage() {
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
                   <Avatar className="h-16 w-16">
-                    <AvatarImage src={selectedApprover.avatar || "/placeholder.svg"} />
+                    <AvatarImage src="/generic-placeholder-graphic.png" />
                     <AvatarFallback className="text-lg">
-                      {selectedApprover.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
+                      {selectedApprover.username?.charAt(0).toUpperCase() || "A"}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="text-xl font-semibold">{selectedApprover.name}</h3>
-                    <p className="text-muted-foreground">@{selectedApprover.username}</p>
+                    <h3 className="text-xl font-semibold">@{selectedApprover.username}</h3>
+                    <p className="text-muted-foreground">{selectedApprover.email}</p>
                     <div className="flex gap-2 mt-2">
-                      {getRoleBadge(selectedApprover.role)}
                       {getStatusBadge(selectedApprover.status)}
                     </div>
                   </div>
@@ -659,33 +677,25 @@ export default function ApproversPage() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-medium mb-2">Contact Information</h4>
-                      <div className="space-y-2 text-sm">
-                        <p>
-                          <span className="text-muted-foreground">Email:</span> {selectedApprover.email}
-                        </p>
-                        <p>
-                          <span className="text-muted-foreground">Phone:</span> {selectedApprover.phone}
-                        </p>
-                        <p>
-                          <span className="text-muted-foreground">Department:</span> {selectedApprover.department}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium mb-2">Account Details</h4>
+                      <h4 className="font-medium mb-2">Account Information</h4>
                       <div className="space-y-2 text-sm">
                         <p>
                           <span className="text-muted-foreground">ID:</span> {selectedApprover.id}
                         </p>
                         <p>
+                          <span className="text-muted-foreground">Email:</span> {selectedApprover.email}
+                        </p>
+                        <p>
                           <span className="text-muted-foreground">Join Date:</span>{" "}
-                          {new Date(selectedApprover.joinDate).toLocaleDateString()}
+                          {selectedApprover.joinedDate
+                            ? new Date(selectedApprover.joinedDate).toLocaleDateString()
+                            : "N/A"}
                         </p>
                         <p>
                           <span className="text-muted-foreground">Last Active:</span>{" "}
-                          {new Date(selectedApprover.lastActive).toLocaleDateString()}
+                          {selectedApprover.lastActive
+                            ? new Date(selectedApprover.lastActive).toLocaleDateString()
+                            : "Never"}
                         </p>
                       </div>
                     </div>
@@ -693,30 +703,24 @@ export default function ApproversPage() {
 
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-medium mb-2">Performance Metrics</h4>
+                      <h4 className="font-medium mb-2">Performance</h4>
                       <div className="space-y-2 text-sm">
                         <p>
-                          <span className="text-muted-foreground">Total Reviews:</span>{" "}
-                          {selectedApprover.totalReviews.toLocaleString()}
+                          <span className="text-muted-foreground">Approval Rate:</span>{" "}
+                          {selectedApprover.performance?.approvalRate || 0}%
                         </p>
                         <p>
-                          <span className="text-muted-foreground">Approval Rate:</span> {selectedApprover.approvalRate}%
+                          <span className="text-muted-foreground">Avg Response Time:</span>{" "}
+                          {selectedApprover.performance?.averageResponseTime || 0}s
                         </p>
                         <p>
-                          <span className="text-muted-foreground">Avg Review Time:</span>{" "}
-                          {selectedApprover.averageReviewTime}
+                          <span className="text-muted-foreground">Total Posts:</span>{" "}
+                          {selectedApprover.totalPosts || 0}
                         </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium mb-2">Permissions</h4>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedApprover.permissions.map((permission) => (
-                          <Badge key={permission} variant="outline" className="text-xs">
-                            {permission.replace("_", " ")}
-                          </Badge>
-                        ))}
+                        <p>
+                          <span className="text-muted-foreground">Approved Posts:</span>{" "}
+                          {selectedApprover.totalApprovedPosts || 0}
+                        </p>
                       </div>
                     </div>
                   </div>
