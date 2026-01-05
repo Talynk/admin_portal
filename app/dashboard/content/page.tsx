@@ -337,38 +337,33 @@ export default function ContentPage() {
   };
 
   const getContentType = (post: any) => {
+    // Get the actual media URL from any possible field
+    const mediaUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url || '';
+    
     // Check if it's a video based on file extension or type
     if (
       post.type === "video" ||
       post.fileType === "video" ||
-      post.video_url?.includes(".mp4") ||
-      post.video_url?.includes(".mov") ||
-      post.file_url?.includes(".avi") ||
-      post.file_url?.includes(".webm") ||
-      post.mediaUrl?.includes(".mp4") ||
-      post.mediaUrl?.includes(".mov") ||
-      post.mediaUrl?.includes(".avi") ||
-      post.mediaUrl?.includes(".webm")
+      mediaUrl.includes(".mp4") ||
+      mediaUrl.includes(".mov") ||
+      mediaUrl.includes(".avi") ||
+      mediaUrl.includes(".webm") ||
+      mediaUrl.includes(".mkv") ||
+      mediaUrl.includes(".flv")
     ) {
-      console.log(`Video url----> ${post.mediaUrl}`);
       return "video";
     }
     // Check if it's an image
     if (
       post.type === "image" ||
       post.fileType === "image" ||
-      post.video_url?.includes(".jpg") ||
-      post.video_url?.includes(".jpeg") ||
-      post.video_url?.includes(".png") ||
-      post.video_url?.includes(".gif") ||
-      post.video_url?.includes(".webp") ||
-      post.video_url?.includes(".jpg") ||
-      post.mediaUrl?.includes(".jpeg") ||
-      post.mediaUrl?.includes(".png") ||
-      post.mediaUrl?.includes(".gif") ||
-      post.mediaUrl?.includes(".webp")
+      mediaUrl.includes(".jpg") ||
+      mediaUrl.includes(".jpeg") ||
+      mediaUrl.includes(".png") ||
+      mediaUrl.includes(".gif") ||
+      mediaUrl.includes(".webp") ||
+      mediaUrl.includes(".svg")
     ) {
-      console.log(`Image url ${post.video_url}`);
       return "image";
     }
     // Default to video for backward compatibility
@@ -387,8 +382,11 @@ export default function ContentPage() {
     const [imageError, setImageError] = useState(false);
     const [imageLoading, setImageLoading] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const fileUrl = getFileUrl(post.video_url || post.file_url);
-    const thumbnailUrl = getThumbnailUrl(post.video_url || post.file_url) || getFileUrl(post.thumbnail_url) || fileUrl;
+    
+    // Try multiple possible field names for video URL
+    const videoUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url;
+    const fileUrl = getFileUrl(videoUrl);
+    const thumbnailUrl = getThumbnailUrl(videoUrl) || getFileUrl(post.thumbnail_url) || fileUrl;
 
     const handleMouseEnter = () => {
       setIsHovered(true);
@@ -433,33 +431,17 @@ export default function ContentPage() {
       >
         {/* Loading state */}
         {imageLoading && !imageError && (
-          <div className="absolute inset-0 bg-muted flex items-center justify-center">
+          <div className="absolute inset-0 bg-muted flex items-center justify-center z-10">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {/* Video element */}
-        {fileUrl && !imageError && (
-          <video
-            ref={videoRef}
-            src={fileUrl}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
-              isPlaying && isHovered ? 'opacity-100' : 'opacity-0'
-            }`}
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            onError={() => setIsPlaying(false)}
-          />
-        )}
-        
-        {/* Thumbnail overlay */}
+        {/* Thumbnail overlay - behind video */}
         {!imageError && thumbnailUrl && (
           <img
             src={thumbnailUrl}
             alt={post.title || 'Video thumbnail'}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-0 ${
               isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
             } ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
             onLoad={handleImageLoad}
@@ -468,9 +450,25 @@ export default function ContentPage() {
           />
         )}
 
+        {/* Video element - on top when playing */}
+        {fileUrl && !imageError && (
+          <video
+            ref={videoRef}
+            src={fileUrl}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-10 ${
+              isPlaying && isHovered ? 'opacity-100 z-10' : 'opacity-0 z-0'
+            }`}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onError={() => setIsPlaying(false)}
+          />
+        )}
+
         {/* Error/Placeholder state */}
         {imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center z-10">
             <div className="text-center">
               <Video className="w-12 h-12 text-gray-500 mx-auto mb-2" />
               <p className="text-xs text-gray-400">Video unavailable</p>
@@ -478,10 +476,10 @@ export default function ContentPage() {
           </div>
         )}
 
-        {/* Play button overlay */}
-        {!imageError && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="bg-white/90 rounded-full p-3 shadow-lg">
+        {/* Play button overlay - only show when NOT playing */}
+        {!imageError && !isPlaying && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+            <div className="bg-white/90 rounded-full p-3 shadow-lg pointer-events-auto">
               <Play className="w-6 h-6 text-black" fill="black" />
             </div>
           </div>
@@ -489,14 +487,14 @@ export default function ContentPage() {
 
         {/* Duration badge */}
         {post.duration && !imageError && (
-          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm z-30">
             {post.duration}
           </div>
         )}
 
         {/* Video type indicator */}
         {!imageError && (
-          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1 z-30">
             <Video className="w-3 h-3" />
             <span>Video</span>
           </div>
@@ -509,7 +507,10 @@ export default function ContentPage() {
   const ImagePreviewCard = ({ post }: { post: any }) => {
     const [imageError, setImageError] = useState(false);
     const [imageLoading, setImageLoading] = useState(true);
-    const fileUrl = getFileUrl(post.video_url || post.file_url || post.image_url);
+    
+    // Try multiple possible field names for image URL
+    const imageUrl = post.video_url || post.file_url || post.image_url || post.mediaUrl || post.fileUrl || post.url;
+    const fileUrl = getFileUrl(imageUrl);
 
     const handleImageLoad = () => {
       setImageLoading(false);
@@ -762,11 +763,12 @@ export default function ContentPage() {
                 onValueChange={setActiveTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-7">
+                <TabsList className="grid w-full grid-cols-8">
                   <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="approved">Approved</TabsTrigger>
                   <TabsTrigger value="pending">Pending</TabsTrigger>
+                  <TabsTrigger value="approved">Approved</TabsTrigger>
                   <TabsTrigger value="rejected">Rejected</TabsTrigger>
+                  <TabsTrigger value="frozen">Frozen</TabsTrigger>
                   <TabsTrigger value="flagged">Flagged</TabsTrigger>
                   <TabsTrigger value="featured">Featured</TabsTrigger>
                   <TabsTrigger value="ai-flagged">AI Flagged</TabsTrigger>
@@ -1531,7 +1533,7 @@ export default function ContentPage() {
               <div className="aspect-video bg-black rounded-lg flex items-center justify-center overflow-hidden">
                 {selectedVideo && getContentType(selectedVideo) === "video" ? (
                   <video
-                    src={getFileUrl(selectedVideo.video_url) || undefined}
+                    src={getFileUrl(selectedVideo.video_url || selectedVideo.file_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || undefined}
                     controls
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -1542,7 +1544,7 @@ export default function ContentPage() {
                   </video>
                 ) : selectedVideo && getContentType(selectedVideo) === "image" ? (
                   <img
-                    src={getFileUrl(selectedVideo.video_url) || '/placeholder.svg'}
+                    src={getFileUrl(selectedVideo.video_url || selectedVideo.file_url || selectedVideo.image_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || '/placeholder.svg'}
                     alt={selectedVideo.title}
                     className="w-full h-full object-contain"
                     onError={(e) => {
