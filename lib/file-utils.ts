@@ -14,28 +14,37 @@ const FILE_STORAGE_BASE_URL = (process.env.NEXT_PUBLIC_FILE_STORAGE || process.e
  * @returns Full URL or null if path is invalid
  */
 export function getFileUrl(relativePath: string | null | undefined): string | null {
-  if (!relativePath || !FILE_STORAGE_BASE_URL) return null
+  if (!relativePath) return null
   
-  // If already a full URL, return as-is
+  if (!FILE_STORAGE_BASE_URL) {
+    console.warn('FILE_STORAGE_BASE_URL is not set. Please set NEXT_PUBLIC_FILE_STORAGE environment variable.')
+    return null
+  }
+  
+  // If already a full URL, return as-is (but clean it up)
   if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
-    return relativePath
+    // Clean up any /api/uploads/ to just /uploads/
+    return relativePath.replace(/\/api\/uploads\//g, '/uploads/')
   }
   
   // Clean up the path - remove /api/uploads/ if present
-  let cleanPath = relativePath.replace(/\/api\/uploads\//g, '/uploads/')
+  let cleanPath = relativePath.trim().replace(/\/api\/uploads\//g, '/uploads/')
   
-  // If it's a relative path starting with /uploads/, prepend file storage base URL
-  if (cleanPath.startsWith('/uploads/')) {
-    return `${FILE_STORAGE_BASE_URL}${cleanPath}`
+  // Ensure path starts with /uploads/
+  if (!cleanPath.startsWith('/uploads/') && !cleanPath.startsWith('uploads/')) {
+    // If it's just a filename, add the /uploads/ prefix
+    cleanPath = `/uploads/${cleanPath}`
   }
   
-  // If it doesn't start with /uploads/, add it
+  // Normalize to start with /
   if (cleanPath.startsWith('uploads/')) {
-    return `${FILE_STORAGE_BASE_URL}/${cleanPath}`
+    cleanPath = `/${cleanPath}`
   }
   
-  // If it's just a filename, add the /uploads/ prefix
-  return `${FILE_STORAGE_BASE_URL}/uploads/${cleanPath}`
+  // Construct full URL
+  const fullUrl = `${FILE_STORAGE_BASE_URL}${cleanPath}`
+  
+  return fullUrl
 }
 
 /**

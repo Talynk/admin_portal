@@ -384,9 +384,11 @@ export default function ContentPage() {
   const VideoPreviewCard = ({ post }: { post: any }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const fileUrl = getFileUrl(post.video_url);
-    const thumbnailUrl = getThumbnailUrl(post.video_url) || fileUrl;
+    const fileUrl = getFileUrl(post.video_url || post.file_url);
+    const thumbnailUrl = getThumbnailUrl(post.video_url || post.file_url) || getFileUrl(post.thumbnail_url) || fileUrl;
 
     const handleMouseEnter = () => {
       setIsHovered(true);
@@ -394,6 +396,7 @@ export default function ContentPage() {
         videoRef.current.currentTime = 0;
         videoRef.current.play().catch(() => {
           // Auto-play failed, show thumbnail instead
+          setIsPlaying(false);
         });
         setIsPlaying(true);
       }
@@ -411,6 +414,16 @@ export default function ContentPage() {
       openVideoPreview(post);
     };
 
+    const handleImageLoad = () => {
+      setImageLoading(false);
+    };
+
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      setImageError(true);
+      setImageLoading(false);
+      e.currentTarget.src = '/placeholder.svg';
+    };
+
     return (
       <div
         className="relative w-full h-48 bg-black overflow-hidden group cursor-pointer"
@@ -418,8 +431,15 @@ export default function ContentPage() {
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
       >
+        {/* Loading state */}
+        {imageLoading && !imageError && (
+          <div className="absolute inset-0 bg-muted flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
         {/* Video element */}
-        {fileUrl && (
+        {fileUrl && !imageError && (
           <video
             ref={videoRef}
             src={fileUrl}
@@ -435,70 +455,124 @@ export default function ContentPage() {
         )}
         
         {/* Thumbnail overlay */}
-        <img
-          src={thumbnailUrl || "/placeholder.svg"}
-          alt={post.title}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-            isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
-          }`}
-          onError={(e) => {
-            e.currentTarget.src = '/placeholder.svg';
-          }}
-        />
+        {!imageError && thumbnailUrl && (
+          <img
+            src={thumbnailUrl}
+            alt={post.title || 'Video thumbnail'}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+              isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
+            } ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            loading="lazy"
+          />
+        )}
+
+        {/* Error/Placeholder state */}
+        {imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+            <div className="text-center">
+              <Video className="w-12 h-12 text-gray-500 mx-auto mb-2" />
+              <p className="text-xs text-gray-400">Video unavailable</p>
+            </div>
+          </div>
+        )}
 
         {/* Play button overlay */}
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="bg-white/90 rounded-full p-3 shadow-lg">
-            <Play className="w-6 h-6 text-black" fill="black" />
+        {!imageError && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-white/90 rounded-full p-3 shadow-lg">
+              <Play className="w-6 h-6 text-black" fill="black" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Duration badge */}
-        {post.duration && (
+        {post.duration && !imageError && (
           <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
             {post.duration}
           </div>
         )}
 
         {/* Video type indicator */}
-        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
-          <Video className="w-3 h-3" />
-          <span>Video</span>
-        </div>
+        {!imageError && (
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+            <Video className="w-3 h-3" />
+            <span>Video</span>
+          </div>
+        )}
       </div>
     );
   };
 
   // Component for image preview
   const ImagePreviewCard = ({ post }: { post: any }) => {
-    const fileUrl = getFileUrl(post.video_url);
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
+    const fileUrl = getFileUrl(post.video_url || post.file_url || post.image_url);
+
+    const handleImageLoad = () => {
+      setImageLoading(false);
+    };
+
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      setImageError(true);
+      setImageLoading(false);
+      e.currentTarget.src = '/placeholder.svg';
+    };
 
     return (
       <div
         className="relative w-full h-48 bg-muted overflow-hidden group cursor-pointer"
         onClick={() => openVideoPreview(post)}
       >
-        <img
-          src={fileUrl || "/placeholder.svg"}
-          alt={post.title}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          onError={(e) => {
-            e.currentTarget.src = '/placeholder.svg';
-          }}
-        />
+        {/* Loading state */}
+        {imageLoading && !imageError && (
+          <div className="absolute inset-0 bg-muted flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Image */}
+        {fileUrl && !imageError && (
+          <img
+            src={fileUrl}
+            alt={post.title || post.caption || 'Image'}
+            className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+              imageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            loading="lazy"
+          />
+        )}
+
+        {/* Error/Placeholder state */}
+        {imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+            <div className="text-center">
+              <ImageIcon className="w-12 h-12 text-gray-500 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">Image unavailable</p>
+            </div>
+          </div>
+        )}
 
         {/* View button overlay */}
-        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="bg-white/90 rounded-full p-3 shadow-lg">
-            <Eye className="w-6 h-6 text-black" />
+        {!imageError && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-white/90 rounded-full p-3 shadow-lg">
+              <Eye className="w-6 h-6 text-black" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Image type indicator */}
-        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
-          <ImageIcon className="w-3 h-3" />
-          <span>Image</span>
-        </div>
+        {!imageError && (
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+            <ImageIcon className="w-3 h-3" />
+            <span>Image</span>
+          </div>
+        )}
       </div>
     );
   };
