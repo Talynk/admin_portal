@@ -147,18 +147,20 @@ export default function ContentPage() {
         switch (activeTab) {
           case "all":
             return true;
-          case "approved":
-            return video.status === "approved";
           case "pending":
             return video.status === "pending";
+          case "approved":
+            return video.status === "approved";
           case "rejected":
             return video.status === "rejected";
+          case "frozen":
+            return video.status === "frozen" || video.frozen === true || video.is_frozen === true;
           case "flagged":
-            return video.flagged;
+            return video.flagged === true || video.is_flagged === true;
           case "featured":
-            return video.featured;
+            return video.featured === true || video.is_featured === true;
           case "ai-flagged":
-            return video.aiModeration?.flagged || false;
+            return video.aiModeration?.flagged === true;
           default:
             return true;
         }
@@ -304,15 +306,19 @@ export default function ContentPage() {
     setActionReason("");
   };
 
-  const getStatusBadge = (status: string, frozen: boolean) => {
-    if (frozen) {
+  const getStatusBadge = (status: string, frozen?: boolean, isFrozen?: boolean) => {
+    // Check if post is frozen (multiple ways to check)
+    const isPostFrozen = frozen === true || isFrozen === true || status === "frozen";
+    
+    if (isPostFrozen) {
       return (
         <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
           Frozen
         </Badge>
       );
     }
-    switch (status) {
+    
+    switch (status?.toLowerCase()) {
       case "approved":
         return (
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -331,8 +337,14 @@ export default function ContentPage() {
             Rejected
           </Badge>
         );
+      case "frozen":
+        return (
+          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+            Frozen
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">{status || "Unknown"}</Badge>;
     }
   };
 
@@ -636,7 +648,7 @@ export default function ContentPage() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -702,13 +714,34 @@ export default function ContentPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
+                  Frozen Content
+                </CardTitle>
+                <Freeze className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading
+                    ? "..."
+                    : videos.filter(
+                        (v) =>
+                          v.status === "frozen" ||
+                          v.frozen === true ||
+                          v.is_frozen === true
+                      ).length}
+                </div>
+                <p className="text-xs text-muted-foreground">Frozen posts</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
                   Flagged Content
                 </CardTitle>
                 <Flag className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => v.flagged).length}
+                  {loading ? "..." : videos.filter((v) => v.flagged || v.is_flagged).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Needs review</p>
               </CardContent>
@@ -796,9 +829,10 @@ export default function ContentPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
                           <SelectItem value="rejected">Rejected</SelectItem>
+                          <SelectItem value="frozen">Frozen</SelectItem>
                         </SelectContent>
                       </Select>
                       <div className="flex gap-2">
@@ -1077,7 +1111,8 @@ export default function ContentPage() {
                             <div className="flex items-center justify-between mb-3">
                               {getStatusBadge(
                                 video.status,
-                                video.frozen || false
+                                video.frozen,
+                                video.is_frozen
                               )}
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
