@@ -5,25 +5,8 @@
  * Files are stored on the server in /uploads/ directory
  */
 
-// Get API base URL from environment or use default
-// Files are served from the server root at /uploads/, not from /api
-// So we need the base server URL without the /api suffix
-const getApiBaseUrl = (): string => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL
-  
-  // Default to the documented server URL
-  if (!envUrl) return 'https://talynkbackend-8fkrb.sevalla.app'
-  
-  // If URL contains /api, remove it since files are served from root
-  if (envUrl.includes('/api')) {
-    return envUrl.replace('/api', '')
-  }
-  
-  // If it's already a base URL, use it
-  return envUrl
-}
-
-const API_BASE_URL = getApiBaseUrl()
+// Get file storage base URL from environment variable
+const FILE_STORAGE_BASE_URL = (process.env.NEXT_PUBLIC_FILE_STORAGE || process.env.NEXT_FILE_STORAGE || '').trim().replace(/\/+$/, '')
 
 /**
  * Converts a relative file path to a full URL
@@ -31,25 +14,28 @@ const API_BASE_URL = getApiBaseUrl()
  * @returns Full URL or null if path is invalid
  */
 export function getFileUrl(relativePath: string | null | undefined): string | null {
-  if (!relativePath) return null
+  if (!relativePath || !FILE_STORAGE_BASE_URL) return null
   
   // If already a full URL, return as-is
   if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
     return relativePath
   }
   
-  // If it's a relative path starting with /uploads/, prepend API base URL
-  if (relativePath.startsWith('/uploads/')) {
-    return `${API_BASE_URL}${relativePath}`
+  // Clean up the path - remove /api/uploads/ if present
+  let cleanPath = relativePath.replace(/\/api\/uploads\//g, '/uploads/')
+  
+  // If it's a relative path starting with /uploads/, prepend file storage base URL
+  if (cleanPath.startsWith('/uploads/')) {
+    return `${FILE_STORAGE_BASE_URL}${cleanPath}`
   }
   
   // If it doesn't start with /uploads/, add it
-  if (relativePath.startsWith('uploads/')) {
-    return `${API_BASE_URL}/${relativePath}`
+  if (cleanPath.startsWith('uploads/')) {
+    return `${FILE_STORAGE_BASE_URL}/${cleanPath}`
   }
   
   // If it's just a filename, add the /uploads/ prefix
-  return `${API_BASE_URL}/uploads/${relativePath}`
+  return `${FILE_STORAGE_BASE_URL}/uploads/${cleanPath}`
 }
 
 /**
