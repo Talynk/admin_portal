@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle } from "lucide-react"
 import { useDashboard } from "@/hooks/use-dashboard"
+import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
 
 export default function DashboardPage() {
   const { stats, loading, error, refetch } = useDashboard()
@@ -206,7 +207,23 @@ export default function DashboardPage() {
                       {post.video_url || post.type === 'image' ? (
                         <div className="w-16 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center overflow-hidden">
                           {post.type === 'image' && post.video_url ? (
-                            <img src={post.video_url} alt={post.title} className="w-full h-full object-cover" />
+                            <img 
+                              src={getFileUrl(post.video_url) || '/placeholder.svg'} 
+                              alt={post.title} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = '/placeholder.svg'
+                              }}
+                            />
+                          ) : post.video_url ? (
+                            <img 
+                              src={getThumbnailUrl(post.video_url) || getFileUrl(post.video_url) || '/placeholder.svg'} 
+                              alt={post.title} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = '/placeholder.svg'
+                              }}
+                            />
                           ) : (
                             <Video className="w-6 h-6 text-white" />
                           )}

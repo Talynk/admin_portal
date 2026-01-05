@@ -63,6 +63,7 @@ import {
 import { useUsers } from "@/hooks/use-users";
 import { useCountries } from "@/hooks/use-countries";
 import { toast } from "@/hooks/use-toast";
+import { getProfilePictureUrl } from "@/lib/file-utils";
 
 export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -438,7 +439,10 @@ export default function UsersPage() {
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-10 w-10">
                                 <AvatarImage
-                                  src={user.profile_picture || `/generic-placeholder-graphic.png?height=40&width=40`}
+                                  src={getProfilePictureUrl(user.profile_picture)}
+                                  onError={(e) => {
+                                    e.currentTarget.src = '/generic-placeholder-graphic.png'
+                                  }}
                                 />
                                 <AvatarFallback>
                                   {user.fullName?.charAt(0) ||

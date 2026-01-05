@@ -85,6 +85,8 @@ import {
 } from "lucide-react";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
+import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
+import { useState as useReactState, useRef } from "react";
 
 export default function ContentPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -380,14 +382,20 @@ export default function ContentPage() {
 
   const getContentPreview = (post: any) => {
     const contentType = getContentType(post);
+    const fileUrl = getFileUrl(post.video_url);
+    const thumbnailUrl = getThumbnailUrl(post.video_url) || fileUrl;
+    
     if (contentType === "video") {
       return (
         <div className="relative">
           <img
-            src={post.video_url || "/placeholder.svg"}
+            src={thumbnailUrl || "/placeholder.svg"}
             alt={post.title}
             className="w-full h-48 object-cover cursor-pointer"
             onClick={() => openVideoPreview(post)}
+            onError={(e) => {
+              e.currentTarget.src = '/placeholder.svg'
+            }}
           />
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
             <Button
@@ -404,17 +412,17 @@ export default function ContentPage() {
           </div>
         </div>
       );
-    } else {
+    } else if (contentType === "image") {
       return (
         <div className="relative">
           <img
-            src={
-              post.video_url ||
-              "/placeholder.svg"
-            }
+            src={fileUrl || "/placeholder.svg"}
             alt={post.title}
             className="w-full h-48 object-cover cursor-pointer"
             onClick={() => openVideoPreview(post)}
+            onError={(e) => {
+              e.currentTarget.src = '/placeholder.svg'
+            }}
           />
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
             <Button
@@ -426,6 +434,12 @@ export default function ContentPage() {
               View
             </Button>
           </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="w-full h-48 bg-muted flex items-center justify-center">
+          <MessageSquare className="w-12 h-12 text-muted-foreground" />
         </div>
       );
     }
@@ -997,13 +1011,16 @@ export default function ContentPage() {
                                   <div className="relative w-16 h-12 rounded overflow-hidden">
                                     <img
                                       src={
-                                        video.thumbnail_url ||
-                                        video.thumbnail ||
-                                        video.file_url ||
+                                        getThumbnailUrl(video.video_url) ||
+                                        getFileUrl(video.thumbnail_url) ||
+                                        getFileUrl(video.video_url) ||
                                         "/placeholder.svg"
                                       }
                                       alt={video.title}
                                       className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.currentTarget.src = '/placeholder.svg'
+                                      }}
                                     />
                                     <div className="absolute top-1 left-1">
                                       {getContentIcon(video) === Video ? (
@@ -1342,21 +1359,33 @@ export default function ContentPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
+              <div className="aspect-video bg-black rounded-lg flex items-center justify-center overflow-hidden">
                 {selectedVideo && getContentType(selectedVideo) === "video" ? (
-                  <div className="text-white text-center">
-                    <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm opacity-75">Video Preview</p>
-                    <p className="text-xs opacity-50">
-                      Duration: {selectedVideo?.duration}
-                    </p>
-                  </div>
+                  <video
+                    src={getFileUrl(selectedVideo.video_url) || undefined}
+                    controls
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      console.error('Video load error:', e)
+                    }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : selectedVideo && getContentType(selectedVideo) === "image" ? (
+                  <img
+                    src={getFileUrl(selectedVideo.video_url) || '/placeholder.svg'}
+                    alt={selectedVideo.title}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = '/placeholder.svg'
+                    }}
+                  />
                 ) : (
                   <div className="text-white text-center">
-                    <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm opacity-75">Image Preview</p>
+                    <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-sm opacity-75">Text Post</p>
                     <p className="text-xs opacity-50">
-                      Click to view full size
+                      No media content
                     </p>
                   </div>
                 )}
