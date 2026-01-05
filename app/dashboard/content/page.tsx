@@ -86,7 +86,7 @@ import {
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
 import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
-import { useState as useReactState, useRef } from "react";
+import { useRef } from "react";
 
 export default function ContentPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -380,62 +380,136 @@ export default function ContentPage() {
     return contentType === "video" ? Video : ImageIcon;
   };
 
-  const getContentPreview = (post: any) => {
-    const contentType = getContentType(post);
+  // Component for video preview with hover-to-play
+  const VideoPreviewCard = ({ post }: { post: any }) => {
+    const [isHovered, setIsHovered] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
     const fileUrl = getFileUrl(post.video_url);
     const thumbnailUrl = getThumbnailUrl(post.video_url) || fileUrl;
-    
-    if (contentType === "video") {
-      return (
-        <div className="relative">
-          <img
-            src={thumbnailUrl || "/placeholder.svg"}
-            alt={post.title}
-            className="w-full h-48 object-cover cursor-pointer"
-            onClick={() => openVideoPreview(post)}
-            onError={(e) => {
-              e.currentTarget.src = '/placeholder.svg'
-            }}
+
+    const handleMouseEnter = () => {
+      setIsHovered(true);
+      if (videoRef.current && fileUrl) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(() => {
+          // Auto-play failed, show thumbnail instead
+        });
+        setIsPlaying(true);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setIsHovered(false);
+      if (videoRef.current) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+
+    const handleClick = () => {
+      openVideoPreview(post);
+    };
+
+    return (
+      <div
+        className="relative w-full h-48 bg-black overflow-hidden group cursor-pointer"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+      >
+        {/* Video element */}
+        {fileUrl && (
+          <video
+            ref={videoRef}
+            src={fileUrl}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              isPlaying && isHovered ? 'opacity-100' : 'opacity-0'
+            }`}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onError={() => setIsPlaying(false)}
           />
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => openVideoPreview(post)}
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Preview
-            </Button>
+        )}
+        
+        {/* Thumbnail overlay */}
+        <img
+          src={thumbnailUrl || "/placeholder.svg"}
+          alt={post.title}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+            isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
+          }`}
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder.svg';
+          }}
+        />
+
+        {/* Play button overlay */}
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="bg-white/90 rounded-full p-3 shadow-lg">
+            <Play className="w-6 h-6 text-black" fill="black" />
           </div>
-          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+        </div>
+
+        {/* Duration badge */}
+        {post.duration && (
+          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
             {post.duration}
           </div>
+        )}
+
+        {/* Video type indicator */}
+        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+          <Video className="w-3 h-3" />
+          <span>Video</span>
         </div>
-      );
-    } else if (contentType === "image") {
-      return (
-        <div className="relative">
-          <img
-            src={fileUrl || "/placeholder.svg"}
-            alt={post.title}
-            className="w-full h-48 object-cover cursor-pointer"
-            onClick={() => openVideoPreview(post)}
-            onError={(e) => {
-              e.currentTarget.src = '/placeholder.svg'
-            }}
-          />
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => openVideoPreview(post)}
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              View
-            </Button>
+      </div>
+    );
+  };
+
+  // Component for image preview
+  const ImagePreviewCard = ({ post }: { post: any }) => {
+    const fileUrl = getFileUrl(post.video_url);
+
+    return (
+      <div
+        className="relative w-full h-48 bg-muted overflow-hidden group cursor-pointer"
+        onClick={() => openVideoPreview(post)}
+      >
+        <img
+          src={fileUrl || "/placeholder.svg"}
+          alt={post.title}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder.svg';
+          }}
+        />
+
+        {/* View button overlay */}
+        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="bg-white/90 rounded-full p-3 shadow-lg">
+            <Eye className="w-6 h-6 text-black" />
           </div>
         </div>
-      );
+
+        {/* Image type indicator */}
+        <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+          <ImageIcon className="w-3 h-3" />
+          <span>Image</span>
+        </div>
+      </div>
+    );
+  };
+
+  const getContentPreview = (post: any) => {
+    const contentType = getContentType(post);
+    
+    if (contentType === "video") {
+      return <VideoPreviewCard post={post} />;
+    } else if (contentType === "image") {
+      return <ImagePreviewCard post={post} />;
     } else {
       return (
         <div className="w-full h-48 bg-muted flex items-center justify-center">
@@ -1008,20 +1082,41 @@ export default function ContentPage() {
                             >
                               <TableCell>
                                 <div className="flex items-center gap-3">
-                                  <div className="relative w-16 h-12 rounded overflow-hidden">
-                                    <img
-                                      src={
-                                        getThumbnailUrl(video.video_url) ||
-                                        getFileUrl(video.thumbnail_url) ||
-                                        getFileUrl(video.video_url) ||
-                                        "/placeholder.svg"
-                                      }
-                                      alt={video.title}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        e.currentTarget.src = '/placeholder.svg'
-                                      }}
-                                    />
+                                  <div 
+                                    className="relative w-16 h-12 rounded overflow-hidden cursor-pointer group"
+                                    onClick={() => openVideoPreview(video)}
+                                  >
+                                    {getContentType(video) === "video" ? (
+                                      <>
+                                        <img
+                                          src={
+                                            getThumbnailUrl(video.video_url) ||
+                                            getFileUrl(video.video_url) ||
+                                            "/placeholder.svg"
+                                          }
+                                          alt={video.title}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            e.currentTarget.src = '/placeholder.svg'
+                                          }}
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <Play className="w-4 h-4 text-white" />
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <img
+                                        src={
+                                          getFileUrl(video.video_url) ||
+                                          "/placeholder.svg"
+                                        }
+                                        alt={video.title}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          e.currentTarget.src = '/placeholder.svg'
+                                        }}
+                                      />
+                                    )}
                                     <div className="absolute top-1 left-1">
                                       {getContentIcon(video) === Video ? (
                                         <Video className="w-3 h-3 text-white bg-black/50 rounded" />
