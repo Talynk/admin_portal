@@ -21,7 +21,7 @@ const mockReports = {
       nextRun: "2024-03-17T09:00:00Z",
       lastRun: "2024-03-10T09:00:00Z",
       status: "active",
-      recipients: ["admin@talynk.com", "analytics@talynk.com"],
+      recipients: ["admin@Talentix.com", "analytics@Talentix.com"],
     },
     {
       id: "R002",
@@ -31,7 +31,7 @@ const mockReports = {
       nextRun: "2024-04-01T08:00:00Z",
       lastRun: "2024-03-01T08:00:00Z",
       status: "active",
-      recipients: ["moderation@talynk.com"],
+      recipients: ["moderation@Talentix.com"],
     },
     {
       id: "R003",
@@ -41,7 +41,7 @@ const mockReports = {
       nextRun: "2024-03-17T06:00:00Z",
       lastRun: "2024-03-16T06:00:00Z",
       status: "paused",
-      recipients: ["security@talynk.com", "admin@talynk.com"],
+      recipients: ["security@Talentix.com", "admin@Talentix.com"],
     },
   ],
   generated: [

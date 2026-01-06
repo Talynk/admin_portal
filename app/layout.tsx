@@ -9,7 +9,7 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Talynk Admin Portal",
+  title: "Talentix Admin Portal",
   description: "Social Media Platform Administration",
 }
 
@@ -27,7 +27,7 @@ export default function RootLayout({
             defaultTheme="system"
             enableSystem
             disableTransitionOnChange
-            storageKey="talynk-theme"
+            storageKey="Talentix-theme"
           >
             <AuthProvider>{children}</AuthProvider>
           </ThemeProvider>

@@ -66,7 +66,7 @@ export default function LoginPage() {
           </div>
           <div>
             <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Talynk Admin Portal
+              Talentix Admin Portal
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
               Sign in to manage your social media platform
@@ -82,7 +82,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@talynk.com"
+                placeholder="admin@Talentix.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

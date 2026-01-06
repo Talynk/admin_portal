@@ -1,16 +1,20 @@
 "use client"
 
+import { useState } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle, Image as ImageIcon } from "lucide-react"
 import { useDashboard } from "@/hooks/use-dashboard"
-import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
+import { getFileUrl } from "@/lib/file-utils"
 
 export default function DashboardPage() {
   const { stats, loading, error, refetch } = useDashboard()
+  const [selectedPost, setSelectedPost] = useState<any>(null)
+  const [postDialogOpen, setPostDialogOpen] = useState(false)
 
   return (
     <ProtectedRoute>
@@ -209,7 +213,14 @@ export default function DashboardPage() {
                     const isVideo = post.type === 'video';
                     
                     return (
-                      <div key={post.id} className="flex items-center space-x-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                      <div 
+                        key={post.id} 
+                        className="flex items-center space-x-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setSelectedPost(post)
+                          setPostDialogOpen(true)
+                        }}
+                      >
                         {videoUrl ? (
                           <div className="relative w-16 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center overflow-hidden group">
                             {isImage ? (
@@ -226,50 +237,8 @@ export default function DashboardPage() {
                                 }}
                               />
                             ) : isVideo ? (
-                              // Video content - use video element with poster for thumbnail extraction
+                              // Video content - use video URL directly as thumbnail (canvas extraction causes CORS issues)
                               <>
-                                <video
-                                  src={fileUrl || undefined}
-                                  className="w-full h-full object-cover"
-                                  preload="metadata"
-                                  muted
-                                  playsInline
-                                  onLoadedMetadata={(e) => {
-                                    // Try to capture first frame as thumbnail
-                                    const video = e.currentTarget;
-                                    if (video && video.readyState >= 2) {
-                                      try {
-                                        const canvas = document.createElement('canvas');
-                                        canvas.width = video.videoWidth || 320;
-                                        canvas.height = video.videoHeight || 240;
-                                        const ctx = canvas.getContext('2d');
-                                        if (ctx) {
-                                          video.currentTime = 0.1; // Seek to first frame
-                                          setTimeout(() => {
-                                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                                            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                                            // Update the thumbnail
-                                            const img = video.parentElement?.querySelector('img');
-                                            if (img && dataUrl) {
-                                              img.src = dataUrl;
-                                            }
-                                          }, 100);
-                                        }
-                                      } catch (err) {
-                                        console.error('Error extracting video thumbnail:', err);
-                                      }
-                                    }
-                                  }}
-                                  onError={() => {
-                                    // If video fails, show placeholder
-                                    const container = document.querySelector(`[data-post-id="${post.id}"]`);
-                                    if (container) {
-                                      const img = container.querySelector('img');
-                                      if (img) img.src = '/placeholder.svg';
-                                    }
-                                  }}
-                                  style={{ display: 'none' }}
-                                />
                                 <img 
                                   src={fileUrl || '/placeholder.svg'} 
                                   alt={post.title || 'Video thumbnail'} 
@@ -334,7 +303,15 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <Badge variant={post.status === "approved" || post.status === "active" ? "default" : post.status === "pending" ? "secondary" : "destructive"}>
+                        <Badge variant={
+                          post.status === "approved" || post.status === "active" 
+                            ? "default" 
+                            : post.status === "pending" 
+                            ? "secondary" 
+                            : post.status === "draft"
+                            ? "outline"
+                            : "destructive"
+                        }>
                           {post.status || "pending"}
                         </Badge>
                         {post.is_featured && (
@@ -404,6 +381,131 @@ export default function DashboardPage() {
             </Card>
           </div>
         </div>
+
+        {/* Post Details Dialog */}
+        <Dialog open={postDialogOpen} onOpenChange={setPostDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedPost?.title || "Post Details"}</DialogTitle>
+              <DialogDescription>
+                Content ID: {selectedPost?.id}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedPost && (
+              <div className="space-y-4">
+                {/* Media Preview */}
+                <div className="aspect-video bg-black rounded-lg flex items-center justify-center overflow-hidden">
+                  {selectedPost.type === "video" ? (
+                    <video
+                      src={getFileUrl(selectedPost.video_url) || undefined}
+                      controls
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        console.error('Video load error:', e)
+                      }}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : selectedPost.type === "image" ? (
+                    <img
+                      src={getFileUrl(selectedPost.video_url) || '/placeholder.svg'}
+                      alt={selectedPost.title}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.src = '/placeholder.svg'
+                      }}
+                    />
+                  ) : (
+                    <div className="text-white text-center">
+                      <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p className="text-sm opacity-75">Text Post</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Post Information */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p>
+                      <strong>Creator:</strong> @{selectedPost.user?.username || "unknown"}
+                    </p>
+                    <p>
+                      <strong>Upload Date:</strong>{" "}
+                      {selectedPost.uploadDate || selectedPost.createdAt
+                        ? new Date(selectedPost.uploadDate || selectedPost.createdAt).toLocaleDateString()
+                        : "N/A"}
+                    </p>
+                    <p>
+                      <strong>Status:</strong>{" "}
+                      <Badge variant={
+                        selectedPost.status === "approved" || selectedPost.status === "active" 
+                          ? "default" 
+                          : selectedPost.status === "pending" 
+                          ? "secondary" 
+                          : selectedPost.status === "draft"
+                          ? "outline"
+                          : "destructive"
+                      }>
+                        {selectedPost.status || "pending"}
+                      </Badge>
+                    </p>
+                    {selectedPost.category && (
+                      <p>
+                        <strong>Category:</strong> {selectedPost.category.name}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p>
+                      <strong>Views:</strong> {selectedPost.views?.toLocaleString() || 0}
+                    </p>
+                    <p>
+                      <strong>Likes:</strong> {selectedPost.likes?.toLocaleString() || 0}
+                    </p>
+                    <p>
+                      <strong>Comments:</strong> {selectedPost.comment_count || 0}
+                    </p>
+                    <p>
+                      <strong>Shares:</strong> {selectedPost.shares || 0}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedPost.description && (
+                  <div>
+                    <p className="text-sm font-medium mb-1">Description:</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedPost.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Badges */}
+                <div className="flex flex-wrap gap-2">
+                  {selectedPost.is_featured && (
+                    <Badge variant="outline">Featured</Badge>
+                  )}
+                  {selectedPost.is_frozen && (
+                    <Badge variant="destructive">Frozen</Badge>
+                  )}
+                  {selectedPost.type === "video" && (
+                    <Badge variant="secondary">
+                      <Video className="w-3 h-3 mr-1" />
+                      Video
+                    </Badge>
+                  )}
+                  {selectedPost.type === "image" && (
+                    <Badge variant="secondary">
+                      <ImageIcon className="w-3 h-3 mr-1" />
+                      Image
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </ProtectedRoute>
   )

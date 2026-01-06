@@ -15,7 +15,7 @@ import { Settings, Shield, Bell, Key, Save, CheckCircle } from "lucide-react"
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
     platform: {
-      siteName: "Talynk",
+      siteName: "Talentix",
       siteDescription: "The next generation social media platform",
       maintenanceMode: false,
       registrationEnabled: true,

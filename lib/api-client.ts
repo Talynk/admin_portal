@@ -20,7 +20,7 @@ class ApiClient {
   constructor(baseURL: string) {
     this.baseURL = baseURL
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('talynk_admin_token')
+      this.token = localStorage.getItem('Talentix_admin_token')
     }
   }
 
@@ -30,7 +30,7 @@ class ApiClient {
 
   refreshToken() {
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('talynk_admin_token')
+      this.token = localStorage.getItem('Talentix_admin_token')
     }
   }
 
@@ -98,8 +98,8 @@ class ApiClient {
       const { accessToken, user } = response.data as { accessToken: string; user: any }
       this.setToken(accessToken)
       if (typeof window !== 'undefined') {
-        localStorage.setItem('talynk_admin_token', accessToken)
-        localStorage.setItem('talynk_admin_user', JSON.stringify(user))
+        localStorage.setItem('Talentix_admin_token', accessToken)
+        localStorage.setItem('Talentix_admin_user', JSON.stringify(user))
       }
     }
 
@@ -109,8 +109,8 @@ class ApiClient {
   async logout() {
     this.token = null
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('talynk_admin_token')
-      localStorage.removeItem('talynk_admin_user')
+      localStorage.removeItem('Talentix_admin_token')
+      localStorage.removeItem('Talentix_admin_user')
     }
   }
 
