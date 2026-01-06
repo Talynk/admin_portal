@@ -20,7 +20,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
               <p className="text-muted-foreground">
-                Welcome to the Talynk Admin Portal. Monitor and manage your social media platform.
+                Welcome to the Talentix Admin Portal. Monitor and manage your social media platform.
               </p>
             </div>
             {error && (
@@ -202,37 +202,110 @@ export default function DashboardPage() {
                     <span className="text-muted-foreground">Loading recent content...</span>
                   </div>
                 ) : stats?.recentContent && stats.recentContent.length > 0 ? (
-                  stats.recentContent.map((post: any) => (
-                    <div key={post.id} className="flex items-center space-x-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                      {post.video_url || post.type === 'image' ? (
-                        <div className="w-16 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center overflow-hidden">
-                          {post.type === 'image' && post.video_url ? (
-                            <img 
-                              src={getFileUrl(post.video_url) || '/placeholder.svg'} 
-                              alt={post.title} 
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = '/placeholder.svg'
-                              }}
-                            />
-                          ) : post.video_url ? (
-                            <img 
-                              src={getThumbnailUrl(post.video_url) || getFileUrl(post.video_url) || '/placeholder.svg'} 
-                              alt={post.title} 
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = '/placeholder.svg'
-                              }}
-                            />
-                          ) : (
-                            <Video className="w-6 h-6 text-white" />
-                          )}
-                        </div>
-                      ) : (
-                        <div className="w-16 h-12 bg-gradient-to-br from-gray-500 to-gray-600 rounded-md flex items-center justify-center">
-                          <MessageSquare className="w-6 h-6 text-white" />
-                        </div>
-                      )}
+                  stats.recentContent.map((post: any) => {
+                    const videoUrl = post.video_url || post.fullUrl || post.file_url;
+                    const fileUrl = getFileUrl(videoUrl);
+                    const isImage = post.type === 'image';
+                    const isVideo = post.type === 'video';
+                    
+                    return (
+                      <div key={post.id} className="flex items-center space-x-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                        {videoUrl ? (
+                          <div className="relative w-16 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center overflow-hidden group">
+                            {isImage ? (
+                              // Image content
+                              <img 
+                                src={fileUrl || '/placeholder.svg'} 
+                                alt={post.title || 'Image'} 
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  if (e.currentTarget.src !== '/placeholder.svg') {
+                                    e.currentTarget.src = '/placeholder.svg'
+                                  }
+                                }}
+                              />
+                            ) : isVideo ? (
+                              // Video content - use video element with poster for thumbnail extraction
+                              <>
+                                <video
+                                  src={fileUrl || undefined}
+                                  className="w-full h-full object-cover"
+                                  preload="metadata"
+                                  muted
+                                  playsInline
+                                  onLoadedMetadata={(e) => {
+                                    // Try to capture first frame as thumbnail
+                                    const video = e.currentTarget;
+                                    if (video && video.readyState >= 2) {
+                                      try {
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = video.videoWidth || 320;
+                                        canvas.height = video.videoHeight || 240;
+                                        const ctx = canvas.getContext('2d');
+                                        if (ctx) {
+                                          video.currentTime = 0.1; // Seek to first frame
+                                          setTimeout(() => {
+                                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                                            // Update the thumbnail
+                                            const img = video.parentElement?.querySelector('img');
+                                            if (img && dataUrl) {
+                                              img.src = dataUrl;
+                                            }
+                                          }, 100);
+                                        }
+                                      } catch (err) {
+                                        console.error('Error extracting video thumbnail:', err);
+                                      }
+                                    }
+                                  }}
+                                  onError={() => {
+                                    // If video fails, show placeholder
+                                    const container = document.querySelector(`[data-post-id="${post.id}"]`);
+                                    if (container) {
+                                      const img = container.querySelector('img');
+                                      if (img) img.src = '/placeholder.svg';
+                                    }
+                                  }}
+                                  style={{ display: 'none' }}
+                                />
+                                <img 
+                                  src={fileUrl || '/placeholder.svg'} 
+                                  alt={post.title || 'Video thumbnail'} 
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  data-post-id={post.id}
+                                  onError={(e) => {
+                                    if (e.currentTarget.src !== '/placeholder.svg') {
+                                      e.currentTarget.src = '/placeholder.svg'
+                                    }
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                  <Video className="w-4 h-4 text-white" />
+                                </div>
+                              </>
+                            ) : (
+                              // Fallback for unknown type
+                              <img 
+                                src={fileUrl || '/placeholder.svg'} 
+                                alt={post.title || 'Content'} 
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  if (e.currentTarget.src !== '/placeholder.svg') {
+                                    e.currentTarget.src = '/placeholder.svg'
+                                  }
+                                }}
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-16 h-12 bg-gradient-to-br from-gray-500 to-gray-600 rounded-md flex items-center justify-center">
+                            <MessageSquare className="w-6 h-6 text-white" />
+                          </div>
+                        )}
                       <div className="flex-1 space-y-1">
                         <p className="text-sm font-medium leading-none">{post.title || "Untitled Post"}</p>
                         <p className="text-sm text-muted-foreground">@{post.user?.username || "unknown"}</p>
@@ -261,7 +334,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <Badge variant={post.status === "approved" ? "default" : post.status === "pending" ? "secondary" : "destructive"}>
+                        <Badge variant={post.status === "approved" || post.status === "active" ? "default" : post.status === "pending" ? "secondary" : "destructive"}>
                           {post.status || "pending"}
                         </Badge>
                         {post.is_featured && (
@@ -272,7 +345,8 @@ export default function DashboardPage() {
                         )}
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-8">
                     <Video className="mx-auto h-12 w-12 text-muted-foreground" />

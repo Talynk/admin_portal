@@ -154,11 +154,11 @@ export default function ContentPage() {
           case "rejected":
             return video.status === "rejected";
           case "frozen":
-            return video.status === "frozen" || video.frozen === true || video.is_frozen === true;
+            return (video as any).is_frozen === true || (video as any).frozen === true;
           case "flagged":
-            return video.flagged === true || video.is_flagged === true;
+            return (video as any).flagged === true;
           case "featured":
-            return video.featured === true || video.is_featured === true;
+            return (video as any).is_featured === true || (video as any).featured === true;
           case "ai-flagged":
             return video.aiModeration?.flagged === true;
           default:
@@ -349,8 +349,8 @@ export default function ContentPage() {
   };
 
   const getContentType = (post: any) => {
-    // Get the actual media URL from any possible field
-    const mediaUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url || '';
+    // Get the actual media URL from any possible field (prioritize video_url from API)
+    const mediaUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url || post.fullUrl || '';
     
     // Check if it's a video based on file extension or type
     if (
@@ -395,16 +395,12 @@ export default function ContentPage() {
     const [imageLoading, setImageLoading] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
     
-    // Try multiple possible field names for video URL
-    const videoUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url;
+    // Try multiple possible field names for video URL (prioritize video_url from API)
+    const videoUrl = post.video_url || post.fullUrl || post.file_url || post.mediaUrl || post.fileUrl || post.url;
     const fileUrl = getFileUrl(videoUrl);
     
-    // Try multiple possible thumbnail sources (prioritize API thumbnail_url)
-    const thumbnailUrl = 
-      getFileUrl(post.thumbnail_url) || 
-      getFileUrl(post.thumbnail) || 
-      getThumbnailUrl(videoUrl) || 
-      fileUrl; // Fallback to video itself for poster
+    // Use video_url as thumbnail source (thumbnail fields are empty)
+    const thumbnailUrl = fileUrl; // Use video_url directly as thumbnail
 
     const handleMouseEnter = () => {
       setIsHovered(true);
@@ -545,12 +541,12 @@ export default function ContentPage() {
     const [imageError, setImageError] = useState(false);
     const [imageLoading, setImageLoading] = useState(true);
     
-    // Try multiple possible field names for image URL
-    const imageUrl = post.video_url || post.file_url || post.image_url || post.mediaUrl || post.fileUrl || post.url;
+    // Try multiple possible field names for image URL (prioritize video_url from API)
+    const imageUrl = post.video_url || post.fullUrl || post.file_url || post.image_url || post.mediaUrl || post.fileUrl || post.url;
     const fileUrl = getFileUrl(imageUrl);
     
-    // Try to get thumbnail if available (for large images)
-    const thumbnailUrl = getFileUrl(post.thumbnail_url) || getFileUrl(post.thumbnail) || fileUrl;
+    // Use video_url as thumbnail source (thumbnail fields are empty)
+    const thumbnailUrl = fileUrl; // Use video_url directly as thumbnail
 
     const handleImageLoad = () => {
       setImageLoading(false);
@@ -770,9 +766,7 @@ export default function ContentPage() {
                     ? "..."
                     : videos.filter(
                         (v) =>
-                          v.status === "frozen" ||
-                          v.frozen === true ||
-                          v.is_frozen === true
+                          (v as any).is_frozen === true || (v as any).frozen === true
                       ).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Frozen posts</p>
@@ -787,7 +781,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => v.flagged || v.is_flagged).length}
+                  {loading ? "..." : videos.filter((v) => (v as any).flagged === true).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Needs review</p>
               </CardContent>
@@ -801,7 +795,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => v.featured).length}
+                  {loading ? "..." : videos.filter((v) => (v as any).is_featured === true || (v as any).featured === true).length}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Highlighted content
@@ -971,7 +965,7 @@ export default function ContentPage() {
                         >
                           <div className="relative">
                             {getContentPreview(video)}
-                            {video.flagged && (
+                            {(video as any).flagged && (
                               <div className="absolute top-2 left-2">
                                 <Badge className="bg-red-500 text-white">
                                   <Flag className="w-3 h-3 mr-1" />
@@ -979,7 +973,7 @@ export default function ContentPage() {
                                 </Badge>
                               </div>
                             )}
-                            {video.featured && (
+                            {(video as any).is_featured && (
                               <div className="absolute top-2 right-2">
                                 <Badge className="bg-yellow-500 text-white">
                                   <Star className="w-3 h-3 mr-1" />
@@ -1075,7 +1069,7 @@ export default function ContentPage() {
                                       </DropdownMenuItem>
                                     </>
                                   )}
-                                  {video.frozen ? (
+                                  {(video as any).frozen || (video as any).is_frozen ? (
                                     <DropdownMenuItem
                                       className="text-blue-600"
                                       onClick={() =>
@@ -1097,7 +1091,7 @@ export default function ContentPage() {
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuSeparator />
-                                  {video.featured ? (
+                                  {(video as any).is_featured || (video as any).featured ? (
                                     <DropdownMenuItem
                                       className="text-yellow-600"
                                       onClick={() =>
@@ -1157,8 +1151,8 @@ export default function ContentPage() {
                             <div className="flex items-center justify-between mb-3">
                               {getStatusBadge(
                                 video.status,
-                                video.frozen,
-                                video.is_frozen
+                                (video as any).frozen,
+                                (video as any).is_frozen
                               )}
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
@@ -1247,10 +1241,7 @@ export default function ContentPage() {
                                       <>
                                         <img
                                           src={
-                                            getFileUrl(video.thumbnail_url) ||
-                                            getFileUrl(video.thumbnail) ||
-                                            getThumbnailUrl(video.video_url || video.file_url) ||
-                                            getFileUrl(video.video_url || video.file_url) ||
+                                            getFileUrl((video as any).video_url || (video as any).fullUrl || video.file_url) ||
                                             "/placeholder.svg"
                                           }
                                           alt={video.title || video.caption || 'Video thumbnail'}
@@ -1269,9 +1260,7 @@ export default function ContentPage() {
                                     ) : (
                                       <img
                                         src={
-                                          getFileUrl(video.thumbnail_url) ||
-                                          getFileUrl(video.thumbnail) ||
-                                          getFileUrl(video.video_url || video.file_url || video.image_url) ||
+                                          getFileUrl((video as any).video_url || (video as any).fullUrl || video.file_url || (video as any).image_url) ||
                                           "/placeholder.svg"
                                         }
                                         alt={video.title || video.caption || 'Image'}
@@ -1291,14 +1280,14 @@ export default function ContentPage() {
                                         <ImageIcon className="w-3 h-3 text-white bg-black/50 rounded" />
                                       )}
                                     </div>
-                                    {video.flagged && (
+                                    {(video as any).flagged && (
                                       <div className="absolute top-1 left-1">
                                         <Badge className="bg-red-500 text-white text-xs px-1 py-0">
                                           <Flag className="w-2 h-2 mr-1" />
                                         </Badge>
                                       </div>
                                     )}
-                                    {video.featured && (
+                                    {(video as any).is_featured && (
                                       <div className="absolute top-1 right-1">
                                         <Badge className="bg-yellow-500 text-white text-xs px-1 py-0">
                                           <Star className="w-2 h-2 mr-1" />
@@ -1350,14 +1339,15 @@ export default function ContentPage() {
                                 <div className="flex flex-col gap-1">
                                   {getStatusBadge(
                                     video.status,
-                                    video.frozen || false
+                                    (video as any).frozen,
+                                    (video as any).is_frozen
                                   )}
-                                  {video.featured && (
-                                    <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                                      <Star className="w-3 h-3 mr-1" />
-                                      Featured
-                                    </Badge>
-                                  )}
+                                    {(video as any).is_featured && (
+                                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                                        <Star className="w-3 h-3 mr-1" />
+                                        Featured
+                                      </Badge>
+                                    )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1454,7 +1444,7 @@ export default function ContentPage() {
                                         </DropdownMenuItem>
                                       </>
                                     )}
-                                    {video.frozen ? (
+                                    {(video as any).frozen || (video as any).is_frozen ? (
                                       <DropdownMenuItem
                                         className="text-blue-600"
                                         onClick={() =>
@@ -1476,7 +1466,7 @@ export default function ContentPage() {
                                       </DropdownMenuItem>
                                     )}
                                     <DropdownMenuSeparator />
-                                    {video.featured ? (
+                                    {(video as any).is_featured || (video as any).featured ? (
                                       <DropdownMenuItem
                                         className="text-yellow-600"
                                         onClick={() =>
@@ -1624,7 +1614,7 @@ export default function ContentPage() {
               <div className="aspect-video bg-black rounded-lg flex items-center justify-center overflow-hidden">
                 {selectedVideo && getContentType(selectedVideo) === "video" ? (
                   <video
-                    src={getFileUrl(selectedVideo.video_url || selectedVideo.file_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || undefined}
+                    src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl || selectedVideo.file_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || undefined}
                     controls
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -1635,7 +1625,7 @@ export default function ContentPage() {
                   </video>
                 ) : selectedVideo && getContentType(selectedVideo) === "image" ? (
                   <img
-                    src={getFileUrl(selectedVideo.video_url || selectedVideo.file_url || selectedVideo.image_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || '/placeholder.svg'}
+                    src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl || selectedVideo.file_url || (selectedVideo as any).image_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || '/placeholder.svg'}
                     alt={selectedVideo.title}
                     className="w-full h-full object-contain"
                     onError={(e) => {
