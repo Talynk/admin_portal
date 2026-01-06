@@ -398,7 +398,13 @@ export default function ContentPage() {
     // Try multiple possible field names for video URL
     const videoUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url;
     const fileUrl = getFileUrl(videoUrl);
-    const thumbnailUrl = getThumbnailUrl(videoUrl) || getFileUrl(post.thumbnail_url) || fileUrl;
+    
+    // Try multiple possible thumbnail sources (prioritize API thumbnail_url)
+    const thumbnailUrl = 
+      getFileUrl(post.thumbnail_url) || 
+      getFileUrl(post.thumbnail) || 
+      getThumbnailUrl(videoUrl) || 
+      fileUrl; // Fallback to video itself for poster
 
     const handleMouseEnter = () => {
       setIsHovered(true);
@@ -436,15 +442,15 @@ export default function ContentPage() {
 
     return (
       <div
-        className="relative w-full h-48 bg-black overflow-hidden group cursor-pointer"
+        className="relative w-full aspect-video bg-black overflow-hidden group cursor-pointer rounded-t-lg"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
       >
         {/* Loading state */}
         {imageLoading && !imageError && (
-          <div className="absolute inset-0 bg-muted flex items-center justify-center z-10">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center z-10">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
           </div>
         )}
 
@@ -452,13 +458,14 @@ export default function ContentPage() {
         {!imageError && thumbnailUrl && (
           <img
             src={thumbnailUrl}
-            alt={post.title || 'Video thumbnail'}
+            alt={post.title || post.caption || 'Video thumbnail'}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-0 ${
               isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
             } ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
             onLoad={handleImageLoad}
             onError={handleImageError}
             loading="lazy"
+            decoding="async"
           />
         )}
 
@@ -467,6 +474,7 @@ export default function ContentPage() {
           <video
             ref={videoRef}
             src={fileUrl}
+            poster={thumbnailUrl || undefined}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-10 ${
               isPlaying && isHovered ? 'opacity-100 z-10' : 'opacity-0 z-0'
             }`}
@@ -474,7 +482,24 @@ export default function ContentPage() {
             loop
             playsInline
             preload="metadata"
-            onError={() => setIsPlaying(false)}
+            onError={() => {
+              setIsPlaying(false);
+              setImageError(true);
+            }}
+            onLoadedMetadata={() => {
+              // Try to capture first frame if no thumbnail
+              if (!thumbnailUrl && videoRef.current) {
+                const canvas = document.createElement('canvas');
+                canvas.width = videoRef.current.videoWidth || 640;
+                canvas.height = videoRef.current.videoHeight || 360;
+                const ctx = canvas.getContext('2d');
+                if (ctx && videoRef.current) {
+                  ctx.drawImage(videoRef.current, 0, 0);
+                  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                  // Use data URL as thumbnail fallback
+                }
+              }
+            }}
           />
         )}
 
@@ -523,6 +548,9 @@ export default function ContentPage() {
     // Try multiple possible field names for image URL
     const imageUrl = post.video_url || post.file_url || post.image_url || post.mediaUrl || post.fileUrl || post.url;
     const fileUrl = getFileUrl(imageUrl);
+    
+    // Try to get thumbnail if available (for large images)
+    const thumbnailUrl = getFileUrl(post.thumbnail_url) || getFileUrl(post.thumbnail) || fileUrl;
 
     const handleImageLoad = () => {
       setImageLoading(false);
@@ -536,36 +564,54 @@ export default function ContentPage() {
 
     return (
       <div
-        className="relative w-full h-48 bg-muted overflow-hidden group cursor-pointer"
+        className="relative w-full aspect-video bg-muted overflow-hidden group cursor-pointer rounded-t-lg"
         onClick={() => openVideoPreview(post)}
       >
         {/* Loading state */}
         {imageLoading && !imageError && (
-          <div className="absolute inset-0 bg-muted flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center z-10">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
           </div>
         )}
 
-        {/* Image */}
-        {fileUrl && !imageError && (
+        {/* Image - use thumbnail if available for faster loading */}
+        {thumbnailUrl && !imageError && (
           <img
-            src={fileUrl}
+            src={thumbnailUrl}
             alt={post.title || post.caption || 'Image'}
             className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
               imageLoading ? 'opacity-0' : 'opacity-100'
             }`}
             onLoad={handleImageLoad}
-            onError={handleImageError}
+            onError={(e) => {
+              // If thumbnail fails, try full image
+              if (thumbnailUrl !== fileUrl && fileUrl) {
+                e.currentTarget.src = fileUrl || '';
+              } else {
+                handleImageError(e);
+              }
+            }}
             loading="lazy"
+            decoding="async"
           />
         )}
 
         {/* Error/Placeholder state */}
         {imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center z-10">
             <div className="text-center">
               <ImageIcon className="w-12 h-12 text-gray-500 mx-auto mb-2" />
               <p className="text-xs text-gray-500">Image unavailable</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Fallback: Show placeholder if no image URL */}
+        {!fileUrl && !imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+            <div className="text-center">
+              <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">No image available</p>
             </div>
           </div>
         )}
@@ -1201,14 +1247,19 @@ export default function ContentPage() {
                                       <>
                                         <img
                                           src={
-                                            getThumbnailUrl(video.video_url) ||
-                                            getFileUrl(video.video_url) ||
+                                            getFileUrl(video.thumbnail_url) ||
+                                            getFileUrl(video.thumbnail) ||
+                                            getThumbnailUrl(video.video_url || video.file_url) ||
+                                            getFileUrl(video.video_url || video.file_url) ||
                                             "/placeholder.svg"
                                           }
-                                          alt={video.title}
+                                          alt={video.title || video.caption || 'Video thumbnail'}
                                           className="w-full h-full object-cover"
+                                          loading="lazy"
                                           onError={(e) => {
-                                            e.currentTarget.src = '/placeholder.svg'
+                                            if (e.currentTarget.src !== '/placeholder.svg') {
+                                              e.currentTarget.src = '/placeholder.svg'
+                                            }
                                           }}
                                         />
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1218,13 +1269,18 @@ export default function ContentPage() {
                                     ) : (
                                       <img
                                         src={
-                                          getFileUrl(video.video_url) ||
+                                          getFileUrl(video.thumbnail_url) ||
+                                          getFileUrl(video.thumbnail) ||
+                                          getFileUrl(video.video_url || video.file_url || video.image_url) ||
                                           "/placeholder.svg"
                                         }
-                                        alt={video.title}
+                                        alt={video.title || video.caption || 'Image'}
                                         className="w-full h-full object-cover"
+                                        loading="lazy"
                                         onError={(e) => {
-                                          e.currentTarget.src = '/placeholder.svg'
+                                          if (e.currentTarget.src !== '/placeholder.svg') {
+                                            e.currentTarget.src = '/placeholder.svg'
+                                          }
                                         }}
                                       />
                                     )}

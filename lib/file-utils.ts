@@ -58,9 +58,19 @@ export function getThumbnailUrl(videoUrl: string | null | undefined): string | n
   const fileUrl = getFileUrl(videoUrl)
   if (!fileUrl) return null
   
-  // Thumbnails are typically stored with same name but .jpg extension
-  // Adjust based on your actual thumbnail naming convention
-  return fileUrl.replace(/\.(mp4|mov|avi|webm|mkv|flv)$/i, '.jpg')
+  // Try multiple thumbnail naming conventions
+  // 1. Same name with .jpg extension
+  const jpgThumbnail = fileUrl.replace(/\.(mp4|mov|avi|webm|mkv|flv)$/i, '.jpg')
+  
+  // 2. Same name with _thumb.jpg suffix
+  const thumbSuffix = fileUrl.replace(/\.(mp4|mov|avi|webm|mkv|flv)$/i, '_thumb.jpg')
+  
+  // 3. Same name with .png extension
+  const pngThumbnail = fileUrl.replace(/\.(mp4|mov|avi|webm|mkv|flv)$/i, '.png')
+  
+  // Return the first potential thumbnail (you can add validation if needed)
+  // For now, return jpg version as it's most common
+  return jpgThumbnail
 }
 
 /**
