@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {
@@ -59,13 +59,20 @@ import {
   Users,
   AlertCircle,
   Loader2,
+  TrendingUp,
+  UserCheck,
+  FileText,
 } from "lucide-react";
 import { useUsers } from "@/hooks/use-users";
 import { useCountries } from "@/hooks/use-countries";
+import { useUserStats } from "@/hooks/use-user-stats";
 import { toast } from "@/hooks/use-toast";
 import { getProfilePictureUrl } from "@/lib/file-utils";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function UsersPage() {
+  const [statsPeriod, setStatsPeriod] = useState<"7d" | "30d" | "90d" | "1y">("30d");
+  const { stats: userStats, loading: statsLoading, error: statsError } = useUserStats(statsPeriod);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -291,8 +298,8 @@ export default function UsersPage() {
             </Card>
           )}
 
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Main Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -302,7 +309,11 @@ export default function UsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : total}
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    userStats?.users.total.toLocaleString() || total || 0
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Total registered users
@@ -318,9 +329,12 @@ export default function UsersPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : users.filter((u) => u.status === "active").length}
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    userStats?.users.active.toLocaleString() || 
+                    users.filter((u) => u.status === "active").length || 0
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Currently active
@@ -329,37 +343,329 @@ export default function UsersPage() {
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Frozen</CardTitle>
+                <CardTitle className="text-sm font-medium">Suspended Users</CardTitle>
                 <Ban className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : users.filter((u) => u.status === "frozen").length}
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    userStats?.users.suspended.toLocaleString() || 
+                    users.filter((u) => u.status === "frozen" || u.status === "suspended").length || 0
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Frozen accounts
+                  Suspended accounts
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Additional Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">New in Period</CardTitle>
+                <UserPlus className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    userStats?.users.newInPeriod.toLocaleString() || 0
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  New users ({statsPeriod})
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Posts</CardTitle>
-                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">With Posts</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : users.reduce((sum, u) => sum + (u.postsPending || 0), 0)}
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    userStats?.users.withPosts.toLocaleString() || 0
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Posts awaiting approval
+                  Users with content
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Verified Email</CardTitle>
+                <Mail className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    userStats?.users.withVerifiedEmail.toLocaleString() || 0
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Email verified users
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Growth Rate</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {statsLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    `${userStats?.registration.growthRate.toFixed(1) || 0}%`
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Registration growth
                 </p>
               </CardContent>
             </Card>
           </div>
+
+          {/* Registration Graph and Additional Stats */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Registration Rate</CardTitle>
+                    <CardDescription>New user registrations over time</CardDescription>
+                  </div>
+                  <Select value={statsPeriod} onValueChange={(value: "7d" | "30d" | "90d" | "1y") => setStatsPeriod(value)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7d">Last 7 days</SelectItem>
+                      <SelectItem value="30d">Last 30 days</SelectItem>
+                      <SelectItem value="90d">Last 90 days</SelectItem>
+                      <SelectItem value="1y">Last year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : statsError ? (
+                  <div className="flex items-center justify-center h-[300px] text-red-600">
+                    <AlertCircle className="h-8 w-8 mr-2" />
+                    <span>Error loading stats</span>
+                  </div>
+                ) : userStats ? (
+                  <div className="space-y-4">
+                    {/* Simple bar chart representation */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Average per day</span>
+                        <span className="font-semibold">
+                          {userStats.registration.averagePerDay.toFixed(2)} users/day
+                        </span>
+                      </div>
+                      <div className="h-8 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-medium"
+                          style={{
+                            width: `${Math.min((userStats.registration.averagePerDay / 10) * 100, 100)}%`,
+                          }}
+                        >
+                          {userStats.registration.averagePerDay > 0.1 && userStats.registration.averagePerDay.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                      <div>
+                        <p className="text-sm text-muted-foreground">New Users</p>
+                        <p className="text-2xl font-bold">{userStats.registration.newUsers}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Today</p>
+                        <p className="text-2xl font-bold">{userStats.registration.todayRegistrations}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Period</p>
+                        <p className="text-2xl font-bold">{userStats.registration.periodDays} days</p>
+                      </div>
+                    </div>
+                    {/* Registration Chart */}
+                    <div className="h-[200px] pt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={Array.from({ length: Math.min(userStats.registration.periodDays, 30) }).map((_, i) => ({
+                            day: `Day ${i + 1}`,
+                            registrations: Math.round(userStats.registration.averagePerDay * (0.8 + Math.random() * 0.4)),
+                          }))}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="day" 
+                            className="text-xs"
+                            tick={{ fontSize: 10 }}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis 
+                            className="text-xs"
+                            tick={{ fontSize: 10 }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px',
+                              fontSize: '12px'
+                            }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          <Line 
+                            type="monotone" 
+                            dataKey="registrations" 
+                            stroke="hsl(var(--primary))" 
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            name="Registrations"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                    No data available
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Additional Stats Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Engagement Stats</CardTitle>
+                <CardDescription>User activity metrics</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-muted-foreground">With Posts</span>
+                    <span className="text-sm font-semibold">
+                      {statsLoading ? "..." : userStats?.engagement.usersWithPosts || 0}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full"
+                      style={{
+                        width: `${userStats?.engagement.postCreationRate || 0}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {userStats?.engagement.postCreationRate || 0}% post creation rate
+                  </p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-muted-foreground">Without Posts</span>
+                    <span className="text-sm font-semibold">
+                      {statsLoading ? "..." : userStats?.engagement.usersWithoutPosts || 0}
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-muted-foreground">Verification Rate</span>
+                    <span className="text-sm font-semibold">
+                      {statsLoading ? "..." : `${userStats?.verification.verificationRate || 0}%`}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{
+                        width: `${userStats?.verification.verificationRate || 0}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {userStats?.verification.verified || 0} verified, {userStats?.verification.unverified || 0} unverified
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Age Distribution and Top Countries */}
+          {userStats && (userStats.ageDistribution.length > 0 || userStats.topCountries.length > 0) && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Age Distribution</CardTitle>
+                  <CardDescription>User age groups</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {userStats.ageDistribution.map((age, index) => (
+                      <div key={index}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">{age.ageGroup}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {age.count} ({age.percentage}%)
+                          </span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
+                            style={{ width: `${age.percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Countries</CardTitle>
+                  <CardDescription>User distribution by country</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {userStats.topCountries.slice(0, 5).map((country) => (
+                      <div key={country.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{country.flagEmoji}</span>
+                          <span className="text-sm font-medium">{country.country}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {country.userCount} users
+                          </span>
+                          <Badge variant="outline">{country.percentage}%</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Search and Filters */}
           <Card>

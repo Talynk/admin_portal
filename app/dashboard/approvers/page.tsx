@@ -607,7 +607,7 @@ export default function ApproversPage() {
                   type="email"
                   value={newApprover.email}
                   onChange={(e) => setNewApprover((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="approver5@Talentix.com"
+                  placeholder="approver5@talentix.com"
                 />
               </div>
 

@@ -28,7 +28,7 @@ const mockActivityLogs = [
   {
     id: "AL001",
     timestamp: "2024-03-16T14:30:00Z",
-    user: "admin@Talentix.com",
+    user: "admin@talentix.com",
     action: "user_suspended",
     target: "@suspicious_user",
     targetId: "U999",
@@ -41,7 +41,7 @@ const mockActivityLogs = [
   {
     id: "AL002",
     timestamp: "2024-03-16T14:15:00Z",
-    user: "moderator@Talentix.com",
+    user: "moderator@talentix.com",
     action: "content_approved",
     target: "Dance Tutorial",
     targetId: "V001",
@@ -54,7 +54,7 @@ const mockActivityLogs = [
   {
     id: "AL003",
     timestamp: "2024-03-16T13:45:00Z",
-    user: "admin@Talentix.com",
+    user: "admin@talentix.com",
     action: "settings_changed",
     target: "Platform Settings",
     targetId: "SETTINGS",
@@ -67,7 +67,7 @@ const mockActivityLogs = [
   {
     id: "AL004",
     timestamp: "2024-03-16T13:20:00Z",
-    user: "approver@Talentix.com",
+    user: "approver@talentix.com",
     action: "content_rejected",
     target: "Inappropriate Content",
     targetId: "V456",
@@ -80,7 +80,7 @@ const mockActivityLogs = [
   {
     id: "AL005",
     timestamp: "2024-03-16T12:55:00Z",
-    user: "admin@Talentix.com",
+    user: "admin@talentix.com",
     action: "user_created",
     target: "@new_creator",
     targetId: "U1001",
@@ -106,7 +106,7 @@ const mockActivityLogs = [
   {
     id: "AL007",
     timestamp: "2024-03-16T11:45:00Z",
-    user: "moderator@Talentix.com",
+    user: "moderator@talentix.com",
     action: "content_flagged",
     target: "Spam Video",
     targetId: "V789",

@@ -20,7 +20,7 @@ class ApiClient {
   constructor(baseURL: string) {
     this.baseURL = baseURL
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('Talentix_admin_token')
+      this.token = localStorage.getItem('talentix_admin_token')
     }
   }
 
@@ -30,7 +30,7 @@ class ApiClient {
 
   refreshToken() {
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('Talentix_admin_token')
+      this.token = localStorage.getItem('talentix_admin_token')
     }
   }
 
@@ -98,8 +98,8 @@ class ApiClient {
       const { accessToken, user } = response.data as { accessToken: string; user: any }
       this.setToken(accessToken)
       if (typeof window !== 'undefined') {
-        localStorage.setItem('Talentix_admin_token', accessToken)
-        localStorage.setItem('Talentix_admin_user', JSON.stringify(user))
+        localStorage.setItem('talentix_admin_token', accessToken)
+        localStorage.setItem('talentix_admin_user', JSON.stringify(user))
       }
     }
 
@@ -109,8 +109,8 @@ class ApiClient {
   async logout() {
     this.token = null
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('Talentix_admin_token')
-      localStorage.removeItem('Talentix_admin_user')
+      localStorage.removeItem('talentix_admin_token')
+      localStorage.removeItem('talentix_admin_user')
     }
   }
 
@@ -181,6 +181,16 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ id: userId, action: 'reactivate', reason }),
     })
+  }
+
+  async getUserStats(params?: {
+    period?: '7d' | '30d' | '90d' | '1y'
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.period) queryParams.append('period', params.period)
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/users/stats${queryString ? `?${queryString}` : ''}`)
   }
 
   // Posts Management Endpoints

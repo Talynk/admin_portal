@@ -29,8 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check for existing session
-    const token = localStorage.getItem("Talentix_admin_token")
-    const userData = localStorage.getItem("Talentix_admin_user")
+    const token = localStorage.getItem("talentix_admin_token")
+    const userData = localStorage.getItem("talentix_admin_user")
 
     if (token && userData) {
       try {
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         apiClient.setToken(token)
       } catch (error) {
         // Invalid user data, clear storage
-        localStorage.removeItem("Talentix_admin_token")
-        localStorage.removeItem("Talentix_admin_user")
+        localStorage.removeItem("talentix_admin_token")
+        localStorage.removeItem("talentix_admin_user")
       }
     }
 

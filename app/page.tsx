@@ -66,7 +66,7 @@ export default function LoginPage() {
           </div>
           <div>
             <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Talentix Admin Portal
+              talentix Admin Portal
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
               Sign in to manage your social media platform
@@ -82,7 +82,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@Talentix.com"
+                placeholder="admin@talentix.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
