@@ -392,18 +392,19 @@ class ApiClient {
     reason?: string
     expiresAt?: string
   }) {
-    return this.request(`/featured/posts/${postId}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        reason: data?.reason,
-        expiresAt: data?.expiresAt,
-      }),
+    // Use the simpler alternative endpoint that directly updates is_featured flag
+    // Note: This doesn't create a FeaturedPost entry or send notifications
+    return this.request(`/admin/posts/${postId}/featured`, {
+      method: 'PUT',
+      body: JSON.stringify({ featured: true }),
     })
   }
 
   async unfeaturePost(postId: string) {
-    return this.request(`/featured/posts/${postId}`, {
-      method: 'DELETE',
+    // Use the simpler alternative endpoint that directly updates is_featured flag
+    return this.request(`/admin/posts/${postId}/featured`, {
+      method: 'PUT',
+      body: JSON.stringify({ featured: false }),
     })
   }
 
