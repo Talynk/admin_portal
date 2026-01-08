@@ -134,6 +134,41 @@ export function useAnalytics(period: '7d' | '30d' | '90d' | '1y' = '30d'): UseAn
           }
         }) || []
 
+        // Calculate percentages for countries
+        const totalCountryUsers = analyticsData.topCountries?.reduce(
+          (sum: number, item: TopCountry) => sum + (item.user_count || 0),
+          0
+        ) || 0
+
+        const countriesWithPercentage = analyticsData.topCountries?.map((item: TopCountry) => {
+          // Use existing percentage if it's a valid number, otherwise calculate it
+          let percentage = typeof item.percentage === 'number' && !isNaN(item.percentage)
+            ? item.percentage
+            : totalCountryUsers > 0
+            ? ((item.user_count || 0) / totalCountryUsers) * 100
+            : 0
+          
+          return {
+            country: item.country || '',
+            flag_emoji: item.flag_emoji || '',
+            user_count: item.user_count || 0,
+            percentage: Math.round(percentage * 10) / 10
+          }
+        }) || []
+
+        // Ensure topCategories percentages are numbers
+        const categoriesWithPercentage = analyticsData.topCategories?.map((item: TopCategory) => {
+          const percentage = typeof item.percentage === 'number' && !isNaN(item.percentage)
+            ? item.percentage
+            : 0
+          
+          return {
+            category: item.category || '',
+            post_count: item.post_count || 0,
+            percentage: Math.round(percentage * 10) / 10
+          }
+        }) || []
+
         // Format session time
         const formatSessionTime = (minutes: number): string => {
           if (minutes < 60) {
@@ -152,8 +187,8 @@ export function useAnalytics(period: '7d' | '30d' | '90d' | '1y' = '30d'): UseAn
           totalEngagements: analyticsData.totalEngagements || 0,
           userDemographics: ageGroupsWithPercentage,
           deviceUsage: devicesWithPercentage,
-          topCountries: analyticsData.topCountries || [],
-          topCategories: analyticsData.topCategories || [],
+          topCountries: countriesWithPercentage,
+          topCategories: categoriesWithPercentage,
           avgSessionTimes: analyticsData.avgSessionTimes || 0,
           bounceRate: analyticsData.bounceRate || 0,
           completionRate: analyticsData.completionRate || 0

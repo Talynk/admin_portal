@@ -172,7 +172,7 @@ export default function AnalyticsPage() {
                         </div>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {group.percentage?.toFixed(1) || 0}% ({group.count?.toLocaleString() || 0})
+                        {typeof group.percentage === 'number' && !isNaN(group.percentage) ? group.percentage.toFixed(1) : 0}% ({group.count?.toLocaleString() || 0})
                       </div>
                     </div>
                   ))
@@ -258,7 +258,7 @@ export default function AnalyticsPage() {
                         <span className="font-medium">{country.country}</span>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {country.user_count?.toLocaleString() || 0} users ({country.percentage?.toFixed(1) || 0}%)
+                        {country.user_count?.toLocaleString() || 0} users ({typeof country.percentage === 'number' && !isNaN(country.percentage) ? country.percentage.toFixed(1) : Number(country.percentage || 0).toFixed(1)}%)
                       </div>
                     </div>
                   ))
@@ -291,7 +291,7 @@ export default function AnalyticsPage() {
                           </div>
                           <span className="font-medium">{category.category}</span>
                         </div>
-                        <Badge variant="outline">{category.percentage?.toFixed(1) || 0}% of posts</Badge>
+                        <Badge variant="outline">{typeof category.percentage === 'number' && !isNaN(category.percentage) ? category.percentage.toFixed(1) : 0}% of posts</Badge>
                       </div>
                       <div className="text-sm text-muted-foreground ml-9">
                         {category.post_count?.toLocaleString() || 0} posts
@@ -335,7 +335,7 @@ export default function AnalyticsPage() {
                   {loading ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    analytics?.bounceRate ? `${analytics.bounceRate.toFixed(1)}%` : "0%"
+                    analytics?.bounceRate && typeof analytics.bounceRate === 'number' && !isNaN(analytics.bounceRate) ? `${analytics.bounceRate.toFixed(1)}%` : "0%"
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">Users with single view</p>
@@ -351,7 +351,7 @@ export default function AnalyticsPage() {
                   {loading ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    analytics?.completionRate ? `${analytics.completionRate.toFixed(1)}%` : "0%"
+                    analytics?.completionRate && typeof analytics.completionRate === 'number' && !isNaN(analytics.completionRate) ? `${analytics.completionRate.toFixed(1)}%` : "0%"
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">Posts with high engagement</p>
