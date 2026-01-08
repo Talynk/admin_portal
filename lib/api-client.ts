@@ -193,6 +193,80 @@ class ApiClient {
     return this.request(`/admin/users/stats${queryString ? `?${queryString}` : ''}`)
   }
 
+  // Challenge Management Endpoints
+  async getChallenges(params?: {
+    page?: number
+    limit?: number
+    status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended'
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/challenges${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getPendingChallenges(params?: {
+    page?: number
+    limit?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/challenges/pending${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getChallengeDashboardStats() {
+    return this.request('/admin/challenges/dashboard/stats')
+  }
+
+  async getChallengeGrowthAnalytics(params?: {
+    days?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.days) queryParams.append('days', params.days.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/challenges/growth-analytics${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getChallengeById(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}`)
+  }
+
+  async getChallengeAnalytics(challengeId: string, params?: {
+    days?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.days) queryParams.append('days', params.days.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/challenges/${challengeId}/analytics${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async approveChallenge(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}/approve`, {
+      method: 'PUT',
+    })
+  }
+
+  async rejectChallenge(challengeId: string, reason?: string) {
+    return this.request(`/admin/challenges/${challengeId}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    })
+  }
+
+  async stopChallenge(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}/stop`, {
+      method: 'PUT',
+    })
+  }
+
   // Posts Management Endpoints
   async getPosts(params?: {
     page?: number
