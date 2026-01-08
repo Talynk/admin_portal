@@ -104,6 +104,7 @@ export default function ContentPage() {
     | null
   >(null);
   const [actionReason, setActionReason] = useState("");
+  const [actionExpiresAt, setActionExpiresAt] = useState("");
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
@@ -268,10 +269,17 @@ export default function ContentPage() {
           result = await unfreezePost(selectedVideo.id, actionReason);
           break;
         case "feature":
-          result = await featurePost(selectedVideo.id, actionReason);
+          // Convert datetime-local to ISO 8601 format
+          const expiresAtISO = actionExpiresAt 
+            ? new Date(actionExpiresAt).toISOString()
+            : undefined;
+          result = await featurePost(selectedVideo.id, {
+            reason: actionReason || undefined,
+            expiresAt: expiresAtISO,
+          });
           break;
         case "unfeature":
-          result = await unfeaturePost(selectedVideo.id, actionReason);
+          result = await unfeaturePost(selectedVideo.id);
           break;
         case "delete":
           result = await deletePost(selectedVideo.id);
@@ -304,6 +312,7 @@ export default function ContentPage() {
     setSelectedVideo(null);
     setActionType(null);
     setActionReason("");
+    setActionExpiresAt("");
   };
 
   const getStatusBadge = (status: string, frozen?: boolean, isFrozen?: boolean) => {
@@ -1564,6 +1573,23 @@ export default function ContentPage() {
                   onChange={(e) => setActionReason(e.target.value)}
                 />
               </div>
+              {actionType === "feature" && (
+                <div>
+                  <Label htmlFor="expiresAt">
+                    Expiration Date (optional)
+                  </Label>
+                  <Input
+                    id="expiresAt"
+                    type="datetime-local"
+                    value={actionExpiresAt}
+                    onChange={(e) => setActionExpiresAt(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave empty to feature indefinitely
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button

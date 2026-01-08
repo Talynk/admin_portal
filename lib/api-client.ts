@@ -373,17 +373,37 @@ class ApiClient {
     return this.request(`/admin/posts/${postId}/reports`)
   }
 
-  async featurePost(postId: string, reason?: string) {
-    return this.request(`/admin/videos/${postId}/feature`, {
+  // Featured Posts Management (using new API endpoints)
+  async getFeaturedPosts(params?: {
+    page?: number
+    limit?: number
+    active?: boolean
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.active !== undefined) queryParams.append('active', params.active.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/featured/admin${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async featurePost(postId: string, data?: {
+    reason?: string
+    expiresAt?: string
+  }) {
+    return this.request(`/featured/posts/${postId}`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({
+        reason: data?.reason,
+        expiresAt: data?.expiresAt,
+      }),
     })
   }
 
-  async unfeaturePost(postId: string, reason?: string) {
-    return this.request(`/admin/videos/${postId}/unfeature`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
+  async unfeaturePost(postId: string) {
+    return this.request(`/featured/posts/${postId}`, {
+      method: 'DELETE',
     })
   }
 

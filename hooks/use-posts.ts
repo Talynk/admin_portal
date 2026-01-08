@@ -213,9 +213,12 @@ export function usePosts(params: UsePostsParams = {}) {
     }
   }
 
-  const featurePost = async (postId: string, reason?: string) => {
+  const featurePost = async (postId: string, data?: {
+    reason?: string
+    expiresAt?: string
+  }) => {
     try {
-      const response = await apiClient.featurePost(postId, reason)
+      const response = await apiClient.featurePost(postId, data)
       if (response.success) {
         await fetchPosts() // Refresh the list
         return { success: true, data: response.data }
@@ -227,9 +230,9 @@ export function usePosts(params: UsePostsParams = {}) {
     }
   }
 
-  const unfeaturePost = async (postId: string, reason?: string) => {
+  const unfeaturePost = async (postId: string) => {
     try {
-      const response = await apiClient.unfeaturePost(postId, reason)
+      const response = await apiClient.unfeaturePost(postId)
       if (response.success) {
         await fetchPosts() // Refresh the list
         return { success: true, data: response.data }
