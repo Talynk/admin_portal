@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Trophy,
   Users,
@@ -46,7 +47,7 @@ import {
 } from "lucide-react"
 import { useChallenge } from "@/hooks/use-challenge"
 import { toast } from "@/hooks/use-toast"
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl } from "@/lib/file-utils"
 
@@ -549,7 +550,7 @@ export default function ChallengeDetailPage() {
                               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                               <YAxis tick={{ fontSize: 12 }} />
-                              <Tooltip />
+                              <RechartsTooltip />
                               <Legend />
                               <Line
                                 type="monotone"
