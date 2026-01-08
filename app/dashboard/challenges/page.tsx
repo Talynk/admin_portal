@@ -47,7 +47,7 @@ import { useChallenges } from "@/hooks/use-challenges"
 import { useChallengeStats } from "@/hooks/use-challenge-stats"
 import { toast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl } from "@/lib/file-utils"
 import { apiClient } from "@/lib/api-client"
@@ -275,7 +275,7 @@ export default function ChallengesPage() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
+                            <RechartsTooltip />
                     <Legend />
                     <Line type="monotone" dataKey="challenges" stroke="#3b82f6" strokeWidth={2} name="Challenges" />
                     <Line type="monotone" dataKey="participants" stroke="#10b981" strokeWidth={2} name="Participants" />
