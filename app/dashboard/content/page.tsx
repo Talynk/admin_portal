@@ -442,7 +442,7 @@ export default function ContentPage() {
             <Button
               variant="secondary"
               size="sm"
-              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white shadow-lg z-10"
+              className="absolute top-2 right-2 bg-black/70 dark:bg-black/80 hover:bg-black/90 dark:hover:bg-black text-white shadow-lg z-10 border border-white/20"
               onClick={handleCloseMedia}
             >
               <Ban className="w-4 h-4" />
@@ -468,11 +468,11 @@ export default function ContentPage() {
             </div>
 
             {/* Action buttons overlay */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <div className="absolute inset-0 bg-black/40 dark:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
               <Button
                 variant="secondary"
                 size="sm"
-                className="bg-white/90 hover:bg-white shadow-lg"
+                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105"
                 onClick={(e) => {
                   e.stopPropagation();
                   openVideoPreview(post);
@@ -485,7 +485,7 @@ export default function ContentPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="bg-white/90 hover:bg-white shadow-lg"
+                  className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105"
                   onClick={handlePlayClick}
                 >
                   <Play className="w-4 h-4 mr-2" />
