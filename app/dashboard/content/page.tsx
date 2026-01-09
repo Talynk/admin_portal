@@ -85,8 +85,7 @@ import {
 } from "lucide-react";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
-import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
-import { useRef } from "react";
+import { getFileUrl } from "@/lib/file-utils";
 
 export default function ContentPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -396,245 +395,61 @@ export default function ContentPage() {
     return contentType === "video" ? Video : ImageIcon;
   };
 
-  // Component for video preview with hover-to-play
-  const VideoPreviewCard = ({ post }: { post: any }) => {
-    const [isHovered, setIsHovered] = useState(false);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [imageError, setImageError] = useState(false);
-    const [imageLoading, setImageLoading] = useState(true);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    
-    // Try multiple possible field names for video URL (prioritize video_url from API)
-    const videoUrl = post.video_url || post.fullUrl || post.file_url || post.mediaUrl || post.fileUrl || post.url;
-    const fileUrl = getFileUrl(videoUrl);
-    
-    // Use video_url as thumbnail source (thumbnail fields are empty)
-    const thumbnailUrl = fileUrl; // Use video_url directly as thumbnail
-
-    const handleMouseEnter = () => {
-      setIsHovered(true);
-      if (videoRef.current && fileUrl) {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play().catch(() => {
-          // Auto-play failed, show thumbnail instead
-          setIsPlaying(false);
-        });
-        setIsPlaying(true);
-      }
-    };
-
-    const handleMouseLeave = () => {
-      setIsHovered(false);
-      if (videoRef.current) {
-        videoRef.current.pause();
-        setIsPlaying(false);
-      }
-    };
-
-    const handleClick = () => {
-      openVideoPreview(post);
-    };
-
-    const handleImageLoad = () => {
-      setImageLoading(false);
-    };
-
-    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-      setImageError(true);
-      setImageLoading(false);
-      e.currentTarget.src = '/placeholder.svg';
-    };
+  // Simple media icon card - no previews, just icon and buttons
+  const MediaIconCard = ({ post }: { post: any }) => {
+    const contentType = getContentType(post);
+    const ContentIcon = contentType === "video" ? Video : ImageIcon;
+    const mediaUrl = post.video_url || post.fullUrl || post.file_url || post.mediaUrl || post.fileUrl || post.url;
 
     return (
-      <div
-        className="relative w-full aspect-video bg-black overflow-hidden group cursor-pointer rounded-t-lg"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
-      >
-        {/* Loading state */}
-        {imageLoading && !imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center z-10">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 overflow-hidden rounded-t-lg flex items-center justify-center group">
+        {/* Main icon */}
+        <div className="flex flex-col items-center justify-center gap-3">
+          <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-6 shadow-lg">
+            <ContentIcon className="w-12 h-12 text-gray-600 dark:text-gray-300" />
           </div>
-        )}
+          <div className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
+            {contentType === "video" ? "Video" : "Image"}
+          </div>
+        </div>
 
-        {/* Thumbnail overlay - behind video */}
-        {!imageError && thumbnailUrl && (
-          <img
-            src={thumbnailUrl}
-            alt={post.title || post.caption || 'Video thumbnail'}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-0 ${
-              isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
-            } ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-            onLoad={handleImageLoad}
-            onError={handleImageError}
-            loading="lazy"
-            decoding="async"
-          />
-        )}
-
-        {/* Video element - on top when playing */}
-        {fileUrl && !imageError && (
-          <video
-            ref={videoRef}
-            src={fileUrl}
-            poster={thumbnailUrl || undefined}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-10 ${
-              isPlaying && isHovered ? 'opacity-100 z-10' : 'opacity-0 z-0'
-            }`}
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            onError={() => {
-              setIsPlaying(false);
-              setImageError(true);
+        {/* Action buttons overlay */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bg-white/90 hover:bg-white shadow-lg"
+            onClick={(e) => {
+              e.stopPropagation();
+              openVideoPreview(post);
             }}
-            onLoadedMetadata={() => {
-              // Try to capture first frame if no thumbnail
-              if (!thumbnailUrl && videoRef.current) {
-                const canvas = document.createElement('canvas');
-                canvas.width = videoRef.current.videoWidth || 640;
-                canvas.height = videoRef.current.videoHeight || 360;
-                const ctx = canvas.getContext('2d');
-                if (ctx && videoRef.current) {
-                  ctx.drawImage(videoRef.current, 0, 0);
-                  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                  // Use data URL as thumbnail fallback
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View Details
+          </Button>
+          {mediaUrl && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-white/90 hover:bg-white shadow-lg"
+              onClick={(e) => {
+                e.stopPropagation();
+                const fileUrl = getFileUrl(mediaUrl);
+                if (fileUrl) {
+                  window.open(fileUrl, '_blank');
                 }
-              }
-            }}
-          />
-        )}
+              }}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              {contentType === "video" ? "Play" : "View"}
+            </Button>
+          )}
+        </div>
 
-        {/* Error/Placeholder state */}
-        {imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center z-10">
-            <div className="text-center">
-              <Video className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-              <p className="text-xs text-gray-400">Video unavailable</p>
-            </div>
-          </div>
-        )}
-
-        {/* Play button overlay - only show when NOT playing */}
-        {!imageError && !isPlaying && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-            <div className="bg-white/90 rounded-full p-3 shadow-lg pointer-events-auto">
-              <Play className="w-6 h-6 text-black" fill="black" />
-            </div>
-          </div>
-        )}
-
-        {/* Duration badge */}
-        {post.duration && !imageError && (
-          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm z-30">
+        {/* Duration badge for videos */}
+        {contentType === "video" && post.duration && (
+          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
             {post.duration}
-          </div>
-        )}
-
-        {/* Video type indicator */}
-        {!imageError && (
-          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1 z-30">
-            <Video className="w-3 h-3" />
-            <span>Video</span>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Component for image preview
-  const ImagePreviewCard = ({ post }: { post: any }) => {
-    const [imageError, setImageError] = useState(false);
-    const [imageLoading, setImageLoading] = useState(true);
-    
-    // Try multiple possible field names for image URL (prioritize video_url from API)
-    const imageUrl = post.video_url || post.fullUrl || post.file_url || post.image_url || post.mediaUrl || post.fileUrl || post.url;
-    const fileUrl = getFileUrl(imageUrl);
-    
-    // Use video_url as thumbnail source (thumbnail fields are empty)
-    const thumbnailUrl = fileUrl; // Use video_url directly as thumbnail
-
-    const handleImageLoad = () => {
-      setImageLoading(false);
-    };
-
-    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-      setImageError(true);
-      setImageLoading(false);
-      e.currentTarget.src = '/placeholder.svg';
-    };
-
-    return (
-      <div
-        className="relative w-full aspect-video bg-muted overflow-hidden group cursor-pointer rounded-t-lg"
-        onClick={() => openVideoPreview(post)}
-      >
-        {/* Loading state */}
-        {imageLoading && !imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center z-10">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-          </div>
-        )}
-
-        {/* Image - use thumbnail if available for faster loading */}
-        {thumbnailUrl && !imageError && (
-          <img
-            src={thumbnailUrl}
-            alt={post.title || post.caption || 'Image'}
-            className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
-              imageLoading ? 'opacity-0' : 'opacity-100'
-            }`}
-            onLoad={handleImageLoad}
-            onError={(e) => {
-              // If thumbnail fails, try full image
-              if (thumbnailUrl !== fileUrl && fileUrl) {
-                e.currentTarget.src = fileUrl || '';
-              } else {
-                handleImageError(e);
-              }
-            }}
-            loading="lazy"
-            decoding="async"
-          />
-        )}
-
-        {/* Error/Placeholder state */}
-        {imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center z-10">
-            <div className="text-center">
-              <ImageIcon className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-              <p className="text-xs text-gray-500">Image unavailable</p>
-            </div>
-          </div>
-        )}
-        
-        {/* Fallback: Show placeholder if no image URL */}
-        {!fileUrl && !imageError && (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
-            <div className="text-center">
-              <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-xs text-gray-500">No image available</p>
-            </div>
-          </div>
-        )}
-
-        {/* View button overlay */}
-        {!imageError && (
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="bg-white/90 rounded-full p-3 shadow-lg">
-              <Eye className="w-6 h-6 text-black" />
-            </div>
-          </div>
-        )}
-
-        {/* Image type indicator */}
-        {!imageError && (
-          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
-            <ImageIcon className="w-3 h-3" />
-            <span>Image</span>
           </div>
         )}
       </div>
@@ -642,19 +457,7 @@ export default function ContentPage() {
   };
 
   const getContentPreview = (post: any) => {
-    const contentType = getContentType(post);
-    
-    if (contentType === "video") {
-      return <VideoPreviewCard post={post} />;
-    } else if (contentType === "image") {
-      return <ImagePreviewCard post={post} />;
-    } else {
-      return (
-        <div className="w-full h-48 bg-muted flex items-center justify-center">
-          <MessageSquare className="w-12 h-12 text-muted-foreground" />
-        </div>
-      );
-    }
+    return <MediaIconCard post={post} />;
   };
 
   const openVideoPreview = (video: any) => {
