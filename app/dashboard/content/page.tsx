@@ -400,57 +400,107 @@ export default function ContentPage() {
     const contentType = getContentType(post);
     const ContentIcon = contentType === "video" ? Video : ImageIcon;
     const mediaUrl = post.video_url || post.fullUrl || post.file_url || post.mediaUrl || post.fileUrl || post.url;
+    const fileUrl = getFileUrl(mediaUrl);
+    const isPlaying = playingVideo === post.id;
+
+    const handlePlayClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isPlaying) {
+        setPlayingVideo(null);
+      } else {
+        setPlayingVideo(post.id);
+      }
+    };
+
+    const handleCloseMedia = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setPlayingVideo(null);
+    };
 
     return (
       <div className="relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 overflow-hidden rounded-t-lg flex items-center justify-center group">
-        {/* Main icon */}
-        <div className="flex flex-col items-center justify-center gap-3">
-          <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-6 shadow-lg">
-            <ContentIcon className="w-12 h-12 text-gray-600 dark:text-gray-300" />
-          </div>
-          <div className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-            {contentType === "video" ? "Video" : "Image"}
-          </div>
-        </div>
-
-        {/* Action buttons overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bg-white/90 hover:bg-white shadow-lg"
-            onClick={(e) => {
-              e.stopPropagation();
-              openVideoPreview(post);
-            }}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            View Details
-          </Button>
-          {mediaUrl && (
+        {isPlaying && fileUrl ? (
+          /* Media playing/viewing state */
+          <>
+            {contentType === "video" ? (
+              <video
+                src={fileUrl}
+                controls
+                autoPlay
+                className="w-full h-full object-contain bg-black"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <img
+                src={fileUrl}
+                alt={post.title || post.caption || 'Image'}
+                className="w-full h-full object-contain bg-black"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+            {/* Close button */}
             <Button
               variant="secondary"
               size="sm"
-              className="bg-white/90 hover:bg-white shadow-lg"
-              onClick={(e) => {
-                e.stopPropagation();
-                const fileUrl = getFileUrl(mediaUrl);
-                if (fileUrl) {
-                  window.open(fileUrl, '_blank');
-                }
-              }}
+              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white shadow-lg z-10"
+              onClick={handleCloseMedia}
             >
-              <Play className="w-4 h-4 mr-2" />
-              {contentType === "video" ? "Play" : "View"}
+              <Ban className="w-4 h-4" />
             </Button>
-          )}
-        </div>
+            {/* Duration badge for videos */}
+            {contentType === "video" && post.duration && (
+              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                {post.duration}
+              </div>
+            )}
+          </>
+        ) : (
+          /* Icon state */
+          <>
+            {/* Main icon */}
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-6 shadow-lg">
+                <ContentIcon className="w-12 h-12 text-gray-600 dark:text-gray-300" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
+                {contentType === "video" ? "Video" : "Image"}
+              </div>
+            </div>
 
-        {/* Duration badge for videos */}
-        {contentType === "video" && post.duration && (
-          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-            {post.duration}
-          </div>
+            {/* Action buttons overlay */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/90 hover:bg-white shadow-lg"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openVideoPreview(post);
+                }}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View Details
+              </Button>
+              {fileUrl && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="bg-white/90 hover:bg-white shadow-lg"
+                  onClick={handlePlayClick}
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  {contentType === "video" ? "Play" : "View"}
+                </Button>
+              )}
+            </div>
+
+            {/* Duration badge for videos */}
+            {contentType === "video" && post.duration && (
+              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                {post.duration}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
