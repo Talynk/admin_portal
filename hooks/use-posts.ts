@@ -15,7 +15,7 @@ export interface Post {
   mediaUrl?: string
   type?: 'video' | 'image'
   fileType?: 'video' | 'image'
-  status: 'approved' | 'pending' | 'rejected'
+  status: 'approved' | 'pending' | 'rejected' | 'frozen' | 'suspended' | 'active' | 'draft'
   duration?: string
   views: number
   likes: number

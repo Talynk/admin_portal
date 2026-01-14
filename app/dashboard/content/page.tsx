@@ -131,9 +131,40 @@ export default function ContentPage() {
     unfeaturePost,
     flagPost,
     unflagPost,
+  // Determine status filter based on active tab and status filter dropdown
+  const getStatusFilter = () => {
+    if (statusFilter !== "all") {
+      return statusFilter;
+    }
+    // If status filter is "all", check active tab
+    if (activeTab === "pending") return "pending";
+    if (activeTab === "approved") return "approved";
+    if (activeTab === "rejected") return "rejected";
+    if (activeTab === "frozen") return "frozen";
+    if (activeTab === "suspended") return "suspended";
+    return undefined;
+  };
+
+  const {
+    posts,
+    loading,
+    error,
+    total,
+    totalPages,
+    refetch,
+    updatePost,
+    deletePost,
+    approvePost,
+    rejectPost,
+    freezePost,
+    unfreezePost,
+    featurePost,
+    unfeaturePost,
+    flagPost,
+    unflagPost,
   } = usePosts({
     search: searchTerm || undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
+    status: getStatusFilter(),
     flagged: activeTab === "flagged" ? true : undefined,
     featured: activeTab === "featured" ? true : undefined,
     frozen: activeTab === "frozen" ? true : undefined,
@@ -148,15 +179,17 @@ export default function ContentPage() {
           case "all":
             return true;
           case "pending":
-            return video.status === "pending";
+            return video.status === "pending" || video.status === "draft";
           case "approved":
-            return video.status === "approved";
+            return video.status === "approved" || video.status === "active";
           case "rejected":
             return video.status === "rejected";
           case "frozen":
-            return (video as any).is_frozen === true || (video as any).frozen === true;
+            return (video as any).is_frozen === true || (video as any).frozen === true || video.status === "frozen";
+          case "suspended":
+            return video.status === "suspended" || ((video as any).is_suspended === true || (video as any).suspended === true);
           case "flagged":
-            return (video as any).flagged === true;
+            return (video as any).flagged === true || (video as any).is_flagged === true;
           case "featured":
             return (video as any).is_featured === true || (video as any).featured === true;
           case "ai-flagged":
@@ -314,41 +347,66 @@ export default function ContentPage() {
     setActionExpiresAt("");
   };
 
-  const getStatusBadge = (status: string, frozen?: boolean, isFrozen?: boolean) => {
+  const getStatusBadge = (status: string, frozen?: boolean, isFrozen?: boolean, flagged?: boolean, isSuspended?: boolean) => {
+    // Check if post is suspended (flagged posts that are suspended)
+    if (isSuspended === true || status === "suspended") {
+      return (
+        <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30">
+          Suspended
+        </Badge>
+      );
+    }
+    
     // Check if post is frozen (multiple ways to check)
     const isPostFrozen = frozen === true || isFrozen === true || status === "frozen";
     
     if (isPostFrozen) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30">
           Frozen
+        </Badge>
+      );
+    }
+    
+    // Check if post is flagged
+    if (flagged === true) {
+      return (
+        <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30">
+          Flagged
         </Badge>
       );
     }
     
     switch (status?.toLowerCase()) {
       case "approved":
+      case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30">
             Approved
           </Badge>
         );
       case "pending":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30">
             Pending
           </Badge>
         );
       case "rejected":
         return (
-          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30">
             Rejected
           </Badge>
         );
       case "frozen":
         return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30">
             Frozen
+          </Badge>
+        );
+      case "suspended":
+        return (
+          <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30">
+            Suspended
           </Badge>
         );
       default:
@@ -557,7 +615,7 @@ export default function ContentPage() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -613,11 +671,27 @@ export default function ContentPage() {
                 <div className="text-2xl font-bold">
                   {loading
                     ? "..."
-                    : videos.filter((v) => v.status === "pending").length}
+                    : videos.filter((v) => v.status === "pending" || v.status === "draft").length}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Requires attention
                 </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Approved Content
+                </CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading
+                    ? "..."
+                    : videos.filter((v) => v.status === "approved" || v.status === "active").length}
+                </div>
+                <p className="text-xs text-muted-foreground">Active posts</p>
               </CardContent>
             </Card>
             <Card>
@@ -633,10 +707,29 @@ export default function ContentPage() {
                     ? "..."
                     : videos.filter(
                         (v) =>
-                          (v as any).is_frozen === true || (v as any).frozen === true
+                          (v as any).is_frozen === true || (v as any).frozen === true || v.status === "frozen"
                       ).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Frozen posts</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Suspended Content
+                </CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading
+                    ? "..."
+                    : videos.filter(
+                        (v) =>
+                          v.status === "suspended" || (v as any).is_suspended === true || (v as any).suspended === true
+                      ).length}
+                </div>
+                <p className="text-xs text-muted-foreground">Suspended posts</p>
               </CardContent>
             </Card>
             <Card>
@@ -648,7 +741,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => (v as any).flagged === true).length}
+                  {loading ? "..." : videos.filter((v) => (v as any).flagged === true || (v as any).is_flagged === true).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Needs review</p>
               </CardContent>
@@ -703,12 +796,13 @@ export default function ContentPage() {
                 onValueChange={setActiveTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-8">
+                <TabsList className="grid w-full grid-cols-9">
                   <TabsTrigger value="all">All</TabsTrigger>
                   <TabsTrigger value="pending">Pending</TabsTrigger>
                   <TabsTrigger value="approved">Approved</TabsTrigger>
                   <TabsTrigger value="rejected">Rejected</TabsTrigger>
                   <TabsTrigger value="frozen">Frozen</TabsTrigger>
+                  <TabsTrigger value="suspended">Suspended</TabsTrigger>
                   <TabsTrigger value="flagged">Flagged</TabsTrigger>
                   <TabsTrigger value="featured">Featured</TabsTrigger>
                   <TabsTrigger value="ai-flagged">AI Flagged</TabsTrigger>
@@ -740,6 +834,7 @@ export default function ContentPage() {
                           <SelectItem value="approved">Approved</SelectItem>
                           <SelectItem value="rejected">Rejected</SelectItem>
                           <SelectItem value="frozen">Frozen</SelectItem>
+                          <SelectItem value="suspended">Suspended</SelectItem>
                         </SelectContent>
                       </Select>
                       <div className="flex gap-2">
@@ -1017,9 +1112,11 @@ export default function ContentPage() {
 
                             <div className="flex items-center justify-between mb-3">
                               {getStatusBadge(
-                                video.status,
+                                video.status || "pending",
                                 (video as any).frozen,
-                                (video as any).is_frozen
+                                (video as any).is_frozen,
+                                (video as any).flagged || (video as any).is_flagged,
+                                (video as any).suspended || (video as any).is_suspended || video.status === "suspended"
                               )}
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
@@ -1205,9 +1302,11 @@ export default function ContentPage() {
                               <TableCell>
                                 <div className="flex flex-col gap-1">
                                   {getStatusBadge(
-                                    video.status,
+                                    video.status || "pending",
                                     (video as any).frozen,
-                                    (video as any).is_frozen
+                                    (video as any).is_frozen,
+                                    (video as any).flagged || (video as any).is_flagged,
+                                    (video as any).suspended || (video as any).is_suspended || video.status === "suspended"
                                   )}
                                     {(video as any).is_featured && (
                                       <Badge className="bg-yellow-100 text-yellow-800 text-xs">
