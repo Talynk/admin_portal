@@ -803,6 +803,12 @@ class ApiClient {
     return this.request(`/approver/notifications${queryString ? `?${queryString}` : ''}`)
   }
 
+  async markApproverNotificationAsRead(notificationId: string) {
+    return this.request(`/approver/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    })
+  }
+
   async searchApproverPosts(params: {
     q: string
     page?: number
