@@ -3,14 +3,16 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Shield, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Shield, Loader2, CheckCircle } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
+import { useApproverAuth } from "@/components/approver-auth-provider"
+import { apiClient } from "@/lib/api-client"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -18,15 +20,22 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const { login, user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
+  const { approver, isLoading: approverAuthLoading } = useApproverAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const onboarded = searchParams.get('onboarded')
 
   // Redirect if already logged in
   useEffect(() => {
-    if (!authLoading && user) {
-      router.push("/dashboard")
+    if (!authLoading && !approverAuthLoading) {
+      if (user) {
+        router.push("/dashboard")
+      } else if (approver) {
+        router.push("/approver/dashboard")
+      }
     }
-  }, [user, authLoading, router])
+  }, [user, approver, authLoading, approverAuthLoading, router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,12 +43,17 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const success = await login(email, password)
+      const result = await apiClient.unifiedLogin(email, password)
       
-      if (success) {
-        router.push("/dashboard")
+      if (result.success) {
+        // Reload the page to initialize the correct auth context
+        if (result.role === 'admin') {
+          window.location.href = "/dashboard"
+        } else if (result.role === 'approver') {
+          window.location.href = "/approver/dashboard"
+        }
       } else {
-        setError("Invalid email or password")
+        setError(result.error || "Invalid email or password")
       }
     } catch (error) {
       setError("An unexpected error occurred")
@@ -49,7 +63,7 @@ export default function LoginPage() {
   }
 
   // Show loading while checking auth state
-  if (authLoading) {
+  if (authLoading || approverAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -66,23 +80,32 @@ export default function LoginPage() {
           </div>
           <div>
             <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              talentix Admin Portal
+              talentix Portal
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
-              Sign in to manage your social media platform
+              Sign in as Admin or Approver
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
+          {onboarded && (
+            <Alert className="mb-4 border-green-200 bg-green-50 dark:bg-green-900/20">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800 dark:text-green-200">
+                Onboarding completed! Please log in with your credentials.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-white">
+              <Label htmlFor="email" className="text-sm font-medium">
                 Email
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@talentix.com"
+                placeholder="admin@talentix.com or approver@talentix.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -90,7 +113,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-white">
+              <Label htmlFor="password" className="text-sm font-medium">
                 Password
               </Label>
               <div className="relative">
@@ -140,28 +163,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white dark:bg-slate-900 px-2 text-muted-foreground">
-                  Or
-                </span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-4 h-11 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              onClick={() => router.push('/approver/login')}
-            >
-              <Shield className="w-4 h-4 mr-2" />
-              Continue as Approver
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

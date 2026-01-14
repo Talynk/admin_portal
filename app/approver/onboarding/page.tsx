@@ -52,7 +52,7 @@ export default function ApproverOnboardingPage() {
           description: "Onboarding completed successfully! Redirecting to login...",
         })
         setTimeout(() => {
-          router.push('/approver/login?onboarded=true')
+          router.push('/?onboarded=true')
         }, 2000)
       } else {
         setError(response.error || response.message || 'Onboarding failed')

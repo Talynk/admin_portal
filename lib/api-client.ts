@@ -133,6 +133,78 @@ class ApiClient {
     return response
   }
 
+  // Unified login - tries both admin and approver, returns role info
+  async unifiedLogin(email: string, password: string) {
+    const url = `${this.baseURL}/auth/login`
+    
+    // Try admin login first
+    try {
+      const adminResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, role: 'admin' }),
+      })
+
+      const adminData = await adminResponse.json()
+
+      if (adminResponse.ok && adminData.status === 'success' && adminData.data) {
+        const { accessToken, token, user } = adminData.data
+        const accessTokenValue = accessToken || token
+        const role = user?.role || 'admin'
+        
+        if (role === 'admin' && accessTokenValue) {
+          this.setToken(accessTokenValue)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('talentix_admin_token', accessTokenValue)
+            localStorage.setItem('talentix_admin_user', JSON.stringify(user))
+          }
+          return { success: true, role: 'admin', data: adminData.data }
+        }
+      }
+    } catch (error) {
+      // Continue to try approver login
+    }
+
+    // Try approver login
+    try {
+      const approverResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, role: 'approver' }),
+      })
+
+      const approverData = await approverResponse.json()
+
+      if (approverResponse.ok && approverData.status === 'success' && approverData.data) {
+        const { accessToken, token, refreshToken, user, approver } = approverData.data
+        const accessTokenValue = accessToken || token
+        const userData = user || approver
+        
+        if (accessTokenValue) {
+          this.setApproverToken(accessTokenValue)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('talentix_approver_token', accessTokenValue)
+            if (refreshToken) {
+              localStorage.setItem('talentix_approver_refresh_token', refreshToken)
+            }
+            if (userData) {
+              localStorage.setItem('talentix_approver_user', JSON.stringify(userData))
+            }
+          }
+          return { success: true, role: 'approver', data: approverData.data }
+        }
+      }
+    } catch (error) {
+      // Both failed
+    }
+
+    return { success: false, error: 'Invalid credentials' }
+  }
+
   async logout() {
     this.token = null
     if (typeof window !== 'undefined') {
