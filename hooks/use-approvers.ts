@@ -100,6 +100,20 @@ export function useApprovers(params: UseApproversParams = {}) {
     }
   }
 
+  const suspendApprover = async (approverId: string) => {
+    try {
+      const response = await apiClient.suspendApprover(approverId)
+      if (response.success) {
+        await fetchApprovers() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
   const deactivateApprover = async (approverId: string) => {
     try {
       const response = await apiClient.deactivateApprover(approverId)
@@ -155,6 +169,7 @@ export function useApprovers(params: UseApproversParams = {}) {
     createApproverInvitation,
     updateApprover,
     activateApprover,
+    suspendApprover,
     deactivateApprover,
     deleteApprover,
     getApproverPosts,

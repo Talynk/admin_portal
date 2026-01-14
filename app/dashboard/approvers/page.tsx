@@ -63,7 +63,7 @@ export default function ApproversPage() {
   })
 
   // Use the API hook
-  const {
+    const {
     approvers,
     loading,
     error,
@@ -73,6 +73,7 @@ export default function ApproversPage() {
     createApproverInvitation,
     updateApprover,
     activateApprover,
+    suspendApprover,
     deactivateApprover,
     deleteApprover,
   } = useApprovers({
@@ -188,23 +189,22 @@ export default function ApproversPage() {
     }
   }
 
-  const handleToggleStatus = async (approverId: string) => {
-    const approver = approvers.find((a) => a.id === approverId)
-    if (!approver) return
-
+  const handleToggleStatus = async (approverId: string, action: 'activate' | 'suspend' | 'deactivate') => {
     setIsActionLoading(true)
     try {
       let result
-      if (approver.status === "active") {
-        result = await deactivateApprover(approverId)
-      } else {
+      if (action === 'activate') {
         result = await activateApprover(approverId)
+      } else if (action === 'suspend') {
+        result = await suspendApprover(approverId)
+      } else {
+        result = await deactivateApprover(approverId)
       }
 
       if (result.success) {
         toast({
           title: "Success",
-          description: `Approver ${approver.status === "active" ? "deactivated" : "activated"} successfully`,
+          description: `Approver ${action}d successfully`,
         })
       } else {
         toast({
@@ -228,6 +228,10 @@ export default function ApproversPage() {
     switch (status) {
       case "active":
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
+      case "pending":
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
+      case "suspended":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Suspended</Badge>
       case "inactive":
         return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Inactive</Badge>
       default:
@@ -369,7 +373,9 @@ export default function ApproversPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="suspended">Suspended</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                       </SelectContent>
                     </Select>
@@ -477,22 +483,43 @@ export default function ApproversPage() {
                                         Edit
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        onClick={() => handleToggleStatus(approver.id)}
-                                        disabled={isActionLoading}
-                                      >
-                                        {approver.status === "active" ? (
-                                          <>
+                                      {approver.status === "pending" && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleToggleStatus(approver.id, 'activate')}
+                                          disabled={isActionLoading}
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Activate
+                                        </DropdownMenuItem>
+                                      )}
+                                      {approver.status === "active" && (
+                                        <>
+                                          <DropdownMenuItem
+                                            onClick={() => handleToggleStatus(approver.id, 'suspend')}
+                                            disabled={isActionLoading}
+                                            className="text-orange-600"
+                                          >
+                                            <AlertTriangle className="mr-2 h-4 w-4" />
+                                            Suspend
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => handleToggleStatus(approver.id, 'deactivate')}
+                                            disabled={isActionLoading}
+                                          >
                                             <XCircle className="mr-2 h-4 w-4" />
                                             Deactivate
-                                          </>
-                                        ) : (
-                                          <>
-                                            <CheckCircle className="mr-2 h-4 w-4" />
-                                            Activate
-                                          </>
-                                        )}
-                                      </DropdownMenuItem>
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                      {(approver.status === "suspended" || approver.status === "inactive") && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleToggleStatus(approver.id, 'activate')}
+                                          disabled={isActionLoading}
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Activate
+                                        </DropdownMenuItem>
+                                      )}
                                       <DropdownMenuItem
                                         onClick={() => handleDeleteApprover(approver.id)}
                                         className="text-red-600"
