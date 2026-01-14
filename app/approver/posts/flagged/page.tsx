@@ -1,0 +1,318 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { ApproverProtectedRoute } from "@/components/approver-protected-route"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { apiClient } from "@/lib/api-client"
+import { useRouter } from "next/navigation"
+import { toast } from "@/hooks/use-toast"
+import { 
+  CheckCircle, 
+  XCircle,
+  Loader2,
+  ArrowLeft,
+  Video,
+  Image as ImageIcon,
+  Flag,
+  AlertTriangle
+} from "lucide-react"
+import { getFileUrl } from "@/lib/file-utils"
+
+interface Post {
+  id: string
+  title: string
+  description?: string
+  video_url?: string
+  status: string
+  type?: string
+  is_frozen: boolean
+  report_count?: number
+  user: {
+    username: string
+  }
+}
+
+export default function FlaggedPostsPage() {
+  const router = useRouter()
+  const [posts, setPosts] = useState<Post[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null)
+  const [actionDialogOpen, setActionDialogOpen] = useState(false)
+  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null)
+  const [notes, setNotes] = useState('')
+  const [isActionLoading, setIsActionLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
+  useEffect(() => {
+    loadPosts()
+  }, [page])
+
+  const loadPosts = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await apiClient.getApproverFlaggedPosts({ page, limit: 10 })
+      if (response.success && response.data) {
+        setPosts(response.data.posts || [])
+        setTotalPages(response.data.pagination?.totalPages || 1)
+      } else {
+        setError(response.error || 'Failed to load posts')
+      }
+    } catch (err) {
+      setError('An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleReview = (post: Post, action: 'approve' | 'reject') => {
+    setSelectedPost(post)
+    setActionType(action)
+    setActionDialogOpen(true)
+    setNotes('')
+  }
+
+  const executeReview = async () => {
+    if (!selectedPost || !actionType) return
+
+    if (!notes.trim()) {
+      toast({
+        title: "Error",
+        description: "Notes are required for reviewing flagged posts",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsActionLoading(true)
+    try {
+      const response = await apiClient.reviewFlaggedPost(selectedPost.id, actionType, notes)
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: `Flagged post ${actionType}d successfully`,
+        })
+        setActionDialogOpen(false)
+        setSelectedPost(null)
+        setActionType(null)
+        setNotes('')
+        loadPosts()
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || `Failed to ${actionType} post`,
+          variant: "destructive",
+        })
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsActionLoading(false)
+    }
+  }
+
+  const getContentType = (post: Post) => {
+    if (post.type === 'video' || post.video_url?.match(/\.(mp4|mov|avi|webm)$/i)) {
+      return 'video'
+    }
+    return 'image'
+  }
+
+  return (
+    <ApproverProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/approver/dashboard')}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">Flagged Posts</h1>
+              <p className="text-muted-foreground">Review posts with multiple reports</p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : posts.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center py-12">
+                <Flag className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No flagged posts to review.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {posts.map((post) => {
+                const contentType = getContentType(post)
+                const mediaUrl = post.video_url
+                const fileUrl = getFileUrl(mediaUrl)
+
+                return (
+                  <Card key={post.id} className="overflow-hidden">
+                    <div className="relative aspect-video bg-black">
+                      {fileUrl ? (
+                        contentType === 'video' ? (
+                          <video
+                            src={fileUrl}
+                            className="w-full h-full object-contain"
+                            controls
+                          />
+                        ) : (
+                          <img
+                            src={fileUrl}
+                            alt={post.title}
+                            className="w-full h-full object-contain"
+                          />
+                        )
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          {contentType === 'video' ? (
+                            <Video className="w-12 h-12 text-gray-400" />
+                          ) : (
+                            <ImageIcon className="w-12 h-12 text-gray-400" />
+                          )}
+                        </div>
+                      )}
+                      <Badge className="absolute top-2 right-2 bg-red-600">
+                        <Flag className="w-3 h-3 mr-1" />
+                        {post.report_count || 0} reports
+                      </Badge>
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold mb-2 line-clamp-2">{post.title}</h3>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        @{post.user.username}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                          onClick={() => handleReview(post, 'approve')}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleReview(post, 'reject')}
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Reject
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+
+          {/* Review Dialog */}
+          <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {actionType === 'approve' ? 'Approve Flagged Post' : 'Reject Flagged Post'}
+                </DialogTitle>
+                <DialogDescription>
+                  {actionType === 'approve'
+                    ? `Approve "${selectedPost?.title}"? This will unfreeze the post.`
+                    : `Reject "${selectedPost?.title}"? Please provide review notes.`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="notes">Review Notes (required)</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Enter your review notes..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setActionDialogOpen(false)
+                    setNotes('')
+                  }}
+                  disabled={isActionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant={actionType === 'approve' ? 'default' : 'destructive'}
+                  onClick={executeReview}
+                  disabled={isActionLoading || !notes.trim()}
+                >
+                  {isActionLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    actionType === 'approve' ? 'Approve' : 'Reject'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+    </ApproverProtectedRoute>
+  )
+}
