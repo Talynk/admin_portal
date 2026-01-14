@@ -70,24 +70,14 @@ export default function SuspendedPostsPage() {
     try {
       setLoading(true)
       setError(null)
-      // Get both suspended posts and flagged posts (they're the same)
-      const [suspendedResponse, flaggedResponse] = await Promise.all([
-        apiClient.getApproverSuspendedPosts({ page, limit: 12 }),
-        apiClient.getApproverFlaggedPosts({ page, limit: 12 })
-      ])
-      
-      // Combine both lists, removing duplicates
-      const suspendedPosts = suspendedResponse.success && suspendedResponse.data ? (suspendedResponse.data.posts || []) : []
-      const flaggedPosts = flaggedResponse.success && flaggedResponse.data ? (flaggedResponse.data.posts || []) : []
-      
-      // Merge and deduplicate by post ID
-      const allPosts = [...suspendedPosts, ...flaggedPosts]
-      const uniquePosts = Array.from(
-        new Map(allPosts.map(post => [post.id, post])).values()
-      )
-      
-      setPosts(uniquePosts)
-      setTotalPages(suspendedResponse.data?.pagination?.totalPages || flaggedResponse.data?.pagination?.totalPages || 1)
+      // Get suspended posts (flagged posts are the same as suspended)
+      const response = await apiClient.getApproverSuspendedPosts({ page, limit: 12 })
+      if (response.success && response.data) {
+        setPosts(response.data.posts || [])
+        setTotalPages(response.data.pagination?.totalPages || 1)
+      } else {
+        setError(response.error || 'Failed to load posts')
+      }
     } catch (err) {
       setError('An error occurred')
     } finally {
