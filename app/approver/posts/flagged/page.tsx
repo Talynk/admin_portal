@@ -245,7 +245,7 @@ export default function FlaggedPostsPage() {
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Flagged Posts</h1>
-            <p className="text-muted-foreground">Review posts with multiple reports</p>
+            <p className="text-muted-foreground">Review posts with 5+ reports that have been frozen. Approve if no violations found, or reject if guidelines are violated.</p>
           </div>
 
           {error && (

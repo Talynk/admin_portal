@@ -247,8 +247,8 @@ export default function PendingPostsPage() {
       <ApproverLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pending Posts</h1>
-            <p className="text-muted-foreground">Review and moderate posts awaiting approval</p>
+            <h1 className="text-3xl font-bold tracking-tight">Pending Posts (Drafts)</h1>
+            <p className="text-muted-foreground">Review and approve/reject draft posts before they are published</p>
           </div>
 
           {error && (

@@ -6,9 +6,20 @@ import { ApproverLayout } from "@/components/approver-layout"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api-client"
+import { toast } from "@/hooks/use-toast"
 import { 
-  CheckCircle, 
+  Flag,
   Loader2,
   Video,
   Image as ImageIcon,
@@ -18,13 +29,6 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { getFileUrl } from "@/lib/file-utils"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 
 interface Post {
   id: string
@@ -34,18 +38,23 @@ interface Post {
   file_url?: string
   status: string
   type?: string
-  approved_at?: string
+  views: number
+  createdAt: string
   user: {
     username: string
+    email: string
   }
 }
 
-export default function ApprovedPostsPage() {
+export default function ActivePostsPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedPost, setSelectedPost] = useState<Post | null>(null)
+  const [flagDialogOpen, setFlagDialogOpen] = useState(false)
   const [videoDialogOpen, setVideoDialogOpen] = useState(false)
+  const [flagReason, setFlagReason] = useState('')
+  const [isFlagLoading, setIsFlagLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [playingVideo, setPlayingVideo] = useState<string | null>(null)
@@ -58,7 +67,12 @@ export default function ApprovedPostsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await apiClient.getApproverApprovedPosts({ page, limit: 12 })
+      // Get active posts (status = 'active' or 'approved')
+      const response = await apiClient.getApproverAllPosts({ 
+        page, 
+        limit: 12,
+        status: 'active'
+      })
       if (response.success && response.data) {
         setPosts(response.data.posts || [])
         setTotalPages(response.data.pagination?.totalPages || 1)
@@ -69,6 +83,54 @@ export default function ApprovedPostsPage() {
       setError('An error occurred')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleFlag = (post: Post) => {
+    setSelectedPost(post)
+    setFlagDialogOpen(true)
+    setFlagReason('')
+  }
+
+  const executeFlag = async () => {
+    if (!selectedPost || !flagReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Flag reason is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsFlagLoading(true)
+    try {
+      // Use admin flag endpoint since approvers can flag posts
+      const response = await apiClient.flagPost(selectedPost.id, flagReason)
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Post flagged successfully",
+        })
+        setFlagDialogOpen(false)
+        setSelectedPost(null)
+        setFlagReason('')
+        loadPosts()
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to flag post",
+          variant: "destructive",
+        })
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsFlagLoading(false)
     }
   }
 
@@ -176,8 +238,8 @@ export default function ApprovedPostsPage() {
       <ApproverLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Approved Posts</h1>
-            <p className="text-muted-foreground">Draft posts you have reviewed and approved (now published as active)</p>
+            <h1 className="text-3xl font-bold tracking-tight">Active Posts</h1>
+            <p className="text-muted-foreground">View active posts. You can flag posts that violate guidelines.</p>
           </div>
 
           {error && (
@@ -199,9 +261,9 @@ export default function ApprovedPostsPage() {
           ) : posts.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center py-12">
-                <CheckCircle className="w-16 h-16 mx-auto text-green-600 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No approved posts</h3>
-                <p className="text-muted-foreground">You haven't approved any posts yet.</p>
+                <Video className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No active posts</h3>
+                <p className="text-muted-foreground">There are no active posts to display.</p>
               </CardContent>
             </Card>
           ) : (
@@ -213,12 +275,27 @@ export default function ApprovedPostsPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold line-clamp-1">{post.title}</h3>
                       <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200">
-                        Approved
+                        Active
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      @{post.user.username} • {post.approved_at ? new Date(post.approved_at).toLocaleDateString() : ''}
-                    </p>
+                    {post.description && (
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                        {post.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+                      <span>@{post.user.username}</span>
+                      <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={() => handleFlag(post)}
+                    >
+                      <Flag className="w-4 h-4 mr-2" />
+                      Flag Post
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
@@ -247,6 +324,59 @@ export default function ApprovedPostsPage() {
               </Button>
             </div>
           )}
+
+          {/* Flag Dialog */}
+          <Dialog open={flagDialogOpen} onOpenChange={setFlagDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Flag Post</DialogTitle>
+                <DialogDescription>
+                  Flag "{selectedPost?.title}" for review. Please provide a reason.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="flagReason">Reason (required)</Label>
+                  <Textarea
+                    id="flagReason"
+                    placeholder="Enter the reason for flagging this post..."
+                    value={flagReason}
+                    onChange={(e) => setFlagReason(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFlagDialogOpen(false)
+                    setFlagReason('')
+                  }}
+                  disabled={isFlagLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={executeFlag}
+                  disabled={isFlagLoading || !flagReason.trim()}
+                >
+                  {isFlagLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Flagging...
+                    </>
+                  ) : (
+                    <>
+                      <Flag className="mr-2 h-4 w-4" />
+                      Flag Post
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Video/Image Preview Dialog */}
           <Dialog open={videoDialogOpen} onOpenChange={setVideoDialogOpen}>

@@ -36,9 +36,6 @@ import { ThemeToggle } from "./theme-toggle"
 
 const navigation = [
   { name: "Dashboard", href: "/approver/dashboard", icon: LayoutDashboard },
-  { name: "Pending Posts", href: "/approver/posts/pending", icon: FileText },
-  { name: "Approved Posts", href: "/approver/posts/approved", icon: CheckCircle },
-  { name: "Flagged Posts", href: "/approver/posts/flagged", icon: Flag },
   { name: "Suspended Posts", href: "/approver/posts/suspended", icon: Ban },
   { name: "Notifications", href: "/approver/notifications", icon: Bell },
   { name: "Profile", href: "/approver/profile", icon: User },
