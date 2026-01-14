@@ -60,8 +60,6 @@ export default function ApproversPage() {
 
   const [newApprover, setNewApprover] = useState({
     email: "",
-    username: "",
-    password: "",
   })
 
   // Use the API hook
@@ -120,10 +118,10 @@ export default function ApproversPage() {
       : "Needs more approvers"
 
   const handleAddApprover = async () => {
-    if (!newApprover.username || !newApprover.email || !newApprover.password) {
+    if (!newApprover.email) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please enter an email address",
         variant: "destructive",
       })
       return
@@ -131,26 +129,24 @@ export default function ApproversPage() {
 
     setIsActionLoading(true)
     try {
-      const result = await createApprover({
-        username: newApprover.username,
-        email: newApprover.email,
-        password: newApprover.password,
-      })
+      const result = await createApproverInvitation(newApprover.email)
       if (result.success) {
         toast({
           title: "Success",
-          description: "Approver created successfully",
+          description: result.message || "Approver invitation sent successfully. Onboarding link has been sent to their email.",
         })
         setAddApproverDialogOpen(false)
         setNewApprover({
           email: "",
-          username: "",
-          password: "",
         })
+        // Show onboarding link in development if provided
+        if (result.data?.onboardingLink) {
+          console.log('Onboarding link (dev only):', result.data.onboardingLink)
+        }
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to create approver",
+          description: result.error || result.message || "Failed to create approver invitation",
           variant: "destructive",
         })
       }
@@ -591,35 +587,18 @@ export default function ApproversPage() {
 
             <div className="grid gap-4 py-4">
               <div>
-                <Label htmlFor="username">Username *</Label>
-                <Input
-                  id="username"
-                  value={newApprover.username}
-                  onChange={(e) => setNewApprover((prev) => ({ ...prev, username: e.target.value }))}
-                  placeholder="approver5"
-                />
-              </div>
-
-              <div>
                 <Label htmlFor="email">Email Address *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={newApprover.email}
                   onChange={(e) => setNewApprover((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="approver5@talentix.com"
+                  placeholder="approver@talentix.com"
+                  required
                 />
-              </div>
-
-              <div>
-                <Label htmlFor="password">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newApprover.password}
-                  onChange={(e) => setNewApprover((prev) => ({ ...prev, password: e.target.value }))}
-                  placeholder="Enter password"
-                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  An onboarding link will be sent to this email address
+                </p>
               </div>
             </div>
 

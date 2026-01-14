@@ -141,7 +141,27 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-slate-900 px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full mt-4 h-11 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              onClick={() => router.push('/approver/login')}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Continue as Approver
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
