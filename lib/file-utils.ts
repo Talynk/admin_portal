@@ -1,50 +1,30 @@
 /**
  * File URL Utilities
  * 
- * Converts relative file paths from the API to full URLs
- * Files are stored on the server in /uploads/ directory
+ * Handles media URLs from Cloudflare R2 CDN
+ * All URLs from the API are already absolute HTTPS URLs pointing to https://media.talentix.net
+ * Use URLs directly - no processing needed
  */
-
-// Get file storage base URL from environment variable
-const FILE_STORAGE_BASE_URL = (process.env.NEXT_PUBLIC_FILE_STORAGE || process.env.NEXT_FILE_STORAGE || '').trim().replace(/\/+$/, '')
 
 /**
- * Converts a relative file path to a full URL
- * @param relativePath - Relative path from API (e.g., "/uploads/filename.mp4")
- * @returns Full URL or null if path is invalid
+ * Gets the media URL - all URLs from API are already complete R2 CDN URLs
+ * @param url - Media URL from API (already absolute HTTPS URL)
+ * @returns Full URL or null if invalid
  */
-export function getFileUrl(relativePath: string | null | undefined): string | null {
-  if (!relativePath) return null
+export function getFileUrl(url: string | null | undefined): string | null {
+  if (!url) return null
   
-  if (!FILE_STORAGE_BASE_URL) {
-    console.warn('FILE_STORAGE_BASE_URL is not set. Please set NEXT_PUBLIC_FILE_STORAGE environment variable.')
-    return null
+  // All URLs from API are already absolute R2 URLs (https://media.talentix.net)
+  // Just validate and return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
   }
   
-  // If already a full URL, return as-is (but clean it up)
-  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
-    // Clean up any /api/uploads/ to just /uploads/
-    return relativePath.replace(/\/api\/uploads\//g, '/uploads/')
-  }
-  
-  // Clean up the path - remove /api/uploads/ if present
-  let cleanPath = relativePath.trim().replace(/\/api\/uploads\//g, '/uploads/')
-  
-  // Ensure path starts with /uploads/
-  if (!cleanPath.startsWith('/uploads/') && !cleanPath.startsWith('uploads/')) {
-    // If it's just a filename, add the /uploads/ prefix
-    cleanPath = `/uploads/${cleanPath}`
-  }
-  
-  // Normalize to start with /
-  if (cleanPath.startsWith('uploads/')) {
-    cleanPath = `/${cleanPath}`
-  }
-  
-  // Construct full URL
-  const fullUrl = `${FILE_STORAGE_BASE_URL}${cleanPath}`
-  
-  return fullUrl
+  // Fallback for relative URLs (should not occur in production with R2)
+  // Only used for backward compatibility during migration
+  console.warn('Unexpected relative URL detected:', url)
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.talentix.net'
+  return `${apiBaseUrl}${url.startsWith('/') ? url : `/${url}`}`
 }
 
 /**

@@ -85,7 +85,8 @@ import {
 } from "lucide-react";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
-import { getFileUrl } from "@/lib/file-utils";
+import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
+import { useRef } from "react";
 
 export default function ContentPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -103,7 +104,6 @@ export default function ContentPage() {
     | null
   >(null);
   const [actionReason, setActionReason] = useState("");
-  const [actionExpiresAt, setActionExpiresAt] = useState("");
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
@@ -154,11 +154,11 @@ export default function ContentPage() {
           case "rejected":
             return video.status === "rejected";
           case "frozen":
-            return (video as any).is_frozen === true || (video as any).frozen === true;
+            return video.status === "frozen" || video.frozen === true || video.is_frozen === true;
           case "flagged":
-            return (video as any).flagged === true;
+            return video.flagged === true || video.is_flagged === true;
           case "featured":
-            return (video as any).is_featured === true || (video as any).featured === true;
+            return video.featured === true || video.is_featured === true;
           case "ai-flagged":
             return video.aiModeration?.flagged === true;
           default:
@@ -268,17 +268,10 @@ export default function ContentPage() {
           result = await unfreezePost(selectedVideo.id, actionReason);
           break;
         case "feature":
-          // Convert datetime-local to ISO 8601 format
-          const expiresAtISO = actionExpiresAt 
-            ? new Date(actionExpiresAt).toISOString()
-            : undefined;
-          result = await featurePost(selectedVideo.id, {
-            reason: actionReason || undefined,
-            expiresAt: expiresAtISO,
-          });
+          result = await featurePost(selectedVideo.id, actionReason);
           break;
         case "unfeature":
-          result = await unfeaturePost(selectedVideo.id);
+          result = await unfeaturePost(selectedVideo.id, actionReason);
           break;
         case "delete":
           result = await deletePost(selectedVideo.id);
@@ -311,7 +304,6 @@ export default function ContentPage() {
     setSelectedVideo(null);
     setActionType(null);
     setActionReason("");
-    setActionExpiresAt("");
   };
 
   const getStatusBadge = (status: string, frozen?: boolean, isFrozen?: boolean) => {
@@ -357,8 +349,8 @@ export default function ContentPage() {
   };
 
   const getContentType = (post: any) => {
-    // Get the actual media URL from any possible field (prioritize video_url from API)
-    const mediaUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url || post.fullUrl || '';
+    // Get the actual media URL from any possible field
+    const mediaUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url || '';
     
     // Check if it's a video based on file extension or type
     if (
@@ -395,119 +387,269 @@ export default function ContentPage() {
     return contentType === "video" ? Video : ImageIcon;
   };
 
-  // Simple media icon card - no previews, just icon and buttons
-  const MediaIconCard = ({ post }: { post: any }) => {
-    const contentType = getContentType(post);
-    const ContentIcon = contentType === "video" ? Video : ImageIcon;
-    const mediaUrl = post.video_url || post.fullUrl || post.file_url || post.mediaUrl || post.fileUrl || post.url;
-    const fileUrl = getFileUrl(mediaUrl);
-    const isPlaying = playingVideo === post.id;
+  // Component for video preview with hover-to-play
+  const VideoPreviewCard = ({ post }: { post: any }) => {
+    const [isHovered, setIsHovered] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    
+    // Try multiple possible field names for video URL
+    const videoUrl = post.video_url || post.file_url || post.mediaUrl || post.fileUrl || post.url;
+    const fileUrl = getFileUrl(videoUrl);
+    
+    // Try multiple possible thumbnail sources (prioritize API thumbnail_url)
+    const thumbnailUrl = 
+      getFileUrl(post.thumbnail_url) || 
+      getFileUrl(post.thumbnail) || 
+      getThumbnailUrl(videoUrl) || 
+      fileUrl; // Fallback to video itself for poster
 
-    const handlePlayClick = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isPlaying) {
-        setPlayingVideo(null);
-      } else {
-        setPlayingVideo(post.id);
+    const handleMouseEnter = () => {
+      setIsHovered(true);
+      if (videoRef.current && fileUrl) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(() => {
+          // Auto-play failed, show thumbnail instead
+          setIsPlaying(false);
+        });
+        setIsPlaying(true);
       }
     };
 
-    const handleCloseMedia = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setPlayingVideo(null);
+    const handleMouseLeave = () => {
+      setIsHovered(false);
+      if (videoRef.current) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+
+    const handleClick = () => {
+      openVideoPreview(post);
+    };
+
+    const handleImageLoad = () => {
+      setImageLoading(false);
+    };
+
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      setImageError(true);
+      setImageLoading(false);
+      e.currentTarget.src = '/placeholder.svg';
     };
 
     return (
-      <div className="relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 overflow-hidden rounded-t-lg flex items-center justify-center group">
-        {isPlaying && fileUrl ? (
-          /* Media playing/viewing state */
-          <>
-            {contentType === "video" ? (
-              <video
-                src={fileUrl}
-                controls
-                autoPlay
-                className="w-full h-full object-contain bg-black"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <img
-                src={fileUrl}
-                alt={post.title || post.caption || 'Image'}
-                className="w-full h-full object-contain bg-black"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-            {/* Close button */}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute top-2 right-2 bg-black/70 dark:bg-black/80 hover:bg-black/90 dark:hover:bg-black text-white shadow-lg z-10 border border-white/20"
-              onClick={handleCloseMedia}
-            >
-              <Ban className="w-4 h-4" />
-            </Button>
-            {/* Duration badge for videos */}
-            {contentType === "video" && post.duration && (
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                {post.duration}
-              </div>
-            )}
-          </>
-        ) : (
-          /* Icon state */
-          <>
-            {/* Main icon */}
-            <div className="flex flex-col items-center justify-center gap-3">
-              <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-6 shadow-lg">
-                <ContentIcon className="w-12 h-12 text-gray-600 dark:text-gray-300" />
-              </div>
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                {contentType === "video" ? "Video" : "Image"}
-              </div>
-            </div>
+      <div
+        className="relative w-full aspect-video bg-black overflow-hidden group cursor-pointer rounded-t-lg"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+      >
+        {/* Loading state */}
+        {imageLoading && !imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center z-10">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+          </div>
+        )}
 
-            {/* Action buttons overlay */}
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openVideoPreview(post);
-                }}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Details
-              </Button>
-              {fileUrl && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105"
-                  onClick={handlePlayClick}
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  {contentType === "video" ? "Play" : "View"}
-                </Button>
-              )}
-            </div>
+        {/* Thumbnail overlay - behind video */}
+        {!imageError && thumbnailUrl && (
+          <img
+            src={thumbnailUrl}
+            alt={post.title || post.caption || 'Video thumbnail'}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-0 ${
+              isPlaying && isHovered ? 'opacity-0' : 'opacity-100'
+            } ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            loading="lazy"
+            decoding="async"
+          />
+        )}
 
-            {/* Duration badge for videos */}
-            {contentType === "video" && post.duration && (
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                {post.duration}
-              </div>
-            )}
-          </>
+        {/* Video element - on top when playing */}
+        {fileUrl && !imageError && (
+          <video
+            ref={videoRef}
+            src={fileUrl}
+            poster={thumbnailUrl || undefined}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-10 ${
+              isPlaying && isHovered ? 'opacity-100 z-10' : 'opacity-0 z-0'
+            }`}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onError={() => {
+              setIsPlaying(false);
+              setImageError(true);
+            }}
+            onLoadedMetadata={() => {
+              // Try to capture first frame if no thumbnail
+              if (!thumbnailUrl && videoRef.current) {
+                const canvas = document.createElement('canvas');
+                canvas.width = videoRef.current.videoWidth || 640;
+                canvas.height = videoRef.current.videoHeight || 360;
+                const ctx = canvas.getContext('2d');
+                if (ctx && videoRef.current) {
+                  ctx.drawImage(videoRef.current, 0, 0);
+                  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                  // Use data URL as thumbnail fallback
+                }
+              }
+            }}
+          />
+        )}
+
+        {/* Error/Placeholder state */}
+        {imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center z-10">
+            <div className="text-center">
+              <Video className="w-12 h-12 text-gray-500 mx-auto mb-2" />
+              <p className="text-xs text-gray-400">Video unavailable</p>
+            </div>
+          </div>
+        )}
+
+        {/* Play button overlay - only show when NOT playing */}
+        {!imageError && !isPlaying && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+            <div className="bg-white/90 rounded-full p-3 shadow-lg pointer-events-auto">
+              <Play className="w-6 h-6 text-black" fill="black" />
+            </div>
+          </div>
+        )}
+
+        {/* Duration badge */}
+        {post.duration && !imageError && (
+          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm z-30">
+            {post.duration}
+          </div>
+        )}
+
+        {/* Video type indicator */}
+        {!imageError && (
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1 z-30">
+            <Video className="w-3 h-3" />
+            <span>Video</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Component for image preview
+  const ImagePreviewCard = ({ post }: { post: any }) => {
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(true);
+    
+    // Try multiple possible field names for image URL
+    const imageUrl = post.video_url || post.file_url || post.image_url || post.mediaUrl || post.fileUrl || post.url;
+    const fileUrl = getFileUrl(imageUrl);
+    
+    // Try to get thumbnail if available (for large images)
+    const thumbnailUrl = getFileUrl(post.thumbnail_url) || getFileUrl(post.thumbnail) || fileUrl;
+
+    const handleImageLoad = () => {
+      setImageLoading(false);
+    };
+
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      setImageError(true);
+      setImageLoading(false);
+      e.currentTarget.src = '/placeholder.svg';
+    };
+
+    return (
+      <div
+        className="relative w-full aspect-video bg-muted overflow-hidden group cursor-pointer rounded-t-lg"
+        onClick={() => openVideoPreview(post)}
+      >
+        {/* Loading state */}
+        {imageLoading && !imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center z-10">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+          </div>
+        )}
+
+        {/* Image - use thumbnail if available for faster loading */}
+        {thumbnailUrl && !imageError && (
+          <img
+            src={thumbnailUrl}
+            alt={post.title || post.caption || 'Image'}
+            className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+              imageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoad={handleImageLoad}
+            onError={(e) => {
+              // If thumbnail fails, try full image
+              if (thumbnailUrl !== fileUrl && fileUrl) {
+                e.currentTarget.src = fileUrl || '';
+              } else {
+                handleImageError(e);
+              }
+            }}
+            loading="lazy"
+            decoding="async"
+          />
+        )}
+
+        {/* Error/Placeholder state */}
+        {imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center z-10">
+            <div className="text-center">
+              <ImageIcon className="w-12 h-12 text-gray-500 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">Image unavailable</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Fallback: Show placeholder if no image URL */}
+        {!fileUrl && !imageError && (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+            <div className="text-center">
+              <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">No image available</p>
+            </div>
+          </div>
+        )}
+
+        {/* View button overlay */}
+        {!imageError && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-white/90 rounded-full p-3 shadow-lg">
+              <Eye className="w-6 h-6 text-black" />
+            </div>
+          </div>
+        )}
+
+        {/* Image type indicator */}
+        {!imageError && (
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+            <ImageIcon className="w-3 h-3" />
+            <span>Image</span>
+          </div>
         )}
       </div>
     );
   };
 
   const getContentPreview = (post: any) => {
-    return <MediaIconCard post={post} />;
+    const contentType = getContentType(post);
+    
+    if (contentType === "video") {
+      return <VideoPreviewCard post={post} />;
+    } else if (contentType === "image") {
+      return <ImagePreviewCard post={post} />;
+    } else {
+      return (
+        <div className="w-full h-48 bg-muted flex items-center justify-center">
+          <MessageSquare className="w-12 h-12 text-muted-foreground" />
+        </div>
+      );
+    }
   };
 
   const openVideoPreview = (video: any) => {
@@ -628,7 +770,9 @@ export default function ContentPage() {
                     ? "..."
                     : videos.filter(
                         (v) =>
-                          (v as any).is_frozen === true || (v as any).frozen === true
+                          v.status === "frozen" ||
+                          v.frozen === true ||
+                          v.is_frozen === true
                       ).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Frozen posts</p>
@@ -643,7 +787,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => (v as any).flagged === true).length}
+                  {loading ? "..." : videos.filter((v) => v.flagged || v.is_flagged).length}
                 </div>
                 <p className="text-xs text-muted-foreground">Needs review</p>
               </CardContent>
@@ -657,7 +801,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => (v as any).is_featured === true || (v as any).featured === true).length}
+                  {loading ? "..." : videos.filter((v) => v.featured).length}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Highlighted content
@@ -827,7 +971,7 @@ export default function ContentPage() {
                         >
                           <div className="relative">
                             {getContentPreview(video)}
-                            {(video as any).flagged && (
+                            {video.flagged && (
                               <div className="absolute top-2 left-2">
                                 <Badge className="bg-red-500 text-white">
                                   <Flag className="w-3 h-3 mr-1" />
@@ -835,7 +979,7 @@ export default function ContentPage() {
                                 </Badge>
                               </div>
                             )}
-                            {(video as any).is_featured && (
+                            {video.featured && (
                               <div className="absolute top-2 right-2">
                                 <Badge className="bg-yellow-500 text-white">
                                   <Star className="w-3 h-3 mr-1" />
@@ -931,7 +1075,7 @@ export default function ContentPage() {
                                       </DropdownMenuItem>
                                     </>
                                   )}
-                                  {(video as any).frozen || (video as any).is_frozen ? (
+                                  {video.frozen ? (
                                     <DropdownMenuItem
                                       className="text-blue-600"
                                       onClick={() =>
@@ -953,7 +1097,7 @@ export default function ContentPage() {
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuSeparator />
-                                  {(video as any).is_featured || (video as any).featured ? (
+                                  {video.featured ? (
                                     <DropdownMenuItem
                                       className="text-yellow-600"
                                       onClick={() =>
@@ -1013,8 +1157,8 @@ export default function ContentPage() {
                             <div className="flex items-center justify-between mb-3">
                               {getStatusBadge(
                                 video.status,
-                                (video as any).frozen,
-                                (video as any).is_frozen
+                                video.frozen,
+                                video.is_frozen
                               )}
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
@@ -1103,7 +1247,10 @@ export default function ContentPage() {
                                       <>
                                         <img
                                           src={
-                                            getFileUrl((video as any).video_url || (video as any).fullUrl || video.file_url) ||
+                                            getFileUrl(video.thumbnail_url) ||
+                                            getFileUrl(video.thumbnail) ||
+                                            getThumbnailUrl(video.video_url || video.file_url) ||
+                                            getFileUrl(video.video_url || video.file_url) ||
                                             "/placeholder.svg"
                                           }
                                           alt={video.title || video.caption || 'Video thumbnail'}
@@ -1122,7 +1269,9 @@ export default function ContentPage() {
                                     ) : (
                                       <img
                                         src={
-                                          getFileUrl((video as any).video_url || (video as any).fullUrl || video.file_url || (video as any).image_url) ||
+                                          getFileUrl(video.thumbnail_url) ||
+                                          getFileUrl(video.thumbnail) ||
+                                          getFileUrl(video.video_url || video.file_url || video.image_url) ||
                                           "/placeholder.svg"
                                         }
                                         alt={video.title || video.caption || 'Image'}
@@ -1142,14 +1291,14 @@ export default function ContentPage() {
                                         <ImageIcon className="w-3 h-3 text-white bg-black/50 rounded" />
                                       )}
                                     </div>
-                                    {(video as any).flagged && (
+                                    {video.flagged && (
                                       <div className="absolute top-1 left-1">
                                         <Badge className="bg-red-500 text-white text-xs px-1 py-0">
                                           <Flag className="w-2 h-2 mr-1" />
                                         </Badge>
                                       </div>
                                     )}
-                                    {(video as any).is_featured && (
+                                    {video.featured && (
                                       <div className="absolute top-1 right-1">
                                         <Badge className="bg-yellow-500 text-white text-xs px-1 py-0">
                                           <Star className="w-2 h-2 mr-1" />
@@ -1201,15 +1350,14 @@ export default function ContentPage() {
                                 <div className="flex flex-col gap-1">
                                   {getStatusBadge(
                                     video.status,
-                                    (video as any).frozen,
-                                    (video as any).is_frozen
+                                    video.frozen || false
                                   )}
-                                    {(video as any).is_featured && (
-                                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                                        <Star className="w-3 h-3 mr-1" />
-                                        Featured
-                                      </Badge>
-                                    )}
+                                  {video.featured && (
+                                    <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                                      <Star className="w-3 h-3 mr-1" />
+                                      Featured
+                                    </Badge>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1306,7 +1454,7 @@ export default function ContentPage() {
                                         </DropdownMenuItem>
                                       </>
                                     )}
-                                    {(video as any).frozen || (video as any).is_frozen ? (
+                                    {video.frozen ? (
                                       <DropdownMenuItem
                                         className="text-blue-600"
                                         onClick={() =>
@@ -1328,7 +1476,7 @@ export default function ContentPage() {
                                       </DropdownMenuItem>
                                     )}
                                     <DropdownMenuSeparator />
-                                    {(video as any).is_featured || (video as any).featured ? (
+                                    {video.featured ? (
                                       <DropdownMenuItem
                                         className="text-yellow-600"
                                         onClick={() =>
@@ -1426,23 +1574,6 @@ export default function ContentPage() {
                   onChange={(e) => setActionReason(e.target.value)}
                 />
               </div>
-              {actionType === "feature" && (
-                <div>
-                  <Label htmlFor="expiresAt">
-                    Expiration Date (optional)
-                  </Label>
-                  <Input
-                    id="expiresAt"
-                    type="datetime-local"
-                    value={actionExpiresAt}
-                    onChange={(e) => setActionExpiresAt(e.target.value)}
-                    min={new Date().toISOString().slice(0, 16)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Leave empty to feature indefinitely
-                  </p>
-                </div>
-              )}
             </div>
             <DialogFooter>
               <Button
@@ -1493,7 +1624,7 @@ export default function ContentPage() {
               <div className="aspect-video bg-black rounded-lg flex items-center justify-center overflow-hidden">
                 {selectedVideo && getContentType(selectedVideo) === "video" ? (
                   <video
-                    src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl || selectedVideo.file_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || undefined}
+                    src={getFileUrl(selectedVideo.video_url || selectedVideo.file_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || undefined}
                     controls
                     className="w-full h-full object-contain"
                     onError={(e) => {
@@ -1504,7 +1635,7 @@ export default function ContentPage() {
                   </video>
                 ) : selectedVideo && getContentType(selectedVideo) === "image" ? (
                   <img
-                    src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl || selectedVideo.file_url || (selectedVideo as any).image_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || '/placeholder.svg'}
+                    src={getFileUrl(selectedVideo.video_url || selectedVideo.file_url || selectedVideo.image_url || selectedVideo.mediaUrl || selectedVideo.fileUrl || selectedVideo.url) || '/placeholder.svg'}
                     alt={selectedVideo.title}
                     className="w-full h-full object-contain"
                     onError={(e) => {
