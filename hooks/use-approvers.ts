@@ -44,22 +44,28 @@ export function useApprovers(params: UseApproversParams = {}) {
     fetchApprovers()
   }, [fetchApprovers])
 
+  const createApproverInvitation = async (email: string) => {
+    try {
+      const response = await apiClient.createApproverInvitation(email)
+      if (response.success) {
+        await fetchApprovers() // Refresh the list
+        return { success: true, data: response.data, message: response.message }
+      } else {
+        return { success: false, error: response.error, message: response.message }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
+  // Legacy method - kept for backward compatibility
   const createApprover = async (approverData: {
     username: string
     password: string
     email: string
   }) => {
-    try {
-      const response = await apiClient.createApprover(approverData)
-      if (response.success) {
-        await fetchApprovers() // Refresh the list
-        return { success: true, data: response.data }
-      } else {
-        return { success: false, error: response.error }
-      }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
-    }
+    // Use invitation system instead
+    return createApproverInvitation(approverData.email)
   }
 
   const updateApprover = async (approverId: string, approverData: {
@@ -146,6 +152,7 @@ export function useApprovers(params: UseApproversParams = {}) {
     totalPages,
     refetch: fetchApprovers,
     createApprover,
+    createApproverInvitation,
     updateApprover,
     activateApprover,
     deactivateApprover,

@@ -70,7 +70,7 @@ export default function ApproversPage() {
     total,
     totalPages,
     refetch,
-    createApprover,
+    createApproverInvitation,
     updateApprover,
     activateApprover,
     deactivateApprover,
@@ -579,9 +579,9 @@ export default function ApproversPage() {
         <Dialog open={addApproverDialogOpen} onOpenChange={setAddApproverDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add New Approver</DialogTitle>
+              <DialogTitle>Invite New Approver</DialogTitle>
               <DialogDescription>
-                Create a new approver account with login credentials and permissions.
+                Send an invitation email to create a new approver account. They will complete onboarding via the email link.
               </DialogDescription>
             </DialogHeader>
 
@@ -612,15 +612,15 @@ export default function ApproversPage() {
               </Button>
               <Button
                 onClick={handleAddApprover}
-                disabled={!newApprover.email || !newApprover.username || !newApprover.password || isActionLoading}
+                disabled={!newApprover.email || isActionLoading}
               >
                 {isActionLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
+                    Sending Invitation...
                   </>
                 ) : (
-                  "Create Approver Account"
+                  "Send Invitation"
                 )}
               </Button>
             </DialogFooter>
