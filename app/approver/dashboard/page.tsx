@@ -190,8 +190,8 @@ export default function ApproverDashboardPage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </div>
+        </div>
+      </ApproverLayout>
     </ApproverProtectedRoute>
   )
 }
