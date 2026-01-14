@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ApproverProtectedRoute } from "@/components/approver-protected-route"
+import { ApproverLayout } from "@/components/approver-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +15,6 @@ import {
   XCircle, 
   AlertTriangle, 
   Clock,
-  LogOut,
   Loader2,
   Eye,
   Flag
@@ -22,7 +22,7 @@ import {
 import Link from "next/link"
 
 export default function ApproverDashboardPage() {
-  const { approver, logout } = useApproverAuth()
+  const { approver } = useApproverAuth()
   const router = useRouter()
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -51,34 +51,16 @@ export default function ApproverDashboardPage() {
 
   return (
     <ApproverProtectedRoute>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-        {/* Header */}
-        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Approver Portal
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Welcome, {approver?.first_name} {approver?.last_name}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={logout}
-                className="hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            </div>
+      <ApproverLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Welcome to the Approver Portal. Review and manage content moderation.
+            </p>
           </div>
-        </header>
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {error && (
-            <Card className="border-red-200 bg-red-50 dark:bg-red-900/20 mb-6">
+            <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
                   <AlertTriangle className="h-4 w-4" />
@@ -98,7 +80,7 @@ export default function ApproverDashboardPage() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Pending Posts</CardTitle>
