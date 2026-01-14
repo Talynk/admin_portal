@@ -6,5 +6,9 @@ export default function ApproverLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <ApproverAuthProvider>{children}</ApproverAuthProvider>
+  return (
+    <ApproverAuthProvider>
+      {children}
+    </ApproverAuthProvider>
+  )
 }

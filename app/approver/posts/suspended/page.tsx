@@ -8,13 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { apiClient } from "@/lib/api-client"
 import { 
-  CheckCircle, 
+  Ban,
   Loader2,
   Video,
   Image as ImageIcon,
   Eye,
   Play,
-  Ban,
   AlertTriangle,
 } from "lucide-react"
 import { getFileUrl } from "@/lib/file-utils"
@@ -34,13 +33,15 @@ interface Post {
   file_url?: string
   status: string
   type?: string
-  approved_at?: string
+  suspended_at?: string
+  suspend_reason?: string
   user: {
     username: string
+    email: string
   }
 }
 
-export default function ApprovedPostsPage() {
+export default function SuspendedPostsPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +59,7 @@ export default function ApprovedPostsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await apiClient.getApproverApprovedPosts({ page, limit: 12 })
+      const response = await apiClient.getApproverSuspendedPosts({ page, limit: 12 })
       if (response.success && response.data) {
         setPosts(response.data.posts || [])
         setTotalPages(response.data.pagination?.totalPages || 1)
@@ -176,8 +177,8 @@ export default function ApprovedPostsPage() {
       <ApproverLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Approved Posts</h1>
-            <p className="text-muted-foreground">Posts you have reviewed and approved</p>
+            <h1 className="text-3xl font-bold tracking-tight">Suspended Posts</h1>
+            <p className="text-muted-foreground">View posts that have been suspended</p>
           </div>
 
           {error && (
@@ -199,9 +200,9 @@ export default function ApprovedPostsPage() {
           ) : posts.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center py-12">
-                <CheckCircle className="w-16 h-16 mx-auto text-green-600 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No approved posts</h3>
-                <p className="text-muted-foreground">You haven't approved any posts yet.</p>
+                <Ban className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No suspended posts</h3>
+                <p className="text-muted-foreground">There are no suspended posts to display.</p>
               </CardContent>
             </Card>
           ) : (
@@ -212,12 +213,18 @@ export default function ApprovedPostsPage() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold line-clamp-1">{post.title}</h3>
-                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200">
-                        Approved
+                      <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200">
+                        <Ban className="w-3 h-3 mr-1" />
+                        Suspended
                       </Badge>
                     </div>
+                    {post.suspend_reason && (
+                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                        Reason: {post.suspend_reason}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      @{post.user.username} • {post.approved_at ? new Date(post.approved_at).toLocaleDateString() : ''}
+                      @{post.user.username} • {post.suspended_at ? new Date(post.suspended_at).toLocaleDateString() : ''}
                     </p>
                   </CardContent>
                 </Card>
