@@ -12,7 +12,7 @@ import { Eye, EyeOff, Shield, Loader2, CheckCircle } from "lucide-react"
 import { useApproverAuth } from "@/components/approver-auth-provider"
 
 export default function ApproverLoginPage() {
-  const [loginValue, setLoginValue] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
@@ -35,9 +35,7 @@ export default function ApproverLoginPage() {
     setError("")
 
     try {
-      // Determine login type (email or username)
-      const loginType = loginValue.includes('@') ? 'email' : 'username'
-      const success = await login(loginValue, password, loginType)
+      const success = await login(email, password)
       
       if (success) {
         router.push("/approver/dashboard")
@@ -88,13 +86,13 @@ export default function ApproverLoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="loginValue">Email or Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="loginValue"
-                type="text"
-                placeholder="approver@talentix.com or username"
-                value={loginValue}
-                onChange={(e) => setLoginValue(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="approver@talentix.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 className="h-11 hover:border-blue-300 focus:border-blue-500 transition-colors"
               />

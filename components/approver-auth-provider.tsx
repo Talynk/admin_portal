@@ -52,9 +52,9 @@ export function ApproverAuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = async (loginValue: string, password: string, loginType: 'email' | 'username' = 'email'): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await apiClient.approverLogin(loginValue, password, loginType)
+      const response = await apiClient.approverLogin(email, password)
       
       if (response.success && response.data) {
         const { accessToken, user } = response.data as { accessToken: string; user: any }

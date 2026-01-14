@@ -617,13 +617,12 @@ class ApiClient {
   }
 
   // Approver Portal APIs
-  async approverLogin(loginValue: string, password: string, loginType: 'email' | 'username' = 'email') {
+  async approverLogin(email: string, password: string) {
     const response = await this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({
-        loginValue,
+        email,
         password,
-        loginType,
         role: 'approver',
       }),
     })
