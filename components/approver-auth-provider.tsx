@@ -79,10 +79,7 @@ export function ApproverAuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    apiClient.logout()
-    localStorage.removeItem('talentix_approver_token')
-    localStorage.removeItem('talentix_approver_refresh_token')
-    localStorage.removeItem('talentix_approver_user')
+    apiClient.approverLogout()
     setApprover(null)
     router.push('/approver/login')
   }

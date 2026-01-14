@@ -61,7 +61,15 @@ class ApiClient {
       const approverToken = localStorage.getItem('talentix_approver_token')
       if (approverToken) {
         token = approverToken
+      } else {
+        // If no approver token but endpoint is approver route, refresh
+        this.refreshApproverToken()
+        token = this.token
       }
+    } else {
+      // For non-approver routes, use admin token
+      this.refreshToken()
+      token = this.token
     }
 
     if (token) {
@@ -130,6 +138,15 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('talentix_admin_token')
       localStorage.removeItem('talentix_admin_user')
+    }
+  }
+
+  approverLogout() {
+    this.token = null
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('talentix_approver_token')
+      localStorage.removeItem('talentix_approver_refresh_token')
+      localStorage.removeItem('talentix_approver_user')
     }
   }
 
@@ -612,14 +629,22 @@ class ApiClient {
     })
 
     if (response.success && response.data) {
-      const { accessToken, refreshToken, user } = response.data as { accessToken: string; refreshToken?: string; user: any }
-      this.setToken(accessToken)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('talentix_approver_token', accessToken)
-        if (refreshToken) {
-          localStorage.setItem('talentix_approver_refresh_token', refreshToken)
+      const data = response.data as any
+      const accessToken = data.accessToken || data.token
+      const refreshToken = data.refreshToken
+      const user = data.user || data.approver
+      
+      if (accessToken) {
+        this.setApproverToken(accessToken)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('talentix_approver_token', accessToken)
+          if (refreshToken) {
+            localStorage.setItem('talentix_approver_refresh_token', refreshToken)
+          }
+          if (user) {
+            localStorage.setItem('talentix_approver_user', JSON.stringify(user))
+          }
         }
-        localStorage.setItem('talentix_approver_user', JSON.stringify(user))
       }
     }
 
