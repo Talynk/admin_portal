@@ -28,9 +28,19 @@ class ApiClient {
     this.token = token
   }
 
+  setApproverToken(token: string) {
+    this.token = token
+  }
+
   refreshToken() {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('talentix_admin_token')
+    }
+  }
+
+  refreshApproverToken() {
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('talentix_approver_token')
     }
   }
 
@@ -45,8 +55,17 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     }
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`
+    // Check for approver token for approver routes, otherwise use admin token
+    let token = this.token
+    if (typeof window !== 'undefined' && endpoint.startsWith('/approver/')) {
+      const approverToken = localStorage.getItem('talentix_approver_token')
+      if (approverToken) {
+        token = approverToken
+      }
+    }
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
     }
 
     try {
@@ -506,7 +525,7 @@ class ApiClient {
     })
   }
 
-  // Approvers Management
+  // Admin Approver Management
   async getApprovers(params?: {
     page?: number
     limit?: number
@@ -527,25 +546,38 @@ class ApiClient {
     return this.request(`/admin/approvers/${approverId}`)
   }
 
-  async createApprover(approverData: {
-    username: string
-    password: string
-    email: string
-  }) {
+  async createApproverInvitation(email: string) {
     return this.request('/admin/approvers', {
       method: 'POST',
-      body: JSON.stringify(approverData),
+      body: JSON.stringify({ email }),
     })
   }
 
-  async updateApprover(approverId: string, approverData: {
-    username?: string
-    email?: string
+  async getApproverStats(approverId: string) {
+    return this.request(`/admin/approvers/${approverId}/stats`)
+  }
+
+  async getApproverAnalytics(approverId: string) {
+    return this.request(`/admin/approvers/${approverId}/analytics`)
+  }
+
+  async getApproverReviewedPosts(approverId: string, params?: {
+    page?: number
+    limit?: number
     status?: string
   }) {
-    return this.request(`/admin/approvers/${approverId}`, {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/approvers/${approverId}/reviewed-posts${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async suspendApprover(approverId: string) {
+    return this.request(`/admin/approvers/${approverId}/suspend`, {
       method: 'PUT',
-      body: JSON.stringify(approverData),
     })
   }
 
@@ -567,7 +599,51 @@ class ApiClient {
     })
   }
 
-  async getApproverPosts(approverId: string, params?: {
+  // Approver Portal APIs
+  async approverLogin(loginValue: string, password: string, loginType: 'email' | 'username' = 'email') {
+    const response = await this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        loginValue,
+        password,
+        loginType,
+        role: 'approver',
+      }),
+    })
+
+    if (response.success && response.data) {
+      const { accessToken, refreshToken, user } = response.data as { accessToken: string; refreshToken?: string; user: any }
+      this.setToken(accessToken)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('talentix_approver_token', accessToken)
+        if (refreshToken) {
+          localStorage.setItem('talentix_approver_refresh_token', refreshToken)
+        }
+        localStorage.setItem('talentix_approver_user', JSON.stringify(user))
+      }
+    }
+
+    return response
+  }
+
+  async completeApproverOnboarding(data: {
+    token: string
+    password: string
+    first_name: string
+    last_name: string
+    phone_number: string
+  }) {
+    return this.request('/approver/onboarding/complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getApproverPortalStats() {
+    return this.request('/approver/stats')
+  }
+
+  async getApproverPendingPosts(params?: {
     page?: number
     limit?: number
   }) {
@@ -576,14 +652,147 @@ class ApiClient {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
 
     const queryString = queryParams.toString()
-    return this.request(`/admin/approvers/${approverId}/posts${queryString ? `?${queryString}` : ''}`)
+    return this.request(`/approver/posts/pending${queryString ? `?${queryString}` : ''}`)
   }
 
-  async assignApprover(postId: string, approverId: string) {
-    return this.request(`/admin/posts/${postId}/assign-approver`, {
-      method: 'POST',
-      body: JSON.stringify({ approverId }),
+  async getApproverApprovedPosts(params?: {
+    page?: number
+    limit?: number
+    date?: string
+    search?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.date) queryParams.append('date', params.date)
+    if (params?.search) queryParams.append('search', params.search)
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/posts/approved${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getApproverAllPosts(params?: {
+    page?: number
+    limit?: number
+    status?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/posts/all${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getApproverFlaggedPosts(params?: {
+    page?: number
+    limit?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/posts/flagged${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getApproverSuspendedPosts(params?: {
+    page?: number
+    limit?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/posts/suspended${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getApproverTrafficPosts(params?: {
+    page?: number
+    limit?: number
+    minViews?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.minViews) queryParams.append('minViews', params.minViews.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/posts/traffic${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async approvePost(postId: string, notes?: string) {
+    return this.request(`/approver/posts/${postId}/approve`, {
+      method: 'PUT',
+      body: JSON.stringify({ notes }),
     })
+  }
+
+  async rejectPost(postId: string, notes: string) {
+    return this.request(`/approver/posts/${postId}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ notes }),
+    })
+  }
+
+  async suspendPost(postId: string, reason: string) {
+    return this.request(`/approver/posts/${postId}/suspend`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    })
+  }
+
+  async reviewFlaggedPost(postId: string, action: 'approve' | 'reject', notes: string) {
+    return this.request(`/approver/posts/${postId}/flagged/review`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, notes }),
+    })
+  }
+
+  async getUsersWithHighSuspendedVideos(params?: {
+    page?: number
+    limit?: number
+    minSuspended?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.minSuspended) queryParams.append('minSuspended', params.minSuspended.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/users/high-suspended-videos${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getApproverNotifications(params?: {
+    page?: number
+    limit?: number
+    unreadOnly?: boolean
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.unreadOnly !== undefined) queryParams.append('unreadOnly', params.unreadOnly.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/notifications${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async searchApproverPosts(params: {
+    q: string
+    page?: number
+    limit?: number
+    status?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    queryParams.append('q', params.q)
+    if (params.page) queryParams.append('page', params.page.toString())
+    if (params.limit) queryParams.append('limit', params.limit.toString())
+    if (params.status) queryParams.append('status', params.status)
+
+    const queryString = queryParams.toString()
+    return this.request(`/approver/posts/search${queryString ? `?${queryString}` : ''}`)
   }
 
   // Notifications
