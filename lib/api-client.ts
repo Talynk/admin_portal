@@ -271,6 +271,13 @@ class ApiClient {
     })
   }
 
+  async updateUserStatus(userId: string, status: 'active' | 'inactive' | 'suspended') {
+    return this.request(`/admin/users/${userId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    })
+  }
+
   async deleteUser(userId: string) {
     return this.request(`/admin/users/${userId}`, {
       method: 'DELETE',
@@ -299,6 +306,10 @@ class ApiClient {
 
     const queryString = queryParams.toString()
     return this.request(`/admin/users/stats${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getUserAnalytics(userId: string) {
+    return this.request(`/admin/users/${userId}/analytics`)
   }
 
   // Challenge Management Endpoints
@@ -405,7 +416,7 @@ class ApiClient {
   async getPostsAnalytics(params?: {
     page?: number
     limit?: number
-    status?: 'all' | 'pending' | 'approved' | 'rejected' | 'frozen'
+    status?: 'all' | 'active' | 'draft' | 'suspended'
     sort?: 'newest' | 'oldest' | 'most_liked' | 'most_viewed' | 'most_reported'
   }) {
     const queryParams = new URLSearchParams()
@@ -422,6 +433,10 @@ class ApiClient {
     return this.request(`/admin/videos/${postId}`)
   }
 
+  async getPostAnalytics(postId: string) {
+    return this.request(`/admin/posts/${postId}/analytics`)
+  }
+
   async updatePost(postId: string, postData: {
     title?: string
     description?: string
@@ -436,6 +451,13 @@ class ApiClient {
     })
   }
 
+  async updatePostStatus(postId: string, status: 'active' | 'suspended' | 'draft', reason?: string) {
+    return this.request(`/admin/posts/${postId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reason }),
+    })
+  }
+
   async deletePost(postId: string) {
     return this.request(`/admin/videos/${postId}`, {
       method: 'DELETE',
@@ -445,14 +467,14 @@ class ApiClient {
   async approvePost(postId: string, reason?: string) {
     return this.request('/admin/approve', {
       method: 'PUT',
-      body: JSON.stringify({ postId, status: 'approved', adminNotes: reason }),
+      body: JSON.stringify({ postId, status: 'active', adminNotes: reason }),
     })
   }
 
   async rejectPost(postId: string, reason: string) {
     return this.request('/admin/approve', {
       method: 'PUT',
-      body: JSON.stringify({ postId, status: 'rejected', adminNotes: reason }),
+      body: JSON.stringify({ postId, status: 'suspended', adminNotes: reason }),
     })
   }
 
@@ -555,6 +577,16 @@ class ApiClient {
 
     const queryString = queryParams.toString()
     return this.request(`/admin/dashboard/stats${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getDashboardActivity(params?: {
+    limit?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/dashboard/activity${queryString ? `?${queryString}` : ''}`)
   }
 
   async getContentManagementStats() {

@@ -24,6 +24,9 @@ interface User {
   follower_count?: number
   postsApproved?: number
   postsPending?: number
+  bio?: string
+  totalPostViews?: number
+  total_profile_views?: number
 }
 
 interface UsersResponse {

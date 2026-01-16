@@ -15,9 +15,11 @@ export interface Post {
   mediaUrl?: string
   type?: 'video' | 'image'
   fileType?: 'video' | 'image'
-  status: 'approved' | 'pending' | 'rejected' | 'frozen' | 'suspended' | 'active' | 'draft'
+  status: 'active' | 'draft' | 'suspended'
   duration?: string
   views: number
+  viewCount?: number
+  viewCountFromTable?: number
   likes: number
   comments_count?: number
   comments?: number
@@ -37,8 +39,26 @@ export interface Post {
   user?: {
     id: string
     username: string
+    email?: string
+    profile_picture?: string
+    bio?: string
   }
   isLiked?: boolean
+  _count?: {
+    postLikes?: number
+    postViews?: number
+    comments?: number
+    shares?: number
+    reports?: number
+  }
+  analytics?: {
+    totalEngagements?: number
+    engagementRate?: number
+    avgEngagementPerView?: number
+    isHighPerforming?: boolean
+    isControversial?: boolean
+    riskScore?: number
+  }
   aiModeration?: {
     flagged: boolean
     summary: {

@@ -712,17 +712,14 @@ export default function PostDetailPage() {
     }, 2000)
   }
 
-  const getStatusBadge = (status: string, frozen: boolean) => {
-    if (frozen) {
-      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Frozen</Badge>
-    }
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case "approved":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>
-      case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
-      case "rejected":
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Rejected</Badge>
+      case "active":
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
+      case "draft":
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Draft</Badge>
+      case "suspended":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Suspended</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -785,7 +782,7 @@ export default function PostDetailPage() {
                   Download
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {video.status === "pending" && (
+                {video.status === "draft" && (
                   <>
                     <DropdownMenuItem
                       className="text-green-600"
@@ -951,7 +948,7 @@ export default function PostDetailPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Status:</span>
-                    {getStatusBadge(video.status, video.frozen)}
+                    {getStatusBadge(video.status)}
                   </div>
                   
                   {video.featured && (
@@ -1011,7 +1008,7 @@ export default function PostDetailPage() {
                     {video.approvedDate && (
                       <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" />
-                        <span>Approved: {new Date(video.approvedDate).toLocaleDateString()}</span>
+                        <span>Activated: {new Date(video.approvedDate).toLocaleDateString()}</span>
                       </div>
                     )}
                   </div>

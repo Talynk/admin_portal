@@ -1,20 +1,78 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle, Image as ImageIcon } from "lucide-react"
+import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle, Image as ImageIcon, Wifi, WifiOff } from "lucide-react"
 import { useDashboard } from "@/hooks/use-dashboard"
+import { useAdminWebSocket } from "@/hooks/use-admin-websocket"
+import { useAuth } from "@/components/auth-provider"
 import { getFileUrl } from "@/lib/file-utils"
+import { toast } from "@/hooks/use-toast"
 
 export default function DashboardPage() {
   const { stats, loading, error, refetch } = useDashboard()
+  const { user } = useAuth()
   const [selectedPost, setSelectedPost] = useState<any>(null)
   const [postDialogOpen, setPostDialogOpen] = useState(false)
+  const [wsConnected, setWsConnected] = useState(false)
+
+  // Get admin ID and token for WebSocket
+  const adminId = user?.id || null
+  const token = typeof window !== 'undefined' ? localStorage.getItem('talentix_admin_token') : null
+
+  // WebSocket integration for real-time updates
+  const { isConnected } = useAdminWebSocket({
+    adminId,
+    token,
+    enabled: !!adminId && !!token,
+    onDashboardUpdate: (data) => {
+      // Update stats with real-time data
+      if (stats) {
+        // Note: This would ideally update the stats state, but since useDashboard manages its own state,
+        // we'll trigger a refetch. In a production app, you might want to merge the updates directly.
+        refetch()
+      }
+    },
+    onNewUser: (data) => {
+      toast({
+        title: "New User Registered",
+        description: `@${data.username} just joined the platform`,
+      })
+      refetch()
+    },
+    onNewPost: (data) => {
+      toast({
+        title: "New Post Created",
+        description: `@${data.username} created a new post`,
+      })
+      refetch()
+    },
+    onNewReport: (data) => {
+      toast({
+        title: "New Report Submitted",
+        description: `A new report was submitted for post ${data.postId}`,
+        variant: "destructive",
+      })
+      refetch()
+    },
+  })
+
+  useEffect(() => {
+    setWsConnected(isConnected())
+  }, [isConnected])
+
+  // Check connection status periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWsConnected(isConnected())
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [isConnected])
 
   return (
     <ProtectedRoute>
@@ -22,7 +80,20 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                {wsConnected ? (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    <Wifi className="h-3 w-3 mr-1" />
+                    Live
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+                    <WifiOff className="h-3 w-3 mr-1" />
+                    Offline
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground">
                 Welcome to the talentix Admin Portal. Monitor and manage your social media platform.
               </p>
@@ -304,21 +375,18 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <Badge variant={
-                          post.status === "approved" || post.status === "active" 
+                          post.status === "active" 
                             ? "default" 
-                            : post.status === "pending" 
-                            ? "secondary" 
                             : post.status === "draft"
-                            ? "outline"
-                            : "destructive"
+                            ? "secondary" 
+                            : post.status === "suspended"
+                            ? "destructive"
+                            : "outline"
                         }>
-                          {post.status || "pending"}
+                          {post.status || "draft"}
                         </Badge>
                         {post.is_featured && (
                           <Badge variant="outline" className="text-xs">Featured</Badge>
-                        )}
-                        {post.is_frozen && (
-                          <Badge variant="destructive" className="text-xs">Frozen</Badge>
                         )}
                       </div>
                     </div>
@@ -438,15 +506,15 @@ export default function DashboardPage() {
                     <p>
                       <strong>Status:</strong>{" "}
                       <Badge variant={
-                        selectedPost.status === "approved" || selectedPost.status === "active" 
+                        selectedPost.status === "active" 
                           ? "default" 
-                          : selectedPost.status === "pending" 
-                          ? "secondary" 
                           : selectedPost.status === "draft"
-                          ? "outline"
-                          : "destructive"
+                          ? "secondary" 
+                          : selectedPost.status === "suspended"
+                          ? "destructive"
+                          : "outline"
                       }>
-                        {selectedPost.status || "pending"}
+                        {selectedPost.status || "draft"}
                       </Badge>
                     </p>
                     {selectedPost.category && (

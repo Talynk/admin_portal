@@ -65,6 +65,8 @@ export interface PostAnalytics {
   is_featured: boolean
   likes: number
   views: number
+  viewCount?: number
+  viewCountFromTable?: number
   shares: number
   comment_count: number
   report_count: number
@@ -74,6 +76,7 @@ export interface PostAnalytics {
     username: string
     email: string
     profile_picture: string
+    bio?: string
     country: {
       name: string
       flag_emoji: string
@@ -144,6 +147,15 @@ export interface UserWithDetails {
   country_id: number
   status: 'active' | 'suspended' | 'pending'
   createdAt: string
+  bio?: string
+  totalPostViews?: number
+  posts_count?: number
+  follower_count?: number
+  total_profile_views?: number
+  postsApproved?: number
+  postsPending?: number
+  profile_picture?: string
+  last_login?: string
 }
 
 export interface Appeal {

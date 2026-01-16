@@ -768,6 +768,11 @@ export default function UsersPage() {
                                 <p className="text-sm text-muted-foreground">
                                   {user.fullName}
                                 </p>
+                                {user.bio && (
+                                  <p className="text-xs text-muted-foreground line-clamp-1">
+                                    {user.bio}
+                                  </p>
+                                )}
                                 <p className="text-xs text-muted-foreground">
                                   {user.email}
                                 </p>
@@ -807,6 +812,12 @@ export default function UsersPage() {
                               <p className="text-muted-foreground">
                                 {user.postsApproved || 0} approved, {user.postsPending || 0} pending
                               </p>
+                              {user.totalPostViews !== undefined && (
+                                <p className="text-muted-foreground flex items-center gap-1">
+                                  <Eye className="h-3 w-3" />
+                                  {user.totalPostViews.toLocaleString()} total views
+                                </p>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>

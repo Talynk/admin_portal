@@ -67,7 +67,7 @@ export default function ActivePostsPage() {
     try {
       setLoading(true)
       setError(null)
-      // Get active posts (status = 'active' or 'approved')
+      // Get active posts (status = 'active')
       const response = await apiClient.getApproverAllPosts({ 
         page, 
         limit: 12,
