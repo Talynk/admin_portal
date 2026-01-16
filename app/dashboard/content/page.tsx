@@ -113,24 +113,6 @@ export default function ContentPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  // Use the API hook
-  const {
-    posts,
-    loading,
-    error,
-    total,
-    totalPages,
-    refetch,
-    updatePost,
-    deletePost,
-    approvePost,
-    rejectPost,
-    freezePost,
-    unfreezePost,
-    featurePost,
-    unfeaturePost,
-    flagPost,
-    unflagPost,
   // Determine status filter based on active tab and status filter dropdown
   const getStatusFilter = () => {
     if (statusFilter !== "all") {
@@ -145,6 +127,7 @@ export default function ContentPage() {
     return undefined;
   };
 
+  // Use the API hook
   const {
     posts,
     loading,
