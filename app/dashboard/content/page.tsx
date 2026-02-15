@@ -56,7 +56,6 @@ import {
   Eye,
   Heart,
   MessageSquare,
-  Flag,
   Ban,
   CheckCircle,
   Clock,
@@ -141,7 +140,6 @@ export default function ContentPage() {
   } = usePosts({
     search: searchTerm || undefined,
     status: getStatusFilter(),
-    flagged: activeTab === "flagged" ? true : undefined,
     featured: activeTab === "featured" ? true : undefined,
   });
 
@@ -159,12 +157,8 @@ export default function ContentPage() {
             return video.status === "active";
           case "suspended":
             return video.status === "suspended";
-          case "flagged":
-            return (video as any).flagged === true || (video as any).is_flagged === true;
           case "featured":
             return (video as any).is_featured === true || (video as any).featured === true;
-          case "ai-flagged":
-            return video.aiModeration?.flagged === true;
           default:
             return true;
         }
@@ -312,12 +306,7 @@ export default function ContentPage() {
     setActionExpiresAt("");
   };
 
-  const getStatusBadge = (status: string, flagged?: boolean) => {
-    // Check if post is flagged (display as additional badge, not replacing status)
-    if (flagged === true) {
-      // Return flagged badge but still show status
-    }
-    
+  const getStatusBadge = (status: string) => {
     switch (status?.toLowerCase()) {
       case "active":
         return (
@@ -543,7 +532,7 @@ export default function ContentPage() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Videos</CardTitle>
@@ -630,20 +619,6 @@ export default function ContentPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Flagged Content
-                </CardTitle>
-                <Flag className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => (v as any).flagged === true || (v as any).is_flagged === true).length}
-                </div>
-                <p className="text-xs text-muted-foreground">Needs review</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
                   Featured Content
                 </CardTitle>
                 <Star className="h-4 w-4 text-muted-foreground" />
@@ -654,24 +629,6 @@ export default function ContentPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Highlighted content
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  AI Flagged
-                </CardTitle>
-                <Brain className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : videos.filter((v) => v.aiModeration?.flagged).length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Requires AI review
                 </p>
               </CardContent>
             </Card>
@@ -691,14 +648,12 @@ export default function ContentPage() {
                 onValueChange={setActiveTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-6">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="all">All</TabsTrigger>
                   <TabsTrigger value="active">Active</TabsTrigger>
                   <TabsTrigger value="draft">Draft</TabsTrigger>
                   <TabsTrigger value="suspended">Suspended</TabsTrigger>
-                  <TabsTrigger value="flagged">Flagged</TabsTrigger>
                   <TabsTrigger value="featured">Featured</TabsTrigger>
-                  <TabsTrigger value="ai-flagged">AI Flagged</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value={activeTab} className="mt-6">
@@ -818,27 +773,11 @@ export default function ContentPage() {
                         >
                           <div className="relative">
                             {getContentPreview(video)}
-                            {(video as any).flagged && (
-                              <div className="absolute top-2 left-2">
-                                <Badge className="bg-red-500 text-white">
-                                  <Flag className="w-3 h-3 mr-1" />
-                                  Flagged
-                                </Badge>
-                              </div>
-                            )}
                             {(video as any).is_featured && (
                               <div className="absolute top-2 right-2">
                                 <Badge className="bg-yellow-500 text-white">
                                   <Star className="w-3 h-3 mr-1" />
                                   Featured
-                                </Badge>
-                              </div>
-                            )}
-                            {video.aiModeration?.flagged && (
-                              <div className="absolute top-2 left-2">
-                                <Badge className="bg-purple-500 text-white">
-                                  <Brain className="w-3 h-3 mr-1" />
-                                  AI Flagged
                                 </Badge>
                               </div>
                             )}
@@ -981,10 +920,7 @@ export default function ContentPage() {
                             </div>
 
                             <div className="flex items-center justify-between mb-3">
-                              {getStatusBadge(
-                                video.status || "draft",
-                                (video as any).flagged || (video as any).is_flagged
-                              )}
+                              {getStatusBadge(video.status || "draft")}
                               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Eye className="w-3 h-3" />
@@ -1111,24 +1047,10 @@ export default function ContentPage() {
                                         <ImageIcon className="w-3 h-3 text-white bg-black/50 rounded" />
                                       )}
                                     </div>
-                                    {(video as any).flagged && (
-                                      <div className="absolute top-1 left-1">
-                                        <Badge className="bg-red-500 text-white text-xs px-1 py-0">
-                                          <Flag className="w-2 h-2 mr-1" />
-                                        </Badge>
-                                      </div>
-                                    )}
                                     {(video as any).is_featured && (
                                       <div className="absolute top-1 right-1">
                                         <Badge className="bg-yellow-500 text-white text-xs px-1 py-0">
                                           <Star className="w-2 h-2 mr-1" />
-                                        </Badge>
-                                      </div>
-                                    )}
-                                    {video.aiModeration?.flagged && (
-                                      <div className="absolute bottom-1 left-1">
-                                        <Badge className="bg-purple-500 text-white text-xs px-1 py-0">
-                                          <Brain className="w-2 h-2 mr-1" />
                                         </Badge>
                                       </div>
                                     )}
@@ -1168,10 +1090,7 @@ export default function ContentPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-col gap-1">
-                                  {getStatusBadge(
-                                    video.status || "draft",
-                                    (video as any).flagged || (video as any).is_flagged
-                                  )}
+                                  {getStatusBadge(video.status || "draft")}
                                     {(video as any).is_featured && (
                                       <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                                         <Star className="w-3 h-3 mr-1" />

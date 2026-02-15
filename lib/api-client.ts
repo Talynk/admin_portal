@@ -68,13 +68,30 @@ class ApiClient {
       }
     } else {
       // For non-approver routes, use admin token
-      this.refreshToken()
-      token = this.token
+      // Always refresh from localStorage to ensure we have the latest token
+      if (typeof window !== 'undefined') {
+        const adminToken = localStorage.getItem('talentix_admin_token')
+        if (adminToken) {
+          token = adminToken
+          this.token = adminToken // Update internal state
+        } else {
+          this.refreshToken()
+          token = this.token
+        }
+      } else {
+        this.refreshToken()
+        token = this.token
+      }
     }
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
+    if (!token) {
+      return {
+        success: false,
+        error: 'No authentication token found. Please log in again.',
+      }
     }
+
+    headers.Authorization = `Bearer ${token}`
 
     try {
       const response = await fetch(url, {
@@ -90,6 +107,41 @@ class ApiClient {
           this.logout()
           if (typeof window !== 'undefined') {
             window.location.href = '/'
+          }
+        }
+        
+        // Handle 403 Forbidden - token might be expired or user doesn't have permission
+        if (response.status === 403) {
+          // Try refreshing token and retry once
+          if (typeof window !== 'undefined' && !endpoint.startsWith('/approver/')) {
+            const adminToken = localStorage.getItem('talentix_admin_token')
+            if (adminToken && adminToken !== this.token) {
+              // Token was updated, retry the request
+              this.token = adminToken
+              headers.Authorization = `Bearer ${adminToken}`
+              
+              const retryResponse = await fetch(url, {
+                ...options,
+                headers,
+              })
+              
+              const retryData = await retryResponse.json()
+              
+              if (retryResponse.ok) {
+                return {
+                  success: true,
+                  data: retryData.data || retryData,
+                  message: retryData.message,
+                }
+              }
+            }
+          }
+          
+          // If retry failed or not applicable, return error
+          return {
+            success: false,
+            error: data.error || data.message || 'Access forbidden. Your token may have expired or you may not have permission to perform this action. Please try logging in again.',
+            message: data.message,
           }
         }
         
