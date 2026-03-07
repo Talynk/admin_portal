@@ -419,8 +419,121 @@ export default function PostDetailPage() {
                           <strong>Category:</strong> <span className="text-muted-foreground">{category}</span>
                         </div>
                       )}
+                      {(post as any).processing_status != null && (
+                        <div className="pt-2 border-t">
+                          <h4 className="font-medium mb-2">Processing</h4>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={(post as any).processing_status === "completed" ? "default" : "secondary"}>
+                              {(post as any).processing_status}
+                            </Badge>
+                            {(post as any).processing_error && (
+                              <p className="text-sm text-destructive">{(post as any).processing_error}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
+
+                  {/* Likers (from admin post by ID) */}
+                  {Array.isArray((post as any).likers) && (post as any).likers.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Heart className="h-5 w-5" />
+                          Likers ({(post as any).likers.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                          {(post as any).likers.map((u: any) => (
+                            <li key={u.id} className="flex items-center gap-2 text-sm">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage src={getProfilePictureUrl(u.profile_picture)} />
+                                <AvatarFallback>{u.username?.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium">@{u.username}</span>
+                              {u.display_name && <span className="text-muted-foreground">({u.display_name})</span>}
+                              {u.liked_at && (
+                                <span className="text-muted-foreground text-xs ml-auto">
+                                  {new Date(u.liked_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Commenters */}
+                  {Array.isArray((post as any).commenters) && (post as any).commenters.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="h-5 w-5" />
+                          Commenters ({(post as any).commenters.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-3 max-h-64 overflow-y-auto">
+                          {(post as any).commenters.map((c: any) => (
+                            <li key={c.id} className="text-sm border-b pb-2 last:border-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={getProfilePictureUrl(c.profile_picture)} />
+                                  <AvatarFallback>{c.username?.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">@{c.username}</span>
+                                {(c.comment_date || c.createdAt) && (
+                                  <span className="text-muted-foreground text-xs">
+                                    {new Date(c.comment_date || c.createdAt).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              {c.comment_text && <p className="text-muted-foreground pl-8">{c.comment_text}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Activity timeline */}
+                  {Array.isArray((post as any).activity) && (post as any).activity.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Recent activity</CardTitle>
+                        <CardDescription>Last likes and comments</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2 max-h-64 overflow-y-auto">
+                          {(post as any).activity.slice(0, 100).map((a: any, i: number) => (
+                            <li key={a.id || i} className="flex items-center gap-2 text-sm">
+                              {a.type === "like" ? (
+                                <Heart className="h-4 w-4 text-muted-foreground shrink-0" />
+                              ) : (
+                                <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )}
+                              <span className="text-muted-foreground">
+                                {a.type === "like"
+                                  ? `${a.user?.username ?? "Someone"} liked`
+                                  : `${a.user?.username ?? "Someone"} commented`}
+                              </span>
+                              {a.comment_text && (
+                                <span className="truncate max-w-[200px] text-muted-foreground">"{a.comment_text}"</span>
+                              )}
+                              {a.createdAt && (
+                                <span className="text-xs text-muted-foreground ml-auto">
+                                  {new Date(a.createdAt).toLocaleString()}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
 
                 {/* Sidebar */}

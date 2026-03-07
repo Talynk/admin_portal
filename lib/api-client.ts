@@ -453,6 +453,7 @@ class ApiClient {
     limit?: number
     search?: string
     status?: string
+    sort?: 'newest' | 'oldest' | 'most_liked' | 'most_viewed' | 'most_reported'
     userId?: string
     flagged?: boolean
     featured?: boolean
@@ -464,6 +465,7 @@ class ApiClient {
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.search) queryParams.append('search', params.search)
     if (params?.status) queryParams.append('status', params.status)
+    if (params?.sort) queryParams.append('sort', params.sort)
     if (params?.userId) queryParams.append('userId', params.userId)
     if (params?.flagged !== undefined) queryParams.append('flagged', params.flagged.toString())
     if (params?.featured !== undefined) queryParams.append('featured', params.featured.toString())
@@ -471,7 +473,14 @@ class ApiClient {
     if (params?.category) queryParams.append('category', params.category)
 
     const queryString = queryParams.toString()
-    return this.request(`/posts/all${queryString ? `?${queryString}` : ''}`)
+    return this.request(`/admin/posts/all${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getPostsProcessing(params?: { limit?: number }) {
+    const queryParams = new URLSearchParams()
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(`/admin/posts/processing${queryString ? `?${queryString}` : ''}`)
   }
 
   async getPostsAnalytics(params?: {
@@ -491,7 +500,7 @@ class ApiClient {
   }
 
   async getPostById(postId: string) {
-    return this.request(`/admin/videos/${postId}`)
+    return this.request(`/admin/posts/${postId}`)
   }
 
   async getPostAnalytics(postId: string) {

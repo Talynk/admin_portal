@@ -103,6 +103,7 @@ interface UsePostsParams {
   limit?: number
   search?: string
   status?: string
+  sort?: 'newest' | 'oldest' | 'most_liked' | 'most_viewed' | 'most_reported'
   userId?: string
   flagged?: boolean
   featured?: boolean
@@ -136,7 +137,7 @@ export function usePosts(params: UsePostsParams = {}) {
     } finally {
       setLoading(false)
     }
-  }, [params.page, params.limit, params.search, params.status, params.userId, params.flagged, params.featured, params.frozen])
+  }, [params.page, params.limit, params.search, params.status, params.sort, params.userId, params.flagged, params.featured, params.frozen])
 
   useEffect(() => {
     fetchPosts()

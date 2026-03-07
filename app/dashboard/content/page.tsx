@@ -132,6 +132,18 @@ export default function ContentPage() {
     return undefined;
   };
 
+  // Map UI sort to API sort (admin posts/all)
+  const apiSort =
+    sortBy === "uploadDate" && sortOrder === "desc"
+      ? "newest"
+      : sortBy === "uploadDate" && sortOrder === "asc"
+        ? "oldest"
+        : sortBy === "likes"
+          ? "most_liked"
+          : sortBy === "views"
+            ? "most_viewed"
+            : undefined;
+
   // Use the API hook
   const {
     posts,
@@ -152,6 +164,7 @@ export default function ContentPage() {
   } = usePosts({
     search: debouncedSearch || undefined,
     status: getStatusFilter(),
+    sort: apiSort,
     featured: activeTab === "featured" ? true : undefined,
   });
 
