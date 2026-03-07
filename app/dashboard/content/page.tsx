@@ -83,7 +83,7 @@ import {
 } from "lucide-react";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
-import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
+import { getFileUrl, getThumbnailUrl, getDownloadFilename, downloadMediaFile } from "@/lib/file-utils";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -112,6 +112,7 @@ export default function ContentPage() {
   const [sortBy, setSortBy] = useState("uploadDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Debounce search so we don't refetch on every keystroke
   useEffect(() => {
@@ -319,6 +320,26 @@ export default function ContentPage() {
     setActionType(null);
     setActionReason("");
     setActionExpiresAt("");
+  };
+
+  const handleDownload = async (post: any) => {
+    const url = post?.video_url ?? post?.fullUrl ?? post?.videoUrl;
+    const fileUrl = getFileUrl(url);
+    if (!fileUrl) {
+      toast({ title: "Download unavailable", description: "No media URL for this post.", variant: "destructive" });
+      return;
+    }
+    const contentType = getContentType(post);
+    const filename = getDownloadFilename(fileUrl, post?.id, contentType);
+    setDownloadingId(post?.id ?? null);
+    try {
+      await downloadMediaFile(fileUrl, filename);
+      toast({ title: "Download started", description: `Saving as ${filename}` });
+    } catch {
+      toast({ title: "Download failed", description: "Could not download the file.", variant: "destructive" });
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -913,6 +934,13 @@ export default function ContentPage() {
                                       <ExternalLink className="mr-2 h-4 w-4" />
                                       Full Details
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleDownload(video)}
+                                      disabled={!getFileUrl((video as any).video_url || (video as any).fullUrl) || downloadingId === video.id}
+                                    >
+                                      <Download className="mr-2 h-4 w-4" />
+                                      {downloadingId === video.id ? "Downloading..." : "Download"}
+                                    </DropdownMenuItem>
                                     {video.aiModeration && (
                                       <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}?tab=ai-moderation`, "_blank")}>
                                         <Brain className="mr-2 h-4 w-4" />
@@ -1211,9 +1239,12 @@ export default function ContentPage() {
                                         <ExternalLink className="mr-2 h-4 w-4" />
                                         Full Details
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem disabled>
+                                      <DropdownMenuItem
+                                        onClick={() => handleDownload(video)}
+                                        disabled={!getFileUrl((video as any).video_url || (video as any).fullUrl) || downloadingId === video.id}
+                                      >
                                         <Download className="mr-2 h-4 w-4" />
-                                        Download
+                                        {downloadingId === video.id ? "Downloading..." : "Download"}
                                       </DropdownMenuItem>
                                       {video.aiModeration && (
                                         <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}?tab=ai-moderation`, "_blank")}>

@@ -76,13 +76,68 @@ export function getProfilePictureUrl(
  */
 export function getFileType(fileUrl: string | null | undefined): 'image' | 'video' | null {
   if (!fileUrl) return null
-  
+
   const extension = fileUrl.split('.').pop()?.toLowerCase()
   const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
   const videoExtensions = ['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv']
-  
+
   if (extension && imageExtensions.includes(extension)) return 'image'
   if (extension && videoExtensions.includes(extension)) return 'video'
   return null
+}
+
+/**
+ * Derives a download filename from URL and optional post id/type
+ */
+export function getDownloadFilename(
+  url: string | null | undefined,
+  postId?: string,
+  type?: 'video' | 'image'
+): string {
+  const ext = url ? url.split('.').pop()?.split('?')[0]?.toLowerCase() : null
+  const base = postId || 'post'
+  if (ext && /^(mp4|mov|avi|webm|mkv|flv|jpg|jpeg|png|gif|webp)$/.test(ext)) {
+    return `${base}.${ext}`
+  }
+  if (type === 'image') return `${base}.jpg`
+  return `${base}.mp4`
+}
+
+/**
+ * Triggers download of a media file from URL.
+ * Tries fetch + blob first (works with CORS); falls back to opening in new tab.
+ */
+export async function downloadMediaFile(
+  url: string | null | undefined,
+  filename: string
+): Promise<boolean> {
+  const resolved = getFileUrl(url)
+  if (!resolved) return false
+
+  try {
+    const res = await fetch(resolved, { mode: 'cors' })
+    if (!res.ok) throw new Error('Fetch failed')
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(blobUrl)
+    return true
+  } catch {
+    const a = document.createElement('a')
+    a.href = resolved
+    a.download = filename
+    a.target = '_blank'
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    return true
+  }
 }
 

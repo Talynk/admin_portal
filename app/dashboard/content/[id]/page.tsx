@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -33,6 +33,7 @@ import {
   ArrowLeft,
   MoreHorizontal,
   Video,
+  Image as ImageIcon,
   Play,
   Eye,
   Heart,
@@ -46,670 +47,120 @@ import {
   Download,
   Star,
   StarOff,
-  ExternalLink,
   Calendar,
   User,
-  Hash,
-  TrendingUp,
   Share2,
   Brain,
-  Shield,
+  TrendingUp,
+  Loader2,
 } from "lucide-react"
+import { usePost } from "@/hooks/use-posts"
+import { apiClient } from "@/lib/api-client"
+import { getFileUrl, getFileType, getDownloadFilename, downloadMediaFile, getProfilePictureUrl } from "@/lib/file-utils"
+import { toast } from "@/hooks/use-toast"
 
-// Mock video content data (same as in main content page)
-const mockVideos: any[] = [
-  {
-    id: "V001",
-    title: "Amazing Dance Performance",
-    description: "Check out this incredible dance routine! The choreography is absolutely stunning and the energy is infectious. This performance showcases the talent and creativity of our amazing dancers.",
-    username: "dancer_pro",
-    userId: "U001",
-    thumbnail: "/vibrant-dance-performance.png",
-    videoUrl: "/placeholder.mp4",
-    status: "approved",
-    duration: "0:45",
-    views: 125000,
-    likes: 8200,
-    comments: 432,
-    shares: 156,
-    uploadDate: "2024-03-15",
-    approvedDate: "2024-03-15",
-    tags: ["dance", "performance", "trending"],
-    flagged: false,
-    frozen: false,
-    featured: true,
-    moderationNotes: "",
-    category: "Entertainment",
-    language: "English",
-    quality: "HD",
-    fileSize: "45.2 MB",
-    resolution: "1920x1080",
-    fps: 30,
-    bitrate: "2500 kbps",
-    codec: "H.264",
-    audioCodec: "AAC",
-    audioBitrate: "128 kbps",
-    thumbnailCount: 12,
-    engagement: {
-      likeRate: 6.56,
-      commentRate: 0.35,
-      shareRate: 0.12,
-      completionRate: 78.5,
-    },
-    analytics: {
-      peakViewers: 1250,
-      avgWatchTime: "0:38",
-      retentionRate: 84.2,
-      clickThroughRate: 3.2,
-    },
-    aiModeration: {
-      flagged: false,
-      summary: {
-        overallAssessment: "Content appears safe with no concerning elements detected. The dance performance is appropriate and follows community guidelines.",
-        flagged: false,
-        concerns: []
-      },
-      detailedResults: {
-        "Content Safety": {
-          title: "Content Safety",
-          flagged: false,
-          items: [
-            {
-              label: "Violence Detection",
-              percentage: 5,
-              severity: "safe" as const,
-              confidence: 95,
-              status: "safe" as const
-            },
-            {
-              label: "Inappropriate Content",
-              percentage: 2,
-              severity: "safe" as const,
-              confidence: 98,
-              status: "safe" as const
-            }
-          ]
-        },
-        "Audio Analysis": {
-          title: "Audio Analysis",
-          flagged: false,
-          items: [
-            {
-              label: "Profanity Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Copyright Music",
-              percentage: 15,
-              severity: "low" as const,
-              confidence: 85,
-              status: "safe" as const
-            }
-          ]
-        }
-      },
-      fileName: "dance_performance.mp4",
-      processingType: "video_moderation",
-      taskId: "TASK_001",
-      processedAt: "2024-03-15T10:30:00Z",
-      processingTime: 45
-    },
-  },
-  {
-    id: "V002",
-    title: "Cooking Tutorial: Perfect Pasta",
-    description: "Learn how to make the perfect pasta dish in under 10 minutes! This step-by-step tutorial will teach you the secrets to creating restaurant-quality pasta at home.",
-    username: "chef_master",
-    userId: "U002",
-    thumbnail: "/cooking-pasta.png",
-    videoUrl: "/placeholder.mp4",
-    status: "pending",
-    duration: "2:34",
-    views: 89000,
-    likes: 5100,
-    comments: 287,
-    shares: 89,
-    uploadDate: "2024-03-14",
-    approvedDate: null,
-    tags: ["cooking", "tutorial", "food"],
-    flagged: true,
-    frozen: false,
-    featured: false,
-    moderationNotes: "Reported for inappropriate content",
-    category: "Education",
-    language: "English",
-    quality: "HD",
-    fileSize: "78.5 MB",
-    resolution: "1920x1080",
-    fps: 30,
-    bitrate: "3000 kbps",
-    codec: "H.264",
-    audioCodec: "AAC",
-    audioBitrate: "128 kbps",
-    thumbnailCount: 8,
-    engagement: {
-      likeRate: 5.73,
-      commentRate: 0.32,
-      shareRate: 0.10,
-      completionRate: 82.1,
-    },
-    analytics: {
-      peakViewers: 890,
-      avgWatchTime: "2:12",
-      retentionRate: 88.5,
-      clickThroughRate: 2.8,
-    },
-    aiModeration: {
-      flagged: true,
-      summary: {
-        overallAssessment: "Content flagged for potential inappropriate elements. Multiple concerns detected including suggestive content and potential policy violations.",
-        flagged: true,
-        concerns: [
-          { severity: "high", category: "Inappropriate Content" },
-          { severity: "medium", category: "Audio Analysis" }
-        ]
-      },
-      detailedResults: {
-        "Content Safety": {
-          title: "Content Safety",
-          flagged: true,
-          items: [
-            {
-              label: "Violence Detection",
-              percentage: 8,
-              severity: "safe" as const,
-              confidence: 92,
-              status: "safe" as const
-            },
-            {
-              label: "Inappropriate Content",
-              percentage: 78,
-              severity: "high" as const,
-              confidence: 87,
-              status: "flagged" as const
-            }
-          ]
-        },
-        "Audio Analysis": {
-          title: "Audio Analysis",
-          flagged: true,
-          items: [
-            {
-              label: "Profanity Detection",
-              percentage: 45,
-              severity: "medium" as const,
-              confidence: 82,
-              status: "flagged" as const
-            },
-            {
-              label: "Copyright Music",
-              percentage: 25,
-              severity: "low" as const,
-              confidence: 75,
-              status: "safe" as const
-            }
-          ]
-        }
-      },
-      fileName: "cooking_tutorial.mp4",
-      processingType: "video_moderation",
-      taskId: "TASK_002",
-      processedAt: "2024-03-14T15:45:00Z",
-      processingTime: 52
-    },
-  },
-  {
-    id: "V003",
-    title: "Funny Pet Compilation",
-    description: "The funniest pet moments you'll see today! A collection of the most adorable and hilarious pet videos that will brighten your day.",
-    username: "pet_lover",
-    userId: "U003",
-    thumbnail: "/funny-pets.png",
-    videoUrl: "/placeholder.mp4",
-    status: "approved",
-    duration: "1:23",
-    views: 234000,
-    likes: 15300,
-    comments: 891,
-    shares: 445,
-    uploadDate: "2024-03-13",
-    approvedDate: "2024-03-13",
-    tags: ["pets", "funny", "animals"],
-    flagged: false,
-    frozen: true,
-    featured: false,
-    moderationNotes: "Frozen due to copyright claim",
-    category: "Entertainment",
-    language: "English",
-    quality: "HD",
-    resolution: "1920x1080",
-    fps: 30,
-    bitrate: "2800 kbps",
-    codec: "H.264",
-    audioCodec: "AAC",
-    audioBitrate: "128 kbps",
-    thumbnailCount: 15,
-    engagement: {
-      likeRate: 6.54,
-      commentRate: 0.38,
-      shareRate: 0.19,
-      completionRate: 91.2,
-    },
-    analytics: {
-      peakViewers: 2340,
-      avgWatchTime: "1:15",
-      retentionRate: 91.2,
-      clickThroughRate: 4.1,
-    },
-    aiModeration: {
-      flagged: true,
-      summary: {
-        overallAssessment: "Content flagged for copyright concerns. AI detected potential copyrighted material in the audio track.",
-        flagged: true,
-        concerns: [
-          { severity: "high", category: "Copyright Detection" }
-        ]
-      },
-      detailedResults: {
-        "Content Safety": {
-          title: "Content Safety",
-          flagged: false,
-          items: [
-            {
-              label: "Violence Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Inappropriate Content",
-              percentage: 3,
-              severity: "safe" as const,
-              confidence: 97,
-              status: "safe" as const
-            }
-          ]
-        },
-        "Copyright Detection": {
-          title: "Copyright Detection",
-          flagged: true,
-          items: [
-            {
-              label: "Audio Copyright",
-              percentage: 89,
-              severity: "high" as const,
-              confidence: 94,
-              status: "flagged" as const
-            },
-            {
-              label: "Visual Copyright",
-              percentage: 12,
-              severity: "low" as const,
-              confidence: 78,
-              status: "safe" as const
-            }
-          ]
-        }
-      },
-      fileName: "funny_pets.mp4",
-      processingType: "video_moderation",
-      taskId: "TASK_003",
-      processedAt: "2024-03-13T09:20:00Z",
-      processingTime: 38
-    },
-  },
-  {
-    id: "V004",
-    title: "Tech Review: Latest Smartphone",
-    description: "Comprehensive review of the newest smartphone features, performance, and value for money. Everything you need to know before buying.",
-    username: "tech_reviewer",
-    userId: "U004",
-    thumbnail: "/smartphone-review-concept.png",
-    videoUrl: "/placeholder.mp4",
-    status: "rejected",
-    duration: "5:12",
-    views: 45000,
-    likes: 2100,
-    comments: 156,
-    shares: 34,
-    uploadDate: "2024-03-12",
-    approvedDate: null,
-    tags: ["tech", "review", "smartphone"],
-    flagged: false,
-    frozen: false,
-    featured: false,
-    moderationNotes: "Rejected for promotional content without disclosure",
-    category: "Technology",
-    language: "English",
-    quality: "4K",
-    fileSize: "156.8 MB",
-    resolution: "3840x2160",
-    fps: 60,
-    bitrate: "5000 kbps",
-    codec: "H.264",
-    audioCodec: "AAC",
-    audioBitrate: "192 kbps",
-    thumbnailCount: 20,
-    engagement: {
-      likeRate: 4.67,
-      commentRate: 0.35,
-      shareRate: 0.08,
-      completionRate: 65.3,
-    },
-    analytics: {
-      peakViewers: 450,
-      avgWatchTime: "3:24",
-      retentionRate: 65.3,
-      clickThroughRate: 1.9,
-    },
-    aiModeration: {
-      flagged: true,
-      summary: {
-        overallAssessment: "Content flagged for potential promotional content without proper disclosure. AI detected commercial elements that may violate advertising policies.",
-        flagged: true,
-        concerns: [
-          { severity: "medium", category: "Commercial Content" },
-          { severity: "low", category: "Content Safety" }
-        ]
-      },
-      detailedResults: {
-        "Commercial Content": {
-          title: "Commercial Content",
-          flagged: true,
-          items: [
-            {
-              label: "Promotional Language",
-              percentage: 67,
-              severity: "medium" as const,
-              confidence: 83,
-              status: "flagged" as const
-            },
-            {
-              label: "Brand Mentions",
-              percentage: 45,
-              severity: "medium" as const,
-              confidence: 79,
-              status: "flagged" as const
-            }
-          ]
-        },
-        "Content Safety": {
-          title: "Content Safety",
-          flagged: false,
-          items: [
-            {
-              label: "Violence Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Inappropriate Content",
-              percentage: 5,
-              severity: "safe" as const,
-              confidence: 95,
-              status: "safe" as const
-            }
-          ]
-        }
-      },
-      fileName: "tech_review.mp4",
-      processingType: "video_moderation",
-      taskId: "TASK_004",
-      processedAt: "2024-03-12T14:15:00Z",
-      processingTime: 67
-    },
-  },
-  {
-    id: "V005",
-    title: "Amazing Nature Documentary",
-    description: "Stunning footage of wildlife in their natural habitat. A breathtaking journey through untouched wilderness.",
-    username: "nature_filmmaker",
-    userId: "U005",
-    thumbnail: "/placeholder.jpg",
-    videoUrl: "/placeholder.mp4",
-    status: "approved",
-    duration: "3:45",
-    views: 456000,
-    likes: 28900,
-    comments: 1234,
-    shares: 567,
-    uploadDate: "2024-03-10",
-    approvedDate: "2024-03-10",
-    tags: ["nature", "wildlife", "documentary"],
-    flagged: false,
-    frozen: false,
-    featured: true,
-    moderationNotes: "",
-    category: "Documentary",
-    language: "English",
-    quality: "4K",
-    fileSize: "234.5 MB",
-    resolution: "3840x2160",
-    fps: 60,
-    bitrate: "6000 kbps",
-    codec: "H.264",
-    audioCodec: "AAC",
-    audioBitrate: "192 kbps",
-    thumbnailCount: 18,
-    engagement: {
-      likeRate: 6.34,
-      commentRate: 0.27,
-      shareRate: 0.12,
-      completionRate: 89.7,
-    },
-    analytics: {
-      peakViewers: 4560,
-      avgWatchTime: "3:28",
-      retentionRate: 89.7,
-      clickThroughRate: 4.8,
-    },
-    aiModeration: {
-      flagged: false,
-      summary: {
-        overallAssessment: "Content is safe and appropriate. High-quality documentary content with no concerning elements detected.",
-        flagged: false,
-        concerns: []
-      },
-      detailedResults: {
-        "Content Safety": {
-          title: "Content Safety",
-          flagged: false,
-          items: [
-            {
-              label: "Violence Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Inappropriate Content",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            }
-          ]
-        },
-        "Audio Analysis": {
-          title: "Audio Analysis",
-          flagged: false,
-          items: [
-            {
-              label: "Profanity Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Copyright Music",
-              percentage: 5,
-              severity: "safe" as const,
-              confidence: 95,
-              status: "safe" as const
-            }
-          ]
-        }
-      },
-      fileName: "nature_documentary.mp4",
-      processingType: "video_moderation",
-      taskId: "TASK_005",
-      processedAt: "2024-03-10T11:30:00Z",
-      processingTime: 89
-    },
-  },
-  {
-    id: "V006",
-    title: "Quick Workout Routine",
-    description: "Get fit in just 10 minutes with this high-intensity workout routine perfect for busy schedules.",
-    username: "fitness_coach",
-    userId: "U006",
-    thumbnail: "/placeholder.jpg",
-    videoUrl: "/placeholder.mp4",
-    status: "pending",
-    duration: "1:15",
-    views: 23400,
-    likes: 1200,
-    comments: 89,
-    shares: 45,
-    uploadDate: "2024-03-16",
-    approvedDate: null,
-    tags: ["fitness", "workout", "health"],
-    flagged: false,
-    frozen: false,
-    featured: false,
-    moderationNotes: "",
-    category: "Health & Fitness",
-    language: "English",
-    quality: "HD",
-    fileSize: "28.3 MB",
-    resolution: "1920x1080",
-    fps: 30,
-    bitrate: "2000 kbps",
-    codec: "H.264",
-    audioCodec: "AAC",
-    audioBitrate: "128 kbps",
-    thumbnailCount: 6,
-    engagement: {
-      likeRate: 5.13,
-      commentRate: 0.38,
-      shareRate: 0.19,
-      completionRate: 76.8,
-    },
-    analytics: {
-      peakViewers: 234,
-      avgWatchTime: "0:58",
-      retentionRate: 76.8,
-      clickThroughRate: 3.1,
-    },
-    aiModeration: {
-      flagged: false,
-      summary: {
-        overallAssessment: "Content is safe and appropriate. Educational fitness content with no concerning elements detected.",
-        flagged: false,
-        concerns: []
-      },
-      detailedResults: {
-        "Content Safety": {
-          title: "Content Safety",
-          flagged: false,
-          items: [
-            {
-              label: "Violence Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Inappropriate Content",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            }
-          ]
-        },
-        "Audio Analysis": {
-          title: "Audio Analysis",
-          flagged: false,
-          items: [
-            {
-              label: "Profanity Detection",
-              percentage: 0,
-              severity: "safe" as const,
-              confidence: 99,
-              status: "safe" as const
-            },
-            {
-              label: "Copyright Music",
-              percentage: 8,
-              severity: "safe" as const,
-              confidence: 92,
-              status: "safe" as const
-            }
-          ]
-        }
-      },
-      fileName: "workout_routine.mp4",
-      processingType: "video_moderation",
-      taskId: "TASK_006",
-      processedAt: "2024-03-16T08:45:00Z",
-      processingTime: 34
-    },
-  },
-]
+function getContentType(post: any): "video" | "image" {
+  if (post?.type === "video" || post?.fileType === "video") return "video"
+  if (post?.type === "image" || post?.fileType === "image") return "image"
+  const url = post?.video_url || post?.fullUrl || post?.videoUrl || ""
+  if (!url) return "video"
+  const type = getFileType(url)
+  return type === "image" ? "image" : "video"
+}
 
 export default function PostDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const [video, setVideo] = useState<(typeof mockVideos)[0] | null>(null)
+  const postId = typeof params.id === "string" ? params.id : ""
+  const { post, loading, error, refetch } = usePost(postId)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
-  const [actionType, setActionType] = useState<"approve" | "reject" | "freeze" | "unfreeze" | "delete" | "feature" | "unfeature" | null>(null)
+  const [actionType, setActionType] = useState<"approve" | "reject" | "suspend" | "freeze" | "unfreeze" | "delete" | "feature" | "unfeature" | null>(null)
   const [actionReason, setActionReason] = useState("")
-  const [videoDialogOpen, setVideoDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
   const [isReviewing, setIsReviewing] = useState(false)
+  const [isActionLoading, setIsActionLoading] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
-  useEffect(() => {
-    const foundVideo = mockVideos.find((v) => v.id === params.id)
-    setVideo(foundVideo || null)
-  }, [params.id])
+  const handleDownload = async () => {
+    const url = (post as any)?.video_url || (post as any)?.fullUrl || post?.videoUrl
+    if (!url) {
+      toast({ title: "Download unavailable", description: "No media URL for this post.", variant: "destructive" })
+      return
+    }
+    const fileUrl = getFileUrl(url)
+    if (!fileUrl) return
+    const contentType = getContentType(post)
+    const filename = getDownloadFilename(fileUrl, post?.id, contentType)
+    setIsDownloading(true)
+    try {
+      await downloadMediaFile(fileUrl, filename)
+      toast({ title: "Download started", description: `Saving as ${filename}` })
+    } catch {
+      toast({ title: "Download failed", description: "Could not download the file.", variant: "destructive" })
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   const handleVideoAction = (action: typeof actionType) => {
     setActionType(action)
     setActionDialogOpen(true)
   }
 
-  const executeAction = () => {
-    if (!video || !actionType) return
-
-    // In a real app, this would make an API call
-    console.log(`Executing action: ${actionType} on video: ${video.id}`)
-    
-    setActionDialogOpen(false)
-    setActionType(null)
-    setActionReason("")
+  const executeAction = async () => {
+    if (!post || !actionType) return
+    setIsActionLoading(true)
+    try {
+      let result: { success?: boolean; error?: string } | undefined
+      switch (actionType) {
+        case "approve":
+          result = await apiClient.approvePost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "reject":
+          result = await apiClient.rejectPost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "suspend":
+          result = await apiClient.suspendPost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "freeze":
+          result = await apiClient.freezePost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "unfreeze":
+          result = await apiClient.unfreezePost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "delete":
+          result = await apiClient.deletePost(post.id).then((r) => ({ success: r.success, error: r.error }))
+          if (result?.success) {
+            router.push("/dashboard/content")
+            return
+          }
+          break
+        case "feature":
+          result = await apiClient.featurePost(post.id, { reason: actionReason }).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "unfeature":
+          result = await apiClient.unfeaturePost(post.id).then((r) => ({ success: r.success, error: r.error }))
+          break
+      }
+      if (result?.success) {
+        toast({ title: "Success", description: `Action completed successfully.` })
+        refetch()
+      } else {
+        toast({ title: "Error", description: result?.error || "Action failed", variant: "destructive" })
+      }
+    } catch (e) {
+      toast({ title: "Error", description: "Something went wrong.", variant: "destructive" })
+    } finally {
+      setIsActionLoading(false)
+      setActionDialogOpen(false)
+      setActionType(null)
+      setActionReason("")
+    }
   }
 
   const handleAIModerationAction = (action: AIReviewAction) => {
     setIsReviewing(true)
-    
-    // In a real app, this would make an API call
-    console.log(`AI Moderation Action:`, action)
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsReviewing(false)
-      // You could show a success message here
-    }, 2000)
+    setTimeout(() => setIsReviewing(false), 2000)
   }
 
   const getStatusBadge = (status: string) => {
@@ -725,7 +176,20 @@ export default function PostDetailPage() {
     }
   }
 
-  if (!video) {
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="flex items-center justify-center min-h-[400px] gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="text-muted-foreground">Loading post...</span>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
+    )
+  }
+
+  if (error || !post) {
     return (
       <ProtectedRoute>
         <DashboardLayout>
@@ -735,11 +199,14 @@ export default function PostDetailPage() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <h1 className="text-3xl font-bold tracking-tight">Video Not Found</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Post not found</h1>
             </div>
             <Card>
               <CardContent className="p-8 text-center">
-                <p className="text-muted-foreground">The requested video could not be found.</p>
+                <p className="text-muted-foreground">{error || "The requested post could not be found."}</p>
+                <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/content")}>
+                  Back to Content
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -748,20 +215,32 @@ export default function PostDetailPage() {
     )
   }
 
+  const mediaUrl = getFileUrl((post as any).video_url || (post as any).fullUrl || post.videoUrl)
+  const contentType = getContentType(post)
+  const isFeatured = (post as any).is_featured ?? (post as any).featured ?? post.featured
+  const isFrozen = (post as any).frozen ?? false
+  const username = (post as any).user?.username ?? (post as any).username ?? "unknown"
+  const userId = (post as any).user?.id ?? (post as any).userId
+  const createdAt = (post as any).createdAt ?? (post as any).uploadDate
+  const commentsCount = (post as any).comments_count ?? post.comments ?? 0
+  const tags = (post as any).tags ?? []
+  const category = typeof (post as any).category === "object" ? (post as any).category?.name : (post as any).category
+  const aiMod = (post as any).aiModeration
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" onClick={() => router.back()}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">{video.title}</h1>
-                <p className="text-muted-foreground">Video ID: {video.id}</p>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight line-clamp-2">{post.title || "Untitled"}</h1>
+                <p className="text-muted-foreground text-sm mt-0.5">Post ID: {post.id}</p>
               </div>
             </div>
             <DropdownMenu>
@@ -773,75 +252,56 @@ export default function PostDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setVideoDialogOpen(true)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Preview Video
-                </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownload} disabled={!mediaUrl || isDownloading}>
                   <Download className="mr-2 h-4 w-4" />
-                  Download
+                  {isDownloading ? "Downloading..." : "Download"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {video.status === "draft" && (
+                {post.status === "draft" && (
                   <>
-                    <DropdownMenuItem
-                      className="text-green-600"
-                      onClick={() => handleVideoAction("approve")}
-                    >
+                    <DropdownMenuItem className="text-green-600" onClick={() => handleVideoAction("approve")}>
                       <CheckCircle className="mr-2 h-4 w-4" />
                       Approve
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={() => handleVideoAction("reject")}
-                    >
+                    <DropdownMenuItem className="text-red-600" onClick={() => handleVideoAction("reject")}>
                       <Ban className="mr-2 h-4 w-4" />
                       Reject
                     </DropdownMenuItem>
                   </>
                 )}
-                {video.frozen ? (
-                  <DropdownMenuItem
-                    className="text-blue-600"
-                    onClick={() => handleVideoAction("unfreeze")}
-                  >
+                {post.status === "active" && (
+                  <DropdownMenuItem className="text-orange-600" onClick={() => handleVideoAction("suspend")}>
+                    <Ban className="mr-2 h-4 w-4" />
+                    Suspend
+                  </DropdownMenuItem>
+                )}
+                {isFrozen ? (
+                  <DropdownMenuItem className="text-blue-600" onClick={() => handleVideoAction("unfreeze")}>
                     <Play className="mr-2 h-4 w-4" />
-                    Unfreeze Post
+                    Unfreeze
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    className="text-blue-600"
-                    onClick={() => handleVideoAction("freeze")}
-                  >
+                  <DropdownMenuItem className="text-blue-600" onClick={() => handleVideoAction("freeze")}>
                     <Freeze className="mr-2 h-4 w-4" />
-                    Freeze Post
+                    Freeze
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                {video.featured ? (
-                  <DropdownMenuItem
-                    className="text-yellow-600"
-                    onClick={() => handleVideoAction("unfeature")}
-                  >
+                {isFeatured ? (
+                  <DropdownMenuItem className="text-yellow-600" onClick={() => handleVideoAction("unfeature")}>
                     <StarOff className="mr-2 h-4 w-4" />
                     Remove from Featured
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    className="text-yellow-600"
-                    onClick={() => handleVideoAction("feature")}
-                  >
+                  <DropdownMenuItem className="text-yellow-600" onClick={() => handleVideoAction("feature")}>
                     <Star className="mr-2 h-4 w-4" />
                     Add to Featured
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600"
-                  onClick={() => handleVideoAction("delete")}
-                >
+                <DropdownMenuItem className="text-red-600" onClick={() => handleVideoAction("delete")}>
                   <Ban className="mr-2 h-4 w-4" />
-                  Delete Video
+                  Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -853,267 +313,235 @@ export default function PostDetailPage() {
               <TabsTrigger value="ai-moderation" className="flex items-center gap-2">
                 <Brain className="w-4 h-4" />
                 AI Moderation
-                {video?.aiModeration?.flagged && (
-                  <Badge className="bg-red-100 text-red-800 text-xs">Flagged</Badge>
-                )}
+                {aiMod?.flagged && <Badge className="bg-red-100 text-red-800 text-xs">Flagged</Badge>}
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-6">
               <div className="grid gap-6 lg:grid-cols-3">
-                {/* Main Content */}
                 <div className="lg:col-span-2 space-y-6">
-              {/* Video Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Video className="h-5 w-5" />
-                    Video Preview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="aspect-video bg-black rounded-lg flex items-center justify-center mb-4">
-                    <div className="text-white text-center">
-                      <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-sm opacity-75">Video Preview</p>
-                      <p className="text-xs opacity-50">Duration: {video.duration}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-4 h-4" />
-                      {video.views.toLocaleString()} views
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Heart className="w-4 h-4" />
-                      {video.likes.toLocaleString()} likes
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-4 h-4" />
-                      {video.comments} comments
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Share2 className="w-4 h-4" />
-                      {video.shares} shares
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+                  {/* Media Preview */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        {contentType === "video" ? <Video className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />}
+                        {contentType === "video" ? "Video" : "Image"} Preview
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                        {mediaUrl ? (
+                          contentType === "video" ? (
+                            <video
+                              src={mediaUrl}
+                              controls
+                              className="w-full h-full object-contain"
+                              poster={undefined}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          ) : (
+                            <img
+                              src={mediaUrl}
+                              alt={post.title || "Post"}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                if (e.currentTarget.src !== "/placeholder.svg") e.currentTarget.src = "/placeholder.svg"
+                              }}
+                            />
+                          )
+                        ) : (
+                          <div className="text-white/70 text-center">
+                            {contentType === "video" ? <Video className="w-16 h-16 mx-auto mb-2 opacity-50" /> : <ImageIcon className="w-16 h-16 mx-auto mb-2 opacity-50" />}
+                            <p className="text-sm">No media</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-4">
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-4 h-4" />
+                          {(post as any).views ?? post.views ?? 0} views
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-4 h-4" />
+                          {post.likes.toLocaleString()} likes
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="w-4 h-4" />
+                          {commentsCount} comments
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Share2 className="w-4 h-4" />
+                          {post.shares ?? 0} shares
+                        </span>
+                        {(post as any).duration && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {(post as any).duration}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" onClick={handleDownload} disabled={!mediaUrl || isDownloading}>
+                          <Download className="w-4 h-4 mr-2" />
+                          {isDownloading ? "Downloading..." : "Download"}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              {/* Video Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Video Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="font-medium mb-2">Description</h4>
-                    <p className="text-sm text-muted-foreground">{video.description}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-2">Tags</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {video.tags.map((tag: string) => (
-                        <Badge key={tag} variant="outline">
-                          #{tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Details */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Post Details</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <h4 className="font-medium mb-2">Description</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          {post.caption || post.description || "—"}
+                        </p>
+                      </div>
+                      {tags.length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-2">Tags</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {tags.map((tag: string) => (
+                              <Badge key={tag} variant="outline">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {category && (
+                        <div className="text-sm">
+                          <strong>Category:</strong> <span className="text-muted-foreground">{category}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p><strong>Category:</strong> {video.category}</p>
-                      <p><strong>Language:</strong> {video.language}</p>
-                      <p><strong>Quality:</strong> {video.quality}</p>
-                    </div>
-                    <div>
-                      <p><strong>File Size:</strong> {video.fileSize}</p>
-                      <p><strong>Resolution:</strong> {video.resolution}</p>
-                      <p><strong>FPS:</strong> {video.fps}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Status & actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Status</span>
+                        {getStatusBadge(post.status)}
+                      </div>
+                      {isFeatured && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Featured</span>
+                          <Badge className="bg-yellow-100 text-yellow-800">
+                            <Star className="w-3 h-3 mr-1" />
+                            Featured
+                          </Badge>
+                        </div>
+                      )}
+                      {(post as any).flagged && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Flagged</span>
+                          <Badge className="bg-red-100 text-red-800">
+                            <Flag className="w-3 h-3 mr-1" />
+                            Flagged
+                          </Badge>
+                        </div>
+                      )}
+                      {(post as any).moderationNotes && (
+                        <div>
+                          <span className="text-sm font-medium">Moderation notes</span>
+                          <p className="text-sm text-amber-600 mt-1 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                            {(post as any).moderationNotes}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Status & Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Status & Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Status:</span>
-                    {getStatusBadge(video.status)}
-                  </div>
-                  
-                  {video.featured && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Featured:</span>
-                      <Badge className="bg-yellow-100 text-yellow-800">
-                        <Star className="w-3 h-3 mr-1" />
-                        Featured
-                      </Badge>
-                    </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Creator</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={getProfilePictureUrl((post as any).user?.profile_picture)} />
+                          <AvatarFallback>{username.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">@{username}</p>
+                          {userId && <p className="text-sm text-muted-foreground">ID: {userId}</p>}
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        {createdAt && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Calendar className="w-4 h-4" />
+                            Uploaded: {new Date(createdAt).toLocaleString()}
+                          </div>
+                        )}
+                        {(post as any).approvedDate && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <CheckCircle className="w-4 h-4" />
+                            Activated: {new Date((post as any).approvedDate).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {post.analytics && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5" />
+                          Analytics
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        {post.analytics.engagementRate != null && (
+                          <div className="flex justify-between">
+                            <span>Engagement rate</span>
+                            <span className="text-muted-foreground">{post.analytics.engagementRate}%</span>
+                          </div>
+                        )}
+                        {post.analytics.avgEngagementPerView != null && (
+                          <div className="flex justify-between">
+                            <span>Avg engagement/view</span>
+                            <span className="text-muted-foreground">{post.analytics.avgEngagementPerView}</span>
+                          </div>
+                        )}
+                        {post.analytics.riskScore != null && (
+                          <div className="flex justify-between">
+                            <span>Risk score</span>
+                            <span className="text-muted-foreground">{post.analytics.riskScore}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   )}
-                  
-                  {video.flagged && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Flagged:</span>
-                      <Badge className="bg-red-100 text-red-800">
-                        <Flag className="w-3 h-3 mr-1" />
-                        Flagged
-                      </Badge>
-                    </div>
-                  )}
-
-                  {video.moderationNotes && (
-                    <div>
-                      <span className="text-sm font-medium">Moderation Notes:</span>
-                      <p className="text-sm text-red-600 mt-1">
-                        <AlertTriangle className="w-3 h-3 inline mr-1" />
-                        {video.moderationNotes}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Creator Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Creator Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src="/generic-placeholder-graphic.png" />
-                      <AvatarFallback>{video.username.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">@{video.username}</p>
-                      <p className="text-sm text-muted-foreground">User ID: {video.userId}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>Uploaded: {new Date(video.uploadDate).toLocaleDateString()}</span>
-                    </div>
-                    {video.approvedDate && (
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Activated: {new Date(video.approvedDate).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Technical Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Technical Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span>Codec:</span>
-                    <span className="text-muted-foreground">{video.codec}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Bitrate:</span>
-                    <span className="text-muted-foreground">{video.bitrate}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Audio Codec:</span>
-                    <span className="text-muted-foreground">{video.audioCodec}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Audio Bitrate:</span>
-                    <span className="text-muted-foreground">{video.audioBitrate}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Thumbnails:</span>
-                    <span className="text-muted-foreground">{video.thumbnailCount}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Analytics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Analytics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="font-medium mb-2">Engagement</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Like Rate:</span>
-                        <span className="text-muted-foreground">{video.engagement.likeRate}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Comment Rate:</span>
-                        <span className="text-muted-foreground">{video.engagement.commentRate}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Share Rate:</span>
-                        <span className="text-muted-foreground">{video.engagement.shareRate}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Completion Rate:</span>
-                        <span className="text-muted-foreground">{video.engagement.completionRate}%</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-2">Performance</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Peak Viewers:</span>
-                        <span className="text-muted-foreground">{video.analytics.peakViewers}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Avg Watch Time:</span>
-                        <span className="text-muted-foreground">{video.analytics.avgWatchTime}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Retention Rate:</span>
-                        <span className="text-muted-foreground">{video.analytics.retentionRate}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>CTR:</span>
-                        <span className="text-muted-foreground">{video.analytics.clickThroughRate}%</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
                 </div>
               </div>
             </TabsContent>
 
             <TabsContent value="ai-moderation" className="mt-6">
-              {video?.aiModeration ? (
+              {aiMod ? (
                 <AIModerationReview
-                  data={video.aiModeration}
+                  data={aiMod}
                   onAction={handleAIModerationAction}
                   isReviewing={isReviewing}
                 />
               ) : (
                 <Card>
                   <CardContent className="p-8 text-center">
-                    <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-muted-foreground">No AI moderation data available for this video.</p>
+                    <Brain className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">No AI moderation data for this post.</p>
                   </CardContent>
                 </Card>
               )}
@@ -1121,125 +549,59 @@ export default function PostDetailPage() {
           </Tabs>
         </div>
 
-        {/* Action Dialog */}
+        {/* Action dialog */}
         <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {actionType === "approve" && "Approve Video"}
-                {actionType === "reject" && "Reject Video"}
-                {actionType === "freeze" && "Freeze Post"}
-                {actionType === "unfreeze" && "Unfreeze Post"}
+                {actionType === "approve" && "Approve post"}
+                {actionType === "reject" && "Reject post"}
+                {actionType === "suspend" && "Suspend post"}
+                {actionType === "freeze" && "Freeze post"}
+                {actionType === "unfreeze" && "Unfreeze post"}
                 {actionType === "feature" && "Add to Featured"}
                 {actionType === "unfeature" && "Remove from Featured"}
-                {actionType === "delete" && "Delete Video"}
+                {actionType === "delete" && "Delete post"}
               </DialogTitle>
               <DialogDescription>
-                {actionType === "approve" &&
-                  `Are you sure you want to approve "${video?.title}"? This will make it visible to all users.`}
-                {actionType === "reject" &&
-                  `Are you sure you want to reject "${video?.title}"? This will prevent it from being published.`}
-                {actionType === "freeze" &&
-                  `Are you sure you want to freeze "${video?.title}"? This will temporarily disable the post.`}
-                {actionType === "unfreeze" &&
-                  `Are you sure you want to unfreeze "${video?.title}"? This will restore the post.`}
-                {actionType === "feature" &&
-                  `Are you sure you want to feature "${video?.title}"? This will highlight it for all users.`}
-                {actionType === "unfeature" &&
-                  `Are you sure you want to remove "${video?.title}" from featured? This will remove the highlight.`}
                 {actionType === "delete" &&
-                  `Are you sure you want to delete "${video?.title}"? This action cannot be undone.`}
+                  "This cannot be undone. The post and related data will be removed."}
+                {actionType !== "delete" &&
+                  `Confirm: ${actionType} for "${post?.title || "this post"}".`}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="reason">
-                  {actionType === "freeze" || actionType === "reject" ? "Reason (required)" : "Reason (optional)"}
+                  {actionType === "reject" ? "Reason (optional)" : "Reason (optional)"}
                 </Label>
                 <Textarea
                   id="reason"
-                  placeholder="Enter reason for this action..."
+                  placeholder="Reason..."
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setActionDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setActionDialogOpen(false)} disabled={isActionLoading}>
                 Cancel
               </Button>
-              <Button variant={actionType === "delete" ? "destructive" : "default"} onClick={executeAction}>
-                {actionType === "approve" && "Approve Video"}
-                {actionType === "reject" && "Reject Video"}
-                {actionType === "freeze" && "Freeze Post"}
-                {actionType === "unfreeze" && "Unfreeze Post"}
-                {actionType === "feature" && "Add to Featured"}
-                {actionType === "unfeature" && "Remove from Featured"}
-                {actionType === "delete" && "Delete Video"}
+              <Button
+                variant={actionType === "delete" ? "destructive" : "default"}
+                onClick={executeAction}
+                disabled={isActionLoading}
+              >
+                {isActionLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>Confirm</>
+                )}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Video Preview Dialog */}
-        <Dialog open={videoDialogOpen} onOpenChange={setVideoDialogOpen}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>{video?.title}</DialogTitle>
-              <DialogDescription>Video ID: {video?.id}</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
-                <div className="text-white text-center">
-                  <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-sm opacity-75">Video Preview</p>
-                  <p className="text-xs opacity-50">Duration: {video?.duration}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p>
-                    <strong>Creator:</strong> @{video?.username}
-                  </p>
-                  <p>
-                    <strong>Upload Date:</strong>{" "}
-                    {video && new Date(video.uploadDate).toLocaleDateString()}
-                  </p>
-                  <p>
-                    <strong>Status:</strong> {video?.status}
-                  </p>
-                </div>
-                <div>
-                  <p>
-                    <strong>Views:</strong> {video?.views.toLocaleString()}
-                  </p>
-                  <p>
-                    <strong>Likes:</strong> {video?.likes.toLocaleString()}
-                  </p>
-                  <p>
-                    <strong>Comments:</strong> {video?.comments}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm">
-                  <strong>Description:</strong>
-                </p>
-                <p className="text-sm text-muted-foreground">{video?.description}</p>
-              </div>
-              <div>
-                <p className="text-sm">
-                  <strong>Tags:</strong>
-                </p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {video?.tags.map((tag: string) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
           </DialogContent>
         </Dialog>
       </DashboardLayout>

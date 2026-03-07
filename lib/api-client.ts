@@ -471,7 +471,7 @@ class ApiClient {
     if (params?.category) queryParams.append('category', params.category)
 
     const queryString = queryParams.toString()
-    return this.request(`/admin/posts${queryString ? `?${queryString}` : ''}`)
+    return this.request(`/posts/all${queryString ? `?${queryString}` : ''}`)
   }
 
   async getPostsAnalytics(params?: {
