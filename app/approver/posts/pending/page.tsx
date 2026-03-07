@@ -110,9 +110,9 @@ export default function PendingPostsPage() {
     try {
       let response
       if (actionType === 'approve') {
-        response = await apiClient.approvePost(selectedPost.id, notes || undefined)
+        response = await apiClient.approverApprovePost(selectedPost.id, notes || undefined)
       } else {
-        response = await apiClient.rejectPost(selectedPost.id, notes)
+        response = await apiClient.approverRejectPost(selectedPost.id, notes)
       }
 
       if (response.success) {

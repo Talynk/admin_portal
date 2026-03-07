@@ -60,10 +60,6 @@ export function useUsers(params: UseUsersParams = {}) {
       
       const response = await apiClient.getUsers(params)
       
-      //check the users repsonse object 
-      console.log(response) 
-      
-      
       if (response.success && response.data) {
         const data = response.data as UsersResponse
         setUsers(data.users)
@@ -77,7 +73,7 @@ export function useUsers(params: UseUsersParams = {}) {
     } finally {
       setLoading(false)
     }
-  }, [params.page, params.limit, params.search, params.status, params.role])
+  }, [params.page, params.limit, params.search, params.status, params.role, params.country_id])
 
   useEffect(() => {
     fetchUsers()
@@ -151,6 +147,20 @@ export function useUsers(params: UseUsersParams = {}) {
     }
   }
 
+  const unsuspendUser = async (userId: string, reason?: string) => {
+    try {
+      const response = await apiClient.unsuspendUser(userId, reason)
+      if (response.success) {
+        await fetchUsers() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
   const activateUser = async (userId: string, reason?: string) => {
     try {
       const response = await apiClient.activateUser(userId, reason)
@@ -176,6 +186,7 @@ export function useUsers(params: UseUsersParams = {}) {
     updateUser,
     deleteUser,
     suspendUser,
+    unsuspendUser,
     activateUser,
   }
 }

@@ -233,6 +233,20 @@ export function usePosts(params: UsePostsParams = {}) {
     }
   }
 
+  const suspendPost = async (postId: string, reason?: string) => {
+    try {
+      const response = await apiClient.suspendPost(postId, reason)
+      if (response.success) {
+        await fetchPosts() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
   const featurePost = async (postId: string, data?: {
     reason?: string
     expiresAt?: string
@@ -305,6 +319,7 @@ export function usePosts(params: UsePostsParams = {}) {
     rejectPost,
     freezePost,
     unfreezePost,
+    suspendPost,
     featurePost,
     unfeaturePost,
     flagPost,

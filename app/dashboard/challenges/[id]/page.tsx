@@ -285,6 +285,9 @@ export default function ChallengeDetailPage() {
                 <div className="text-2xl font-bold">
                   {challenge.has_rewards ? "Yes" : "No"}
                 </div>
+                {(challenge as any).rewards && (
+                  <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{(challenge as any).rewards}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Challenge rewards</p>
               </CardContent>
             </Card>
@@ -308,13 +311,28 @@ export default function ChallengeDetailPage() {
                     </Avatar>
                     <div>
                       <p className="font-medium">@{challenge.organizer.username}</p>
-                      {challenge.organizer.display_name && (
+                      {(challenge as any).organizer_name && (
+                        <p className="text-sm text-muted-foreground">
+                          {(challenge as any).organizer_name}
+                        </p>
+                      )}
+                      {challenge.organizer.display_name && !(challenge as any).organizer_name && (
                         <p className="text-sm text-muted-foreground">
                           {challenge.organizer.display_name}
                         </p>
                       )}
                     </div>
                   </div>
+                  {((challenge as any).organizer_contact || (challenge as any).contact_email) && (
+                    <div className="mt-2 space-y-1 text-sm">
+                      {(challenge as any).organizer_contact && (
+                        <p><span className="text-muted-foreground">Contact:</span> {(challenge as any).organizer_contact}</p>
+                      )}
+                      {(challenge as any).contact_email && (
+                        <p><span className="text-muted-foreground">Email:</span> {(challenge as any).contact_email}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Start Date</p>
@@ -328,6 +346,18 @@ export default function ChallengeDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Approved By</p>
                     <p className="mt-1">@{challenge.approver.username}</p>
+                  </div>
+                )}
+                {(challenge as any).approved_at && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Approved At</p>
+                    <p className="mt-1">{new Date((challenge as any).approved_at).toLocaleString()}</p>
+                  </div>
+                )}
+                {(challenge as any).rejection_reason && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Rejection Reason</p>
+                    <p className="mt-1 text-amber-600">{(challenge as any).rejection_reason}</p>
                   </div>
                 )}
               </CardContent>
@@ -388,6 +418,30 @@ export default function ChallengeDetailPage() {
                       <h3 className="font-semibold mb-2">Description</h3>
                       <p className="text-muted-foreground">{challenge.description}</p>
                     </div>
+                    {(challenge as any).eligibility_criteria && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Eligibility Criteria</h3>
+                        <p className="text-muted-foreground whitespace-pre-wrap">{(challenge as any).eligibility_criteria}</p>
+                      </div>
+                    )}
+                    {(challenge as any).what_you_do && (
+                      <div>
+                        <h3 className="font-semibold mb-2">What You Do</h3>
+                        <p className="text-muted-foreground whitespace-pre-wrap">{(challenge as any).what_you_do}</p>
+                      </div>
+                    )}
+                    {(challenge as any).scoring_criteria && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Scoring Criteria</h3>
+                        <p className="text-muted-foreground whitespace-pre-wrap">{(challenge as any).scoring_criteria}</p>
+                      </div>
+                    )}
+                    {(challenge as any).min_content_per_account != null && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Minimum Content per Account</h3>
+                        <p className="text-muted-foreground">{(challenge as any).min_content_per_account} post(s)</p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <h3 className="font-semibold mb-2">Challenge Period</h3>

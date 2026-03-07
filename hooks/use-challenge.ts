@@ -9,7 +9,20 @@ export interface ChallengeDetail {
   start_date: string
   end_date: string
   has_rewards: boolean
-  createdAt: string
+  rewards?: string
+  createdAt?: string
+  updatedAt?: string
+  organizer_id?: string
+  organizer_name?: string
+  organizer_contact?: string
+  contact_email?: string
+  eligibility_criteria?: string
+  what_you_do?: string
+  scoring_criteria?: string
+  min_content_per_account?: number
+  approved_by?: string | null
+  approved_at?: string | null
+  rejection_reason?: string | null
   organizer: {
     id: string
     username: string

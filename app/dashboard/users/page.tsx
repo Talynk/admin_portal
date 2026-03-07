@@ -80,7 +80,7 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
-    "suspend" | "activate" | "delete" | null
+    "suspend" | "unsuspend" | "activate" | "delete" | null
   >(null);
   const [actionReason, setActionReason] = useState("");
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
@@ -108,6 +108,7 @@ export default function UsersPage() {
     updateUser,
     deleteUser,
     suspendUser,
+    unsuspendUser,
     activateUser,
   } = useUsers({
     search: searchTerm || undefined,
@@ -118,7 +119,7 @@ export default function UsersPage() {
 
   const handleUserAction = (
     user: any,
-    action: "suspend" | "activate" | "delete"
+    action: "suspend" | "unsuspend" | "activate" | "delete"
   ) => {
     setSelectedUser(user);
     setActionType(action);
@@ -135,6 +136,9 @@ export default function UsersPage() {
         case "suspend":
           result = await suspendUser(selectedUser.id, actionReason);
           break;
+        case "unsuspend":
+          result = await unsuspendUser(selectedUser.id, actionReason);
+          break;
         case "activate":
           result = await activateUser(selectedUser.id, actionReason);
           break;
@@ -144,9 +148,10 @@ export default function UsersPage() {
       }
 
       if (result?.success) {
+        const verb = actionType === "unsuspend" ? "unsuspended" : `${actionType}d`;
         toast({
           title: "Success",
-          description: `User ${actionType}d successfully`,
+          description: `User ${verb} successfully`,
         });
       } else {
         toast({
@@ -832,49 +837,71 @@ export default function UsersPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                            <div className="flex flex-wrap items-center justify-end gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => window.open(`/dashboard/users/${user.id}`, "_blank")}
+                              >
+                                <Eye className="h-3.5 w-3.5 mr-1" />
+                                View
+                              </Button>
+                              {user.status === "suspended" ? (
                                 <Button
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 hover:bg-muted hover:scale-105 transition-all duration-200"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                                  onClick={() => handleUserAction(user, "unsuspend")}
                                 >
-                                  <MoreHorizontal className="h-4 w-4" />
+                                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                                  Unsuspend
                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem className="hover:bg-blue-50 transition-colors">
-                                  <Eye className="mr-2 h-4 w-4"/>
-                                  View Profile
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="hover:bg-green-50 transition-colors">
-                                  <Mail className="mr-2 h-4 w-4"/>
-                                  Send Message
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {user.status === "active" ? (
-                                  <DropdownMenuItem
-                                    className="text-red-600 hover:bg-red-50 transition-colors"
-                                    onClick={() =>
-                                      handleUserAction(user, "suspend")
-                                    }
-                                  >
-                                    <Ban className="mr-2 h-4 w-4" />
-                                    Suspend User
+                              ) : (user.status === "active" || user.status === "frozen") ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                                  onClick={() => handleUserAction(user, "suspend")}
+                                >
+                                  <Ban className="h-3.5 w-3.5 mr-1" />
+                                  Suspend
+                                </Button>
+                              ) : null}
+                              {user.status === "frozen" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                                  onClick={() => handleUserAction(user, "activate")}
+                                >
+                                  <Shield className="h-3.5 w-3.5 mr-1" />
+                                  Reactivate
+                                </Button>
+                              )}
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => handleUserAction(user, "delete")}
+                              >
+                                <Ban className="h-3.5 w-3.5 mr-1" />
+                                Delete
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem className="hover:bg-blue-50">
+                                    <Mail className="mr-2 h-4 w-4" />
+                                    Send Message
                                   </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    className="text-green-600 hover:bg-green-50 transition-colors"
-                                    onClick={() =>
-                                      handleUserAction(user, "activate")
-                                    }
-                                  >
-                                    <Shield className="mr-2 h-4 w-4" />
-                                    Activate User
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -900,14 +927,17 @@ export default function UsersPage() {
             <DialogHeader>
               <DialogTitle>
                 {actionType === "suspend" && "Suspend User"}
-                {actionType === "activate" && "Activate User"}
+                {actionType === "unsuspend" && "Unsuspend User"}
+                {actionType === "activate" && "Reactivate User"}
                 {actionType === "delete" && "Delete User"}
               </DialogTitle>
               <DialogDescription>
                 {actionType === "suspend" &&
                   `Are you sure you want to suspend @${selectedUser?.username}? This will prevent them from accessing the platform.`}
+                {actionType === "unsuspend" &&
+                  `Are you sure you want to unsuspend @${selectedUser?.username}? This will restore their platform access.`}
                 {actionType === "activate" &&
-                  `Are you sure you want to activate @${selectedUser?.username}? This will restore their platform access.`}
+                  `Are you sure you want to reactivate @${selectedUser?.username}? This will restore their platform access.`}
                 {actionType === "delete" &&
                   `Are you sure you want to delete @${selectedUser?.username}? This action cannot be undone.`}
               </DialogDescription>
@@ -947,7 +977,8 @@ export default function UsersPage() {
                 ) : (
                   <>
                     {actionType === "suspend" && "Suspend User"}
-                    {actionType === "activate" && "Activate User"}
+                    {actionType === "unsuspend" && "Unsuspend User"}
+                    {actionType === "activate" && "Reactivate User"}
                     {actionType === "delete" && "Delete User"}
                   </>
                 )}

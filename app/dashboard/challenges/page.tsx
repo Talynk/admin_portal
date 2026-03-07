@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Trophy,
   Users,
@@ -384,71 +383,48 @@ export default function ChallengesPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
-                                      >
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>View Challenge Details</p>
-                                    </TooltipContent>
-                                  </Tooltip>
+                                <div className="flex flex-wrap items-center justify-end gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs"
+                                    onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
+                                  >
+                                    <Eye className="h-3.5 w-3.5 mr-1" />
+                                    View details
+                                  </Button>
                                   {challenge.status === "pending" && (
                                     <>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleAction(challenge, "approve")}
-                                            className="text-green-600 hover:text-green-700"
-                                          >
-                                            <CheckCircle2 className="h-4 w-4" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>Approve Challenge</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleAction(challenge, "reject")}
-                                            className="text-red-600 hover:text-red-700"
-                                          >
-                                            <XCircle className="h-4 w-4" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>Reject Challenge</p>
-                                        </TooltipContent>
-                                      </Tooltip>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                                        onClick={() => handleAction(challenge, "approve")}
+                                      >
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                        onClick={() => handleAction(challenge, "reject")}
+                                      >
+                                        <XCircle className="h-3.5 w-3.5 mr-1" />
+                                        Reject
+                                      </Button>
                                     </>
                                   )}
                                   {(challenge.status === "active" || challenge.status === "approved") && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleAction(challenge, "stop")}
-                                          className="text-orange-600 hover:text-orange-700"
-                                        >
-                                          <StopCircle className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Stop Challenge</p>
-                                      </TooltipContent>
-                                    </Tooltip>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                                      onClick={() => handleAction(challenge, "stop")}
+                                    >
+                                      <StopCircle className="h-3.5 w-3.5 mr-1" />
+                                      Stop
+                                    </Button>
                                   )}
                                 </div>
                               </TableCell>

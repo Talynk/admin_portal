@@ -281,6 +281,7 @@ class ApiClient {
     search?: string
     status?: string
     role?: string
+    country_id?: number
   }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
@@ -288,6 +289,7 @@ class ApiClient {
     if (params?.search) queryParams.append('search', params.search)
     if (params?.status) queryParams.append('status', params.status)
     if (params?.role) queryParams.append('role', params.role)
+    if (params?.country_id !== undefined) queryParams.append('country_id', params.country_id.toString())
 
     const queryString = queryParams.toString()
     return this.request(`/admin/users${queryString ? `?${queryString}` : ''}`)
@@ -339,7 +341,14 @@ class ApiClient {
   async suspendUser(userId: string, reason?: string) {
     return this.request('/admin/accounts/manage', {
       method: 'POST',
-      body: JSON.stringify({ id: userId, action: 'freeze', reason }),
+      body: JSON.stringify({ id: userId, action: 'suspend', reason }),
+    })
+  }
+
+  async unsuspendUser(userId: string, reason?: string) {
+    return this.request('/admin/accounts/manage', {
+      method: 'POST',
+      body: JSON.stringify({ id: userId, action: 'unsuspend', reason }),
     })
   }
 
@@ -462,7 +471,7 @@ class ApiClient {
     if (params?.category) queryParams.append('category', params.category)
 
     const queryString = queryParams.toString()
-    return this.request(`/posts/all${queryString ? `?${queryString}` : ''}`)
+    return this.request(`/admin/posts${queryString ? `?${queryString}` : ''}`)
   }
 
   async getPostsAnalytics(params?: {
@@ -511,8 +520,15 @@ class ApiClient {
   }
 
   async deletePost(postId: string) {
-    return this.request(`/admin/videos/${postId}`, {
+    return this.request(`/admin/posts/${postId}`, {
       method: 'DELETE',
+    })
+  }
+
+  async suspendPost(postId: string, reason?: string) {
+    return this.request(`/admin/posts/${postId}/suspend`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
     })
   }
 
@@ -903,21 +919,21 @@ class ApiClient {
     return this.request(`/approver/posts/traffic${queryString ? `?${queryString}` : ''}`)
   }
 
-  async approvePost(postId: string, notes?: string) {
+  async approverApprovePost(postId: string, notes?: string) {
     return this.request(`/approver/posts/${postId}/approve`, {
       method: 'PUT',
       body: JSON.stringify({ notes }),
     })
   }
 
-  async rejectPost(postId: string, notes: string) {
+  async approverRejectPost(postId: string, notes: string) {
     return this.request(`/approver/posts/${postId}/reject`, {
       method: 'PUT',
       body: JSON.stringify({ notes }),
     })
   }
 
-  async suspendPost(postId: string, reason: string) {
+  async approverSuspendPost(postId: string, reason: string) {
     return this.request(`/approver/posts/${postId}/suspend`, {
       method: 'PUT',
       body: JSON.stringify({ reason }),

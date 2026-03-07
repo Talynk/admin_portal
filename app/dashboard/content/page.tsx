@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {
@@ -85,14 +85,18 @@ import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
 import { getFileUrl } from "@/lib/file-utils";
 
+const SEARCH_DEBOUNCE_MS = 350;
+
 export default function ContentPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
     | "approve"
     | "reject"
+    | "suspend"
     | "delete"
     | "feature"
     | "unfeature"
@@ -108,6 +112,12 @@ export default function ContentPage() {
   const [sortBy, setSortBy] = useState("uploadDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isActionLoading, setIsActionLoading] = useState(false);
+
+  // Debounce search so we don't refetch on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   // Determine status filter based on active tab and status filter dropdown
   const getStatusFilter = () => {
@@ -133,12 +143,13 @@ export default function ContentPage() {
     deletePost,
     approvePost,
     rejectPost,
+    suspendPost,
     featurePost,
     unfeaturePost,
     flagPost,
     unflagPost,
   } = usePosts({
-    search: searchTerm || undefined,
+    search: debouncedSearch || undefined,
     status: getStatusFilter(),
     featured: activeTab === "featured" ? true : undefined,
   });
@@ -259,6 +270,9 @@ export default function ContentPage() {
         case "reject":
           result = await rejectPost(selectedVideo.id, actionReason);
           break;
+        case "suspend":
+          result = await suspendPost(selectedVideo.id, actionReason);
+          break;
         case "feature":
           // Convert datetime-local to ISO 8601 format
           const expiresAtISO = actionExpiresAt 
@@ -278,9 +292,10 @@ export default function ContentPage() {
       }
 
       if (result?.success) {
+        const verb = actionType === "suspend" ? "suspended" : `${actionType}d`;
         toast({
           title: "Success",
-          description: `Post ${actionType}d successfully`,
+          description: `Post ${verb} successfully`,
         });
       } else {
         toast({
@@ -783,7 +798,7 @@ export default function ContentPage() {
                             )}
                           </div>
                           <CardContent className="p-4">
-                            <div className="flex items-start justify-between mb-2">
+                            <div className="flex flex-col gap-2 mb-2">
                               <div className="flex-1">
                                 <h3 className="font-semibold text-sm line-clamp-2 mb-1">
                                   {video.title}
@@ -792,109 +807,89 @@ export default function ContentPage() {
                                   {video.description}
                                 </p>
                               </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                              <div className="flex flex-wrap gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => openVideoPreview(video)}
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  View
+                                </Button>
+                                {video.status === "draft" && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                                      onClick={() => handleVideoAction(video, "approve")}
+                                    >
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                                      onClick={() => handleVideoAction(video, "reject")}
+                                    >
+                                      <Ban className="h-3 w-3 mr-1" />
+                                      Suspend
+                                    </Button>
+                                  </>
+                                )}
+                                {video.status === "active" && (
                                   <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-muted transition-colors"
+                                    className="h-7 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                                    onClick={() => handleVideoAction(video, "suspend")}
                                   >
-                                    <MoreHorizontal className="h-4 w-4" />
+                                    <Ban className="h-3 w-3 mr-1" />
+                                    Suspend
                                   </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem
-                                    onClick={() => openVideoPreview(video)}
-                                  >
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Preview Content
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      window.open(
-                                        `/dashboard/content/${video.id}`,
-                                        "_blank"
-                                      )
-                                    }
-                                  >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    View Full Details
-                                  </DropdownMenuItem>
-                                  {video.aiModeration && (
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        window.open(
-                                          `/dashboard/content/${video.id}?tab=ai-moderation`,
-                                          "_blank"
-                                        )
-                                      }
-                                    >
-                                      <Brain className="mr-2 h-4 w-4" />
-                                      Review AI Analysis
+                                )}
+                                {(video as any).is_featured || (video as any).featured ? (
+                                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleVideoAction(video, "unfeature")}>
+                                    <StarOff className="h-3 w-3 mr-1" />
+                                    Unfeature
+                                  </Button>
+                                ) : (
+                                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleVideoAction(video, "feature")}>
+                                    <Star className="h-3 w-3 mr-1" />
+                                    Feature
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleVideoAction(video, "delete")}
+                                >
+                                  <Ban className="h-3 w-3 mr-1" />
+                                  Delete
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                      <MoreHorizontal className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}`, "_blank")}>
+                                      <ExternalLink className="mr-2 h-4 w-4" />
+                                      Full Details
                                     </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  {video.status === "draft" && (
-                                    <>
-                                      <DropdownMenuItem
-                                        className="text-green-600"
-                                        onClick={() =>
-                                          handleVideoAction(video, "approve")
-                                        }
-                                      >
-                                        <CheckCircle className="mr-2 h-4 w-4" />
-                                        Activate
+                                    {video.aiModeration && (
+                                      <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}?tab=ai-moderation`, "_blank")}>
+                                        <Brain className="mr-2 h-4 w-4" />
+                                        AI Analysis
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="text-red-600"
-                                        onClick={() =>
-                                          handleVideoAction(video, "reject")
-                                        }
-                                      >
-                                        <Ban className="mr-2 h-4 w-4" />
-                                        Suspend
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  {(video as any).is_featured || (video as any).featured ? (
-                                    <DropdownMenuItem
-                                      className="text-yellow-600"
-                                      onClick={() =>
-                                        handleVideoAction(video, "unfeature")
-                                      }
-                                    >
-                                      <StarOff className="mr-2 h-4 w-4" />
-                                      Remove from Featured
-                                    </DropdownMenuItem>
-                                  ) : (
-                                    <DropdownMenuItem
-                                      className="text-yellow-600"
-                                      onClick={() =>
-                                        handleVideoAction(video, "feature")
-                                      }
-                                    >
-                                      <Star className="mr-2 h-4 w-4" />
-                                      Add to Featured
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() =>
-                                      handleVideoAction(video, "delete")
-                                    }
-                                  >
-                                    <Ban className="mr-2 h-4 w-4" />
-                                    Delete Content
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-2 mb-3">
@@ -1122,111 +1117,103 @@ export default function ContentPage() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs"
+                                    onClick={() => openVideoPreview(video)}
+                                  >
+                                    <Eye className="h-3.5 w-3.5 mr-1" />
+                                    View
+                                  </Button>
+                                  {video.status === "draft" && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                                        onClick={() => handleVideoAction(video, "approve")}
+                                      >
+                                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                                        onClick={() => handleVideoAction(video, "reject")}
+                                      >
+                                        <Ban className="h-3.5 w-3.5 mr-1" />
+                                        Suspend
+                                      </Button>
+                                    </>
+                                  )}
+                                  {video.status === "active" && (
                                     <Button
-                                      variant="ghost"
+                                      variant="outline"
                                       size="sm"
-                                      className="h-8 w-8 p-0 hover:bg-muted transition-colors"
+                                      className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
+                                      onClick={() => handleVideoAction(video, "suspend")}
                                     >
-                                      <MoreHorizontal className="h-4 w-4" />
+                                      <Ban className="h-3.5 w-3.5 mr-1" />
+                                      Suspend
                                     </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuLabel>
-                                      Actions
-                                    </DropdownMenuLabel>
-                                    <DropdownMenuItem
-                                      onClick={() => openVideoPreview(video)}
+                                  )}
+                                  {(video as any).is_featured || (video as any).featured ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      onClick={() => handleVideoAction(video, "unfeature")}
                                     >
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      Preview Content
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem>
-                                      <Download className="mr-2 h-4 w-4" />
-                                      Download
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        window.open(
-                                          `/dashboard/content/${video.id}`,
-                                          "_blank"
-                                        )
-                                      }
+                                      <StarOff className="h-3.5 w-3.5 mr-1" />
+                                      Unfeature
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      onClick={() => handleVideoAction(video, "feature")}
                                     >
-                                      <ExternalLink className="mr-2 h-4 w-4" />
-                                      View Full Details
-                                    </DropdownMenuItem>
-                                    {video.aiModeration && (
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          window.open(
-                                            `/dashboard/content/${video.id}?tab=ai-moderation`,
-                                            "_blank"
-                                          )
-                                        }
-                                      >
+                                      <Star className="h-3.5 w-3.5 mr-1" />
+                                      Feature
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-8 text-xs"
+                                    onClick={() => handleVideoAction(video, "delete")}
+                                  >
+                                    <Ban className="h-3.5 w-3.5 mr-1" />
+                                    Delete
+                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}`, "_blank")}>
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        Full Details
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem disabled>
+                                        <Download className="mr-2 h-4 w-4" />
+                                        Download
+                                      </DropdownMenuItem>
+                                      {video.aiModeration && (
+                                        <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}?tab=ai-moderation`, "_blank")}>
                                         <Brain className="mr-2 h-4 w-4" />
-                                        Review AI Analysis
+                                        AI Analysis
                                       </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuSeparator />
-                                    {video.status === "draft" && (
-                                      <>
-                                        <DropdownMenuItem
-                                          className="text-green-600"
-                                          onClick={() =>
-                                            handleVideoAction(video, "approve")
-                                          }
-                                        >
-                                          <CheckCircle className="mr-2 h-4 w-4" />
-                                          Approve
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          className="text-red-600"
-                                          onClick={() =>
-                                            handleVideoAction(video, "reject")
-                                          }
-                                        >
-                                          <Ban className="mr-2 h-4 w-4" />
-                                          Reject
-                                        </DropdownMenuItem>
-                                      </>
-                                    )}
-                                    <DropdownMenuSeparator />
-                                    {(video as any).is_featured || (video as any).featured ? (
-                                      <DropdownMenuItem
-                                        className="text-yellow-600"
-                                        onClick={() =>
-                                          handleVideoAction(video, "unfeature")
-                                        }
-                                      >
-                                        <StarOff className="mr-2 h-4 w-4" />
-                                        Remove from Featured
-                                      </DropdownMenuItem>
-                                    ) : (
-                                      <DropdownMenuItem
-                                        className="text-yellow-600"
-                                        onClick={() =>
-                                          handleVideoAction(video, "feature")
-                                        }
-                                      >
-                                        <Star className="mr-2 h-4 w-4" />
-                                        Add to Featured
-                                      </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-red-600"
-                                      onClick={() =>
-                                        handleVideoAction(video, "delete")
-                                      }
-                                    >
-                                      <Ban className="mr-2 h-4 w-4" />
-                                      Delete Content
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1255,6 +1242,7 @@ export default function ContentPage() {
               <DialogTitle>
                 {actionType === "approve" && "Activate Content"}
                 {actionType === "reject" && "Suspend Content"}
+                {actionType === "suspend" && "Suspend Post"}
                 {actionType === "feature" && "Add to Featured"}
                 {actionType === "unfeature" && "Remove from Featured"}
                 {actionType === "delete" && "Delete Content"}
@@ -1264,6 +1252,8 @@ export default function ContentPage() {
                   `Are you sure you want to activate "${selectedVideo?.title}"? This will make it visible to all users.`}
                 {actionType === "reject" &&
                   `Are you sure you want to suspend "${selectedVideo?.title}"? This will prevent it from being visible.`}
+                {actionType === "suspend" &&
+                  `Are you sure you want to suspend "${selectedVideo?.title}"? The post will be hidden and the owner will be notified.`}
                 {actionType === "feature" &&
                   `Are you sure you want to feature "${selectedVideo?.title}"? This will highlight it for all users.`}
                 {actionType === "unfeature" &&
@@ -1275,8 +1265,8 @@ export default function ContentPage() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="reason">
-                  {actionType === "reject"
-                    ? "Reason (required)"
+                  {actionType === "reject" || actionType === "suspend"
+                    ? "Reason (optional, included in notification to owner)"
                     : "Reason (optional)"}
                 </Label>
                 <Textarea
@@ -1328,6 +1318,7 @@ export default function ContentPage() {
                   <>
                     {actionType === "approve" && "Activate Content"}
                     {actionType === "reject" && "Suspend Content"}
+                    {actionType === "suspend" && "Suspend Post"}
                     {actionType === "feature" && "Add to Featured"}
                     {actionType === "unfeature" && "Remove from Featured"}
                     {actionType === "delete" && "Delete Content"}
