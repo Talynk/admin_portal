@@ -83,7 +83,7 @@ import {
 } from "lucide-react";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
-import { getFileUrl } from "@/lib/file-utils";
+import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -379,13 +379,25 @@ export default function ContentPage() {
     return contentType === "video" ? Video : ImageIcon;
   };
 
-  // Simple media icon card - no previews, just icon and buttons
+  // Preview URL for card: thumbnail for video, full URL for image
+  const getPreviewUrl = (p: any) => {
+    const mediaUrl = p.video_url || p.fullUrl || null;
+    const resolved = getFileUrl(mediaUrl);
+    const contentType = getContentType(p);
+    if (contentType === "video") {
+      const thumb = p.thumbnail_url || p.thumbnail || (mediaUrl ? getThumbnailUrl(mediaUrl) : null);
+      return getFileUrl(thumb) || resolved;
+    }
+    return resolved;
+  };
+
+  // Media card with real preview and inline play
   const MediaIconCard = ({ post }: { post: any }) => {
     const contentType = getContentType(post);
     const ContentIcon = contentType === "video" ? Video : ImageIcon;
-    // All URLs from API are already complete R2 CDN URLs - use directly
     const mediaUrl = post.video_url || post.fullUrl || null;
-    const fileUrl = mediaUrl; // Already a complete URL, no processing needed
+    const fileUrl = getFileUrl(mediaUrl);
+    const previewUrl = getPreviewUrl(post);
     const isPlaying = playingVideo === post.id;
 
     const handlePlayClick = (e: React.MouseEvent) => {
@@ -403,9 +415,9 @@ export default function ContentPage() {
     };
 
     return (
-      <div className="relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 overflow-hidden rounded-t-lg flex items-center justify-center group">
+      <div className="relative w-full aspect-video bg-muted/50 overflow-hidden rounded-t-lg flex items-center justify-center group">
         {isPlaying && fileUrl ? (
-          /* Media playing/viewing state */
+          /* Inline play: video with controls or image full view */
           <>
             {contentType === "video" ? (
               <video
@@ -414,35 +426,31 @@ export default function ContentPage() {
                 autoPlay
                 className="w-full h-full object-contain bg-black"
                 onClick={(e) => e.stopPropagation()}
-                onError={(e) => {
-                  console.error('Video load error:', e);
-                }}
+                onError={() => {}}
               >
                 Your browser does not support the video tag.
               </video>
             ) : (
               <img
-                src={fileUrl || '/placeholder.svg'}
-                alt={post.title || post.caption || 'Image'}
+                src={fileUrl || "/placeholder.svg"}
+                alt={post.title || post.caption || "Image"}
                 className="w-full h-full object-contain bg-black"
                 onClick={(e) => e.stopPropagation()}
                 onError={(e) => {
-                  if (e.currentTarget.src !== '/placeholder.svg') {
-                    e.currentTarget.src = '/placeholder.svg';
+                  if (e.currentTarget.src !== "/placeholder.svg") {
+                    e.currentTarget.src = "/placeholder.svg";
                   }
                 }}
               />
             )}
-            {/* Close button */}
             <Button
               variant="secondary"
               size="sm"
-              className="absolute top-2 right-2 bg-black/70 dark:bg-black/80 hover:bg-black/90 dark:hover:bg-black text-white shadow-lg z-10 border border-white/20"
+              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white shadow-lg z-10 border border-white/20"
               onClick={handleCloseMedia}
             >
               <Ban className="w-4 h-4" />
             </Button>
-            {/* Duration badge for videos */}
             {contentType === "video" && post.duration && (
               <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
                 {post.duration}
@@ -450,48 +458,72 @@ export default function ContentPage() {
             )}
           </>
         ) : (
-          /* Icon state */
+          /* Preview state: show thumbnail/image, click to play */
           <>
-            {/* Main icon */}
-            <div className="flex flex-col items-center justify-center gap-3">
-              <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-6 shadow-lg">
-                <ContentIcon className="w-12 h-12 text-gray-600 dark:text-gray-300" />
-              </div>
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                {contentType === "video" ? "Video" : "Image"}
-              </div>
-            </div>
-
-            {/* Action buttons overlay */}
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openVideoPreview(post);
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={post.title || post.caption || contentType === "video" ? "Video preview" : "Image"}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  if (e.currentTarget.src !== "/placeholder.svg") {
+                    e.currentTarget.src = "/placeholder.svg";
+                  }
                 }}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <ContentIcon className="w-10 h-10 opacity-60" />
+                <span className="text-xs font-medium uppercase">No preview</span>
+              </div>
+            )}
+            {/* Click overlay: click preview to play */}
+            {fileUrl && (
+              <button
+                type="button"
+                className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-pointer"
+                onClick={handlePlayClick}
+                aria-label={contentType === "video" ? "Play" : "View"}
               >
-                <Eye className="w-4 h-4 mr-2" />
-                View Details
-              </Button>
-              {fileUrl && (
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-3">
+                  <Play className="w-8 h-8 text-white" />
+                </span>
+              </button>
+            )}
+            {/* Action buttons overlay - above click-to-play so buttons are clickable */}
+            <div className="absolute inset-0 z-10 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none flex items-end justify-center gap-2 pb-2">
+              <span className="pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105"
-                  onClick={handlePlayClick}
+                  className="h-8 text-xs bg-white/95 hover:bg-white text-gray-900 shadow-lg border-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openVideoPreview(post);
+                  }}
                 >
-                  <Play className="w-4 h-4 mr-2" />
-                  {contentType === "video" ? "Play" : "View"}
+                  <Eye className="w-3.5 h-3.5 mr-1" />
+                  Details
                 </Button>
-              )}
+                {fileUrl && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 text-xs bg-white/95 hover:bg-white text-gray-900 shadow-lg border-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayClick(e);
+                    }}
+                  >
+                    <Play className="w-3.5 h-3.5 mr-1" />
+                    {contentType === "video" ? "Play" : "View"}
+                  </Button>
+                )}
+              </span>
             </div>
-
-            {/* Duration badge for videos */}
             {contentType === "video" && post.duration && (
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
                 {post.duration}
               </div>
             )}
@@ -995,46 +1027,24 @@ export default function ContentPage() {
                             >
                               <TableCell>
                                 <div className="flex items-center gap-3">
-                                  <div 
-                                    className="relative w-16 h-12 rounded overflow-hidden cursor-pointer group"
+                                  <div
+                                    className="relative w-20 h-14 rounded overflow-hidden bg-muted flex-shrink-0 cursor-pointer"
                                     onClick={() => openVideoPreview(video)}
                                   >
-                                    {getContentType(video) === "video" ? (
-                                      <>
-                                        <img
-                                          src={
-                                            getFileUrl((video as any).video_url || (video as any).fullUrl) ||
-                                            "/placeholder.svg"
-                                          }
-                                          alt={video.title || video.caption || 'Video thumbnail'}
-                                          className="w-full h-full object-cover"
-                                          loading="lazy"
-                                          onError={(e) => {
-                                            if (e.currentTarget.src !== '/placeholder.svg') {
-                                              e.currentTarget.src = '/placeholder.svg'
-                                            }
-                                          }}
-                                        />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <Play className="w-4 h-4 text-white" />
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <img
-                                        src={
-                                          getFileUrl((video as any).video_url || (video as any).fullUrl) ||
-                                          "/placeholder.svg"
+                                    <img
+                                      src={getPreviewUrl(video) || "/placeholder.svg"}
+                                      alt={video.title || video.caption || (getContentType(video) === "video" ? "Video" : "Image")}
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                      onError={(e) => {
+                                        if (e.currentTarget.src !== "/placeholder.svg") {
+                                          e.currentTarget.src = "/placeholder.svg";
                                         }
-                                        alt={video.title || video.caption || 'Image'}
-                                        className="w-full h-full object-cover"
-                                        loading="lazy"
-                                        onError={(e) => {
-                                          if (e.currentTarget.src !== '/placeholder.svg') {
-                                            e.currentTarget.src = '/placeholder.svg'
-                                          }
-                                        }}
-                                      />
-                                    )}
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Play className="w-5 h-5 text-white drop-shadow" />
+                                    </div>
                                     <div className="absolute top-1 left-1">
                                       {getContentIcon(video) === Video ? (
                                         <Video className="w-3 h-3 text-white bg-black/50 rounded" />
