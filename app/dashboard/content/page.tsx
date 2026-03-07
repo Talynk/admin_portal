@@ -359,24 +359,28 @@ export default function ContentPage() {
     switch (status?.toLowerCase()) {
       case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30">
+          <Badge className="border border-green-200 bg-green-100 text-green-800 dark:border-green-700/50 dark:bg-green-900/40 dark:text-green-200">
             Active
           </Badge>
         );
       case "draft":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30">
+          <Badge className="border border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/40 dark:text-amber-200">
             Draft
           </Badge>
         );
       case "suspended":
         return (
-          <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30">
+          <Badge className="border border-orange-200 bg-orange-100 text-orange-800 dark:border-orange-700/50 dark:bg-orange-900/40 dark:text-orange-200">
             Suspended
           </Badge>
         );
       default:
-        return <Badge variant="secondary">{status || "Unknown"}</Badge>;
+        return (
+          <Badge variant="secondary" className="border border-border bg-muted text-muted-foreground dark:border-border/80">
+            {status || "Unknown"}
+          </Badge>
+        );
     }
   };
 
@@ -1398,6 +1402,9 @@ export default function ContentPage() {
                   <video
                     src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl) || undefined}
                     controls
+                    autoPlay
+                    playsInline
+                    muted
                     className="w-full h-full object-contain"
                     onError={(e) => {
                       console.error('Video load error:', e)

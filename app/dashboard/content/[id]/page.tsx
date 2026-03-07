@@ -164,15 +164,31 @@ export default function PostDetailPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
+        return (
+          <Badge className="border border-green-200 bg-green-100 text-green-800 dark:border-green-700/50 dark:bg-green-900/40 dark:text-green-200">
+            Active
+          </Badge>
+        )
       case "draft":
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Draft</Badge>
+        return (
+          <Badge className="border border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/40 dark:text-amber-200">
+            Draft
+          </Badge>
+        )
       case "suspended":
-        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Suspended</Badge>
+        return (
+          <Badge className="border border-orange-200 bg-orange-100 text-orange-800 dark:border-orange-700/50 dark:bg-orange-900/40 dark:text-orange-200">
+            Suspended
+          </Badge>
+        )
       default:
-        return <Badge variant="secondary">{status}</Badge>
+        return (
+          <Badge variant="secondary" className="border border-border bg-muted text-muted-foreground dark:border-border/80">
+            {status || "Unknown"}
+          </Badge>
+        )
     }
   }
 
