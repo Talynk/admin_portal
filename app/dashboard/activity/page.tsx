@@ -1,15 +1,15 @@
-\"use client\"
+"use client"
 
-import { useMemo, useState } from \"react\"
-import { ProtectedRoute } from \"@/components/protected-route\"
-import { DashboardLayout } from \"@/components/dashboard-layout\"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from \"@/components/ui/card\"
-import { Button } from \"@/components/ui/button\"
-import { Input } from \"@/components/ui/input\"
-import { Badge } from \"@/components/ui/badge\"
-import { Avatar, AvatarFallback } from \"@/components/ui/avatar\"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from \"@/components/ui/select\"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from \"@/components/ui/table\"
+import { useMemo, useState } from "react"
+import { ProtectedRoute } from "@/components/protected-route"
+import { DashboardLayout } from "@/components/dashboard-layout"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Search,
   Download,
@@ -19,22 +19,22 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-} from \"lucide-react\"
-import { useActivityLogs } from \"@/hooks/use-activity-logs\"
+} from "lucide-react"
+import { useActivityLogs } from "@/hooks/use-activity-logs"
 
-type UiSeverity = \"high\" | \"medium\" | \"low\"
+type UiSeverity = "high" | "medium" | "low"
 
 export default function ActivityPage() {
   const { logs, loading, error, refetch } = useActivityLogs({ page: 1, limit: 100 })
-  const [searchTerm, setSearchTerm] = useState(\"\")
-  const [actionFilter, setActionFilter] = useState(\"all\")
-  const [severityFilter, setSeverityFilter] = useState(\"all\")
-  const [userFilter, setUserFilter] = useState(\"all\")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [actionFilter, setActionFilter] = useState("all")
+  const [severityFilter, setSeverityFilter] = useState("all")
+  const [userFilter, setUserFilter] = useState("all")
 
   const deriveSeverity = (statusCode?: number, success?: boolean): UiSeverity => {
-    if (statusCode && statusCode >= 500) return \"high\"
-    if (success === false || (statusCode && statusCode >= 400)) return \"medium\"
-    return \"low\"
+    if (statusCode && statusCode >= 500) return "high"
+    if (success === false || (statusCode && statusCode >= 400)) return "medium"
+    return "low"
   }
 
   const normalizedLogs = useMemo(() => {
@@ -42,17 +42,17 @@ export default function ActivityPage() {
       const details = log.details || {}
       const statusCode = details.status_code as number | undefined
       const success = details.success as boolean | undefined
-      const user = log.userName || details.user?.email || details.user?.username || \"system\"
+      const user = log.userName || details.user?.email || details.user?.username || "system"
 
       return {
         id: log.id,
         timestamp: details.created_at || log.timestamp,
         user,
-        action: log.action || details.action_type || \"activity\",
-        target: details.route || \"—\",
-        targetId: details.trace_id || details.user_id || \"—\",
+        action: log.action || details.action_type || "activity",
+        target: details.route || "—",
+        targetId: details.trace_id || details.user_id || "—",
         details,
-        ipAddress: details.ip || \"—\",
+        ipAddress: details.ip || "—",
         severity: deriveSeverity(statusCode, success),
       }
     })
