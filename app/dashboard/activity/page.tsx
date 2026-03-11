@@ -15,6 +15,7 @@ import {
   Download,
   Activity,
   User,
+  Video,
   AlertTriangle,
   CheckCircle,
   XCircle,
