@@ -164,9 +164,9 @@ export function usePosts(params: UsePostsParams = {}) {
     }
   }
 
-  const deletePost = async (postId: string) => {
+  const deletePost = async (postId: string, reason?: string) => {
     try {
-      const response = await apiClient.deletePost(postId)
+      const response = await apiClient.deletePost(postId, reason)
       if (response.success) {
         await fetchPosts() // Refresh the list
         return { success: true }

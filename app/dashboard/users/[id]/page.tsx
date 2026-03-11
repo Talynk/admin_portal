@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {
@@ -23,6 +24,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Mail,
   Calendar,
@@ -34,8 +42,16 @@ import {
   Ban,
   UserCheck,
   Shield,
+  Heart,
+  MessageSquare,
+  Share2,
+  AlertTriangle,
 } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useUser } from "@/hooks/use-users";
+import { useUserActivity } from "@/hooks/use-user-activity";
+import { useUserPosts } from "@/hooks/use-user-posts";
+import { useUserPostsEngagement } from "@/hooks/use-user-posts-engagement";
 import { useCountries } from "@/hooks/use-countries";
 import { apiClient } from "@/lib/api-client";
 import { getProfilePictureUrl } from "@/lib/file-utils";
@@ -50,6 +66,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { TimeFrame } from "@/lib/types/admin";
 
 interface ActivityLogItem {
   id: string;
@@ -61,14 +78,35 @@ interface ActivityLogItem {
   details?: Record<string, unknown>;
 }
 
+const TIME_FRAMES: { value: TimeFrame; label: string }[] = [
+  { value: "1h", label: "1 hour" },
+  { value: "12h", label: "12 hours" },
+  { value: "24h", label: "24 hours" },
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+];
+
 export default function UserProfilePage() {
   const params = useParams();
   const router = useRouter();
   const userId = typeof params.id === "string" ? params.id : "";
   const { user, loading, error, refetch } = useUser(userId);
   const { getCountryById } = useCountries();
+  const [activityFrame, setActivityFrame] = useState<TimeFrame>("24h");
+  const [engagementFrame, setEngagementFrame] = useState<TimeFrame>("30d");
+  const [postsStatus, setPostsStatus] = useState<"all" | "active" | "suspended" | "draft">("all");
+  const [postsSort, setPostsSort] = useState<"newest" | "oldest" | "most_liked" | "most_viewed" | "most_reported">("newest");
+  const [postsPage, setPostsPage] = useState(1);
+  const { buckets: activityBuckets, loading: activityLoading } = useUserActivity(userId, activityFrame);
+  const { posts: userPosts, pagination: postsPagination, loading: postsLoading, refetch: refetchPosts } = useUserPosts(userId, {
+    page: postsPage,
+    limit: 20,
+    status: postsStatus,
+    sort: postsSort,
+  });
+  const { summary: engagementSummary, engagementRate, loading: engagementLoading } = useUserPostsEngagement(userId, engagementFrame);
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
+  const [legacyActivityLoading, setLegacyActivityLoading] = useState(false);
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [suspendLoading, setSuspendLoading] = useState(false);
@@ -77,7 +115,7 @@ export default function UserProfilePage() {
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    setActivityLoading(true);
+    setLegacyActivityLoading(true);
     apiClient
       .getActivityLogs({ userId, limit: 50 })
       .then((res) => {
@@ -94,7 +132,7 @@ export default function UserProfilePage() {
         if (!cancelled) setActivityLogs([]);
       })
       .finally(() => {
-        if (!cancelled) setActivityLoading(false);
+        if (!cancelled) setLegacyActivityLoading(false);
       });
     return () => {
       cancelled = true;
@@ -212,7 +250,7 @@ export default function UserProfilePage() {
                     <h1 className="text-2xl font-bold">@{user.username}</h1>
                     {getStatusBadge(user.status)}
                   </div>
-                  {user.fullName && <p className="text-muted-foreground">{user.fullName}</p>}
+                  {(user.fullName ?? user.display_name) && <p className="text-muted-foreground">{user.fullName ?? user.display_name}</p>}
                   {user.email && (
                     <p className="text-sm flex items-center gap-2">
                       <Mail className="h-4 w-4" />
@@ -220,9 +258,16 @@ export default function UserProfilePage() {
                     </p>
                   )}
                   {user.bio && <p className="text-sm text-muted-foreground">{user.bio}</p>}
-                  {user.country_id && (
+                  {(user.country ?? (user.country_id && getCountryById(user.country_id))) && (
                     <p className="text-sm text-muted-foreground">
-                      {getCountryById(user.country_id)?.flag_emoji} {getCountryById(user.country_id)?.name}
+                      {user.country ? `${user.country.flag_emoji} ${user.country.name}` : `${getCountryById(user.country_id!)?.flag_emoji} ${getCountryById(user.country_id!)?.name}`}
+                    </p>
+                  )}
+                  {user.status === "suspended" && user.suspended_at && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="h-4 w-4" />
+                      Suspended {new Date(user.suspended_at).toLocaleString()}
+                      {user.suspension_reason && ` — ${user.suspension_reason}`}
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -254,7 +299,7 @@ export default function UserProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Stats */}
+          {/* Stats: use summary when available */}
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -271,37 +316,223 @@ export default function UserProfilePage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{user.posts_count ?? 0}</div>
+                <div className="text-2xl font-bold">{user.summary?.totalPosts ?? user.posts_count ?? 0}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total views</CardTitle>
+                <CardTitle className="text-sm font-medium">Total post views</CardTitle>
                 <Eye className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{(user as any).totalPostViews?.toLocaleString() ?? "—"}</div>
+                <div className="text-2xl font-bold">{(user.summary?.totalPostViews ?? (user as any).totalPostViews)?.toLocaleString() ?? "—"}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Status</CardTitle>
-                <Shield className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Reports on content</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-lg font-bold capitalize">{user.status}</div>
+                <div className="text-2xl font-bold">{user.summary?.totalReportsOnContent?.toLocaleString() ?? "—"}</div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Activity */}
+          {/* Activity graph (time-bucketed) */}
           <Card>
-            <CardHeader>
-              <CardTitle>Activity</CardTitle>
-              <CardDescription>Recent activity for this user</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Activity over time</CardTitle>
+                <CardDescription>Posts created, likes given, comments made</CardDescription>
+              </div>
+              <Select value={activityFrame} onValueChange={(v) => setActivityFrame(v as TimeFrame)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_FRAMES.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
               {activityLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !activityBuckets.length ? (
+                <p className="text-muted-foreground text-center py-8">No activity in this period.</p>
+              ) : (
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={activityBuckets.map((b) => ({ ...b, period: new Date(b.periodStart).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) }))}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="period" className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="postsCreated" name="Posts created" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="likesGiven" name="Likes given" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="commentsMade" name="Comments made" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* User posts engagement summary */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Posts engagement summary</CardTitle>
+                <CardDescription>Performance over selected period</CardDescription>
+              </div>
+              <Select value={engagementFrame} onValueChange={(v) => setEngagementFrame(v as TimeFrame)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_FRAMES.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardHeader>
+            <CardContent>
+              {engagementLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : engagementSummary ? (
+                <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-2xl font-bold">{engagementSummary.totalPostsInFrame}</div>
+                    <div className="text-xs text-muted-foreground">Posts</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-2xl font-bold">{engagementSummary.totalViews.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Views</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-2xl font-bold">{engagementSummary.totalLikes.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Likes</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-2xl font-bold">{engagementSummary.totalComments.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">Comments</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-2xl font-bold">{engagementRate.toFixed(1)}%</div>
+                    <div className="text-xs text-muted-foreground">Engagement rate</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">No engagement data for this period.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* User's posts */}
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
+              <div>
+                <CardTitle>User&apos;s posts</CardTitle>
+                <CardDescription>Posts by this user with optional filters</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={postsStatus} onValueChange={(v: "all" | "active" | "suspended" | "draft") => { setPostsStatus(v); setPostsPage(1); }}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={postsSort} onValueChange={(v: "newest" | "oldest" | "most_liked" | "most_viewed" | "most_reported") => { setPostsSort(v); setPostsPage(1); }}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest</SelectItem>
+                    <SelectItem value="oldest">Oldest</SelectItem>
+                    <SelectItem value="most_liked">Most liked</SelectItem>
+                    <SelectItem value="most_viewed">Most viewed</SelectItem>
+                    <SelectItem value="most_reported">Most reported</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {postsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !userPosts.length ? (
+                <p className="text-muted-foreground text-center py-8">No posts found.</p>
+              ) : (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Post</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Views</TableHead>
+                          <TableHead>Likes</TableHead>
+                          <TableHead>Reports</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="w-[80px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {userPosts.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium max-w-[200px] truncate">{p.title ?? p.id}</TableCell>
+                            <TableCell>{getStatusBadge(p.status)}</TableCell>
+                            <TableCell>{(p as any).views?.toLocaleString() ?? 0}</TableCell>
+                            <TableCell>{(p as any).likes?.toLocaleString() ?? 0}</TableCell>
+                            <TableCell>{(p.report_count ?? (p as any)._count?.reports ?? 0)}</TableCell>
+                            <TableCell className="text-muted-foreground">{p.category?.name ?? "—"}</TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link href={`/dashboard/content/${p.id}`}>View</Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {postsPagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <p className="text-sm text-muted-foreground">
+                        Page {postsPagination.page} of {postsPagination.totalPages} ({postsPagination.total} total)
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" disabled={postsPage <= 1} onClick={() => setPostsPage((x) => Math.max(1, x - 1))}>Previous</Button>
+                        <Button variant="outline" size="sm" disabled={postsPage >= postsPagination.totalPages} onClick={() => setPostsPage((x) => x + 1)}>Next</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Activity logs (legacy) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Activity logs</CardTitle>
+              <CardDescription>Recent activity for this user</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {legacyActivityLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>

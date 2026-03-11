@@ -120,15 +120,21 @@ export interface PostsAnalyticsResponse {
 
 export interface PostReport {
   id: string
+  post_id?: string
   reason: string
-  description: string
+  description?: string
   status: 'pending' | 'resolved' | 'dismissed'
   createdAt: string
+  updatedAt?: string
+  reviewed_by?: string
+  reviewed_at?: string
   user: {
     id: string
     username: string
-    email: string
-    profile_picture: string
+    display_name?: string
+    email?: string
+    profile_picture?: string
+    bio?: string
   }
 }
 
@@ -141,10 +147,11 @@ export interface UserWithDetails {
   username: string
   display_name: string
   email: string
-  phone1: string
-  phone2: string
-  date_of_birth: string
-  country_id: number
+  phone1?: string
+  phone2?: string
+  date_of_birth?: string
+  country_id?: number
+  country?: { id: number; name: string; code: string; flag_emoji: string }
   status: 'active' | 'suspended' | 'pending'
   createdAt: string
   bio?: string
@@ -156,6 +163,181 @@ export interface UserWithDetails {
   postsPending?: number
   profile_picture?: string
   last_login?: string
+  last_active_date?: string
+  suspended_at?: string
+  suspension_reason?: string
+  role?: string
+  email_verified?: boolean
+  interests?: string[]
+  updatedAt?: string
+  summary?: {
+    totalPosts: number
+    totalPostViews: number
+    totalReportsOnContent: number
+  }
+}
+
+// User activity (time-bucketed)
+export interface UserActivityBucket {
+  periodStart: string
+  periodEnd: string
+  postsCreated: number
+  likesGiven: number
+  commentsMade: number
+}
+
+export interface UserActivityResponse {
+  frame: string
+  buckets: UserActivityBucket[]
+}
+
+// User posts (admin)
+export interface UserPostReport {
+  id: string
+  post_id: string
+  reason: string
+  description?: string
+  status: string
+  createdAt: string
+  user?: { id: string; username: string; display_name?: string; email?: string }
+}
+
+export interface UserPostAppeal {
+  id: string
+  appeal_reason: string
+  status: string
+  createdAt: string
+  user?: { id: string; username: string }
+}
+
+export interface UserPostItem {
+  id: string
+  title?: string
+  description?: string
+  status: string
+  views: number
+  likes: number
+  report_count?: number
+  uploadDate?: string
+  createdAt: string
+  category?: { id: string; name: string; description?: string; level?: number; parent?: unknown }
+  _count?: { postLikes: number; comments: number; postViews: number; postShares: number; reports: number; appeals: number }
+  reports?: UserPostReport[]
+  appeals?: UserPostAppeal[]
+}
+
+export interface UserPostsResponse {
+  posts: UserPostItem[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export type UserPostsStatusFilter = 'all' | 'active' | 'suspended' | 'draft'
+export type UserPostsSort = 'newest' | 'oldest' | 'most_liked' | 'most_viewed' | 'most_reported'
+export type TimeFrame = '1h' | '12h' | '24h' | '7d' | '30d'
+
+// User posts engagement
+export interface UserPostsEngagementResponse {
+  frame: string
+  summary: {
+    totalPostsInFrame: number
+    totalViews: number
+    totalLikes: number
+    totalComments: number
+    totalShares: number
+  }
+  engagementRate: number
+}
+
+// Post engagement (time-bucketed)
+export interface PostEngagementBucket {
+  periodStart: string
+  periodEnd: string
+  likes: number
+  comments: number
+  views: number
+}
+
+export interface PostEngagementResponse {
+  frame: string
+  buckets: PostEngagementBucket[]
+}
+
+// Admin unified search
+export interface AdminSearchParams {
+  q: string
+  type?: 'all' | 'users' | 'posts'
+  page?: number
+  limit?: number
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  hasReports?: string
+  suspended?: string
+}
+
+export interface AdminSearchUser {
+  id: string
+  username: string
+  display_name?: string
+  email?: string
+  profile_picture?: string
+  status?: string
+  posts_count?: number
+}
+
+export interface AdminSearchPost {
+  id: string
+  title?: string
+  description?: string
+  status?: string
+  views?: number
+  likes?: number
+  report_count?: number
+  createdAt?: string
+  user?: { id: string; username: string; display_name?: string }
+  category?: { id: string; name: string }
+}
+
+export interface AdminSearchResponse {
+  users?: AdminSearchUser[]
+  userTotal?: number
+  posts?: AdminSearchPost[]
+  postTotal?: number
+  pagination?: { page: number; limit: number; total: number; totalPages: number }
+}
+
+// Suspended users with report context
+export interface SuspendedUserReport {
+  id: string
+  post_id: string
+  reason: string
+  description?: string
+  status: string
+  createdAt: string
+  reporter: { id: string; username: string; display_name?: string; email?: string }
+}
+
+export interface SuspendedUserItem {
+  id: string
+  username: string
+  display_name?: string
+  email?: string
+  profile_picture?: string
+  status: string
+  suspended_at?: string
+  suspension_reason?: string
+  posts_count?: number
+  createdAt: string
+  country?: { id: number; name: string; code: string; flag_emoji: string }
+  reportedPostsCount?: number
+  totalReportsCount?: number
+  reportReasons?: Record<string, number>
+  reports?: SuspendedUserReport[]
+}
+
+export interface SuspendedUsersResponse {
+  users: SuspendedUserItem[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
 }
 
 export interface Appeal {

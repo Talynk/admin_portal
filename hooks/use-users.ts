@@ -6,6 +6,7 @@ interface User {
   username: string
   email: string
   fullName?: string
+  display_name?: string
   status: 'active' | 'suspended' | 'pending' | 'frozen'
   role: 'user' | 'creator' | 'admin'
   followers?: number
@@ -17,7 +18,8 @@ interface User {
   posts_count: number
   profile_picture: string | null
   date_of_birth: string | null
-  country_id: number | null
+  country_id?: number | null
+  country?: { id: number; name: string; code: string; flag_emoji: string }
   phone1?: string | null
   phone2?: string | null
   last_login?: string | null
@@ -27,6 +29,9 @@ interface User {
   bio?: string
   totalPostViews?: number
   total_profile_views?: number
+  suspended_at?: string
+  suspension_reason?: string
+  summary?: { totalPosts: number; totalPostViews: number; totalReportsOnContent: number }
 }
 
 interface UsersResponse {

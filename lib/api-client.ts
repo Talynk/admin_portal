@@ -373,6 +373,71 @@ class ApiClient {
     return this.request(`/admin/users/${userId}/analytics`)
   }
 
+  async getUserActivity(userId: string, params?: { frame?: string }) {
+    const queryParams = new URLSearchParams()
+    if (params?.frame) queryParams.append('frame', params.frame)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/users/${userId}/activity${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getUserPosts(userId: string, params?: {
+    page?: number
+    limit?: number
+    status?: string
+    sort?: string
+    frame?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.sort) queryParams.append('sort', params.sort)
+    if (params?.frame) queryParams.append('frame', params.frame)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/users/${userId}/posts${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getUserPostsEngagement(userId: string, params?: { frame?: string }) {
+    const queryParams = new URLSearchParams()
+    if (params?.frame) queryParams.append('frame', params.frame)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/users/${userId}/posts/engagement${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getSuspendedUsers(params?: { page?: number; limit?: number; sort?: string }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.sort) queryParams.append('sort', params.sort)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/users/suspended${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async adminSearch(params: {
+    q: string
+    type?: 'all' | 'users' | 'posts'
+    page?: number
+    limit?: number
+    status?: string
+    dateFrom?: string
+    dateTo?: string
+    hasReports?: string
+    suspended?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    queryParams.append('q', params.q)
+    if (params?.type) queryParams.append('type', params.type)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom)
+    if (params?.dateTo) queryParams.append('dateTo', params.dateTo)
+    if (params?.hasReports) queryParams.append('hasReports', params.hasReports)
+    if (params?.suspended) queryParams.append('suspended', params.suspended)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/search?${queryString}`)
+  }
+
   // Challenge Management Endpoints
   async getChallenges(params?: {
     page?: number
@@ -554,6 +619,13 @@ class ApiClient {
     return this.request(`/admin/posts/${postId}/analytics`)
   }
 
+  async getPostEngagement(postId: string, params?: { frame?: string }) {
+    const queryParams = new URLSearchParams()
+    if (params?.frame) queryParams.append('frame', params.frame)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/posts/${postId}/engagement${queryString ? `?${queryString}` : ''}`)
+  }
+
   async updatePost(postId: string, postData: {
     title?: string
     description?: string
@@ -575,9 +647,10 @@ class ApiClient {
     })
   }
 
-  async deletePost(postId: string) {
+  async deletePost(postId: string, reason?: string) {
     return this.request(`/admin/posts/${postId}`, {
       method: 'DELETE',
+      ...(reason != null && reason !== '' ? { body: JSON.stringify({ reason }) } : {}),
     })
   }
 

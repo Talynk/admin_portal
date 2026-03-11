@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {
@@ -62,8 +63,10 @@ import {
   TrendingUp,
   UserCheck,
   FileText,
+  Megaphone,
 } from "lucide-react";
 import { useUsers } from "@/hooks/use-users";
+import { apiClient } from "@/lib/api-client";
 import { useCountries } from "@/hooks/use-countries";
 import { useUserStats } from "@/hooks/use-user-stats";
 import { toast } from "@/hooks/use-toast";
@@ -92,6 +95,11 @@ export default function UsersPage() {
   });
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isCreateLoading, setIsCreateLoading] = useState(false);
+  const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastType, setBroadcastType] = useState("broadcast");
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
 
   // Use the countries hook
   const { countries, getCountryById } = useCountries();
@@ -214,6 +222,50 @@ export default function UsersPage() {
     }
   };
 
+  const handleBroadcastSubmit = async () => {
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
+      toast({
+        title: "Validation",
+        description: "Title and message are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBroadcastLoading(true);
+    try {
+      const res = await apiClient.sendBroadcastNotification({
+        title: broadcastTitle.trim(),
+        message: broadcastMessage.trim(),
+        type: broadcastType || "broadcast",
+      });
+      if (res.success && res.data) {
+        const data = res.data as { recipientCount?: number; title?: string; message?: string };
+        const count = data.recipientCount ?? 0;
+        toast({
+          title: "Broadcast sent",
+          description: `Notification sent to ${count} active user${count !== 1 ? "s" : ""}. Only active users with a username receive it.`,
+        });
+        setBroadcastDialogOpen(false);
+        setBroadcastTitle("");
+        setBroadcastMessage("");
+      } else {
+        toast({
+          title: "Error",
+          description: (res as { error?: string }).error ?? "Failed to send broadcast",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to send broadcast.",
+        variant: "destructive",
+      });
+    } finally {
+      setBroadcastLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
@@ -264,7 +316,7 @@ export default function UsersPage() {
     <ProtectedRoute>
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">
                 User Management
@@ -273,13 +325,36 @@ export default function UsersPage() {
                 Manage and monitor platform users
               </p>
             </div>
-            <Button
-              onClick={() => setCreateUserDialogOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add User
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                asChild
+              >
+                <Link href="/dashboard/users/suspended">
+                  <Ban className="mr-2 h-4 w-4" />
+                  Suspended users
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBroadcastTitle("");
+                  setBroadcastMessage("");
+                  setBroadcastType("broadcast");
+                  setBroadcastDialogOpen(true);
+                }}
+              >
+                <Megaphone className="mr-2 h-4 w-4" />
+                Broadcast message
+              </Button>
+              <Button
+                onClick={() => setCreateUserDialogOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
+            </div>
           </div>
 
           {/* Error Display */}
@@ -1086,6 +1161,66 @@ export default function UsersPage() {
                   </>
                 ) : (
                   "Create User"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Broadcast notification dialog */}
+        <Dialog open={broadcastDialogOpen} onOpenChange={setBroadcastDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5" />
+                Broadcast message
+              </DialogTitle>
+              <DialogDescription>
+                Send a notification to all active users (with a username). Suspended or inactive users will not receive it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="broadcast-title">Title *</Label>
+                <Input
+                  id="broadcast-title"
+                  placeholder="e.g. Platform update"
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="broadcast-message">Message *</Label>
+                <Textarea
+                  id="broadcast-message"
+                  placeholder="e.g. Scheduled maintenance tonight 2–4 AM UTC."
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  rows={4}
+                />
+              </div>
+              <div>
+                <Label htmlFor="broadcast-type">Type (optional)</Label>
+                <Input
+                  id="broadcast-type"
+                  placeholder="broadcast"
+                  value={broadcastType}
+                  onChange={(e) => setBroadcastType(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBroadcastDialogOpen(false)} disabled={broadcastLoading}>
+                Cancel
+              </Button>
+              <Button onClick={handleBroadcastSubmit} disabled={broadcastLoading}>
+                {broadcastLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send broadcast"
                 )}
               </Button>
             </DialogFooter>

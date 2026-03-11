@@ -54,8 +54,27 @@ import {
   TrendingUp,
   Loader2,
 } from "lucide-react"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { usePost } from "@/hooks/use-posts"
+import { usePostEngagement } from "@/hooks/use-post-engagement"
+import { usePostReports } from "@/hooks/use-post-reports"
 import { apiClient } from "@/lib/api-client"
+import type { TimeFrame } from "@/lib/types/admin"
 import { getFileUrl, getFileType, getDownloadFilename, getBestDownloadUrl, downloadMediaFile, getProfilePictureUrl } from "@/lib/file-utils"
 import { toast } from "@/hooks/use-toast"
 
@@ -73,6 +92,9 @@ export default function PostDetailPage() {
   const router = useRouter()
   const postId = typeof params.id === "string" ? params.id : ""
   const { post, loading, error, refetch } = usePost(postId)
+  const [engagementFrame, setEngagementFrame] = useState<TimeFrame>("24h")
+  const { buckets: engagementBuckets, loading: engagementLoading } = usePostEngagement(postId, engagementFrame)
+  const { reports, loading: reportsLoading, refetch: refetchReports } = usePostReports(postId)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "suspend" | "freeze" | "unfreeze" | "delete" | "feature" | "unfeature" | null>(null)
   const [actionReason, setActionReason] = useState("")
@@ -80,6 +102,14 @@ export default function PostDetailPage() {
   const [isReviewing, setIsReviewing] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+
+  const TIME_FRAMES: { value: TimeFrame; label: string }[] = [
+    { value: "1h", label: "1 hour" },
+    { value: "12h", label: "12 hours" },
+    { value: "24h", label: "24 hours" },
+    { value: "7d", label: "7 days" },
+    { value: "30d", label: "30 days" },
+  ]
 
   const handleDownload = async () => {
     const fileUrl = getBestDownloadUrl(post as any)
@@ -131,7 +161,7 @@ export default function PostDetailPage() {
           result = await apiClient.unfreezePost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
           break
         case "delete":
-          result = await apiClient.deletePost(post.id).then((r) => ({ success: r.success, error: r.error }))
+          result = await apiClient.deletePost(post.id, actionReason || undefined).then((r) => ({ success: r.success, error: r.error }))
           if (result?.success) {
             router.push("/dashboard/content")
             return
@@ -327,8 +357,16 @@ export default function PostDetailPage() {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="engagement" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Engagement
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="flex items-center gap-2">
+                <Flag className="w-4 h-4" />
+                Reports ({reports.length})
+              </TabsTrigger>
               <TabsTrigger value="ai-moderation" className="flex items-center gap-2">
                 <Brain className="w-4 h-4" />
                 AI Moderation
@@ -662,6 +700,103 @@ export default function PostDetailPage() {
               </div>
             </TabsContent>
 
+            <TabsContent value="engagement" className="mt-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Engagement over time</CardTitle>
+                    <CardDescription>Likes, comments, and views by period</CardDescription>
+                  </div>
+                  <Select value={engagementFrame} onValueChange={(v) => setEngagementFrame(v as TimeFrame)}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_FRAMES.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardHeader>
+                <CardContent>
+                  {engagementLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !engagementBuckets.length ? (
+                    <p className="text-muted-foreground text-center py-8">No engagement data in this period.</p>
+                  ) : (
+                    <div className="h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={engagementBuckets.map((b) => ({ ...b, period: new Date(b.periodStart).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) }))}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis dataKey="period" className="text-xs" />
+                          <YAxis className="text-xs" />
+                          <Tooltip />
+                          <Legend />
+                          <Line type="monotone" dataKey="likes" name="Likes" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="comments" name="Comments" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="views" name="Views" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="reports" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Reports on this post</CardTitle>
+                  <CardDescription>Reports filed by users with reason and status</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {reportsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !reports.length ? (
+                    <p className="text-muted-foreground text-center py-8">No reports for this post.</p>
+                  ) : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Reporter</TableHead>
+                            <TableHead>Reason</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Date</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {reports.map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarImage src={getProfilePictureUrl(r.user?.profile_picture)} />
+                                    <AvatarFallback>{r.user?.username?.charAt(0) ?? "?"}</AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-medium">@{r.user?.username ?? "—"}</span>
+                                  {r.user?.display_name && <span className="text-muted-foreground text-sm">({r.user.display_name})</span>}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-medium">{r.reason}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{r.description ?? "—"}</TableCell>
+                              <TableCell><Badge variant={r.status === "resolved" ? "default" : "secondary"}>{r.status}</Badge></TableCell>
+                              <TableCell className="text-muted-foreground text-sm">{new Date(r.createdAt).toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="ai-moderation" className="mt-6">
               {aiMod ? (
                 <AIModerationReview
@@ -705,11 +840,11 @@ export default function PostDetailPage() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="reason">
-                  {actionType === "reject" ? "Reason (optional)" : "Reason (optional)"}
+                  {actionType === "delete" ? "Reason for audit (optional)" : "Reason (optional)"}
                 </Label>
                 <Textarea
                   id="reason"
-                  placeholder="Reason..."
+                  placeholder={actionType === "delete" ? "Logged in audit log..." : "Reason..."}
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
                 />

@@ -80,10 +80,16 @@ import {
   AlertCircle,
   Loader2,
   Image as ImageIcon,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import Link from "next/link";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api-client";
 import { getFileUrl, getThumbnailUrl, getDownloadFilename, getBestDownloadUrl, downloadMediaFile } from "@/lib/file-utils";
+import type { AdminSearchPost } from "@/lib/types/admin";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -113,6 +119,15 @@ export default function ContentPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [advancedSearchQuery, setAdvancedSearchQuery] = useState("");
+  const [advancedDateFrom, setAdvancedDateFrom] = useState("");
+  const [advancedDateTo, setAdvancedDateTo] = useState("");
+  const [advancedHasReports, setAdvancedHasReports] = useState(false);
+  const [advancedSuspendedOnly, setAdvancedSuspendedOnly] = useState(false);
+  const [advancedResults, setAdvancedResults] = useState<AdminSearchPost[]>([]);
+  const [advancedSearchLoading, setAdvancedSearchLoading] = useState(false);
+  const [advancedSearchRun, setAdvancedSearchRun] = useState(false);
 
   // Debounce search so we don't refetch on every keystroke
   useEffect(() => {
@@ -167,6 +182,38 @@ export default function ContentPage() {
     sort: apiSort,
     featured: activeTab === "featured" ? true : undefined,
   });
+
+  const runAdvancedSearch = async () => {
+    if (!advancedSearchQuery.trim()) {
+      toast({ title: "Enter a search term", variant: "destructive" });
+      return;
+    }
+    setAdvancedSearchLoading(true);
+    setAdvancedSearchRun(true);
+    try {
+      const res = await apiClient.adminSearch({
+        q: advancedSearchQuery.trim(),
+        type: "posts",
+        status: advancedSuspendedOnly ? "suspended" : undefined,
+        dateFrom: advancedDateFrom || undefined,
+        dateTo: advancedDateTo || undefined,
+        hasReports: advancedHasReports ? "true" : undefined,
+        suspended: advancedSuspendedOnly ? "true" : undefined,
+      });
+      if (res.success && res.data) {
+        const data = res.data as { posts?: AdminSearchPost[] };
+        setAdvancedResults(data.posts ?? []);
+      } else {
+        setAdvancedResults([]);
+        toast({ title: "Search failed", description: (res as { error?: string }).error, variant: "destructive" });
+      }
+    } catch {
+      setAdvancedResults([]);
+      toast({ title: "Search failed", variant: "destructive" });
+    } finally {
+      setAdvancedSearchLoading(false);
+    }
+  };
 
   // Ensure posts is an array and filter based on additional filters (API handles main filtering)
   const videos = posts || [];
@@ -746,6 +793,115 @@ export default function ContentPage() {
 
                 <TabsContent value={activeTab} className="mt-6">
                   <div className="space-y-4 mb-6">
+                    {/* Advanced search (unified admin search API) */}
+                    <Card>
+                      <CardHeader
+                        className="cursor-pointer hover:bg-muted/50 transition-colors rounded-lg"
+                        onClick={() => setAdvancedSearchOpen(!advancedSearchOpen)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2 text-base">
+                            {advancedSearchOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            <Filter className="h-4 w-4" />
+                            Advanced search (posts)
+                          </CardTitle>
+                          <CardDescription>Unified search with date range and report filters</CardDescription>
+                        </div>
+                      </CardHeader>
+                      {advancedSearchOpen && (
+                        <CardContent className="space-y-4 pt-0">
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="sm:col-span-2">
+                              <Label>Search term</Label>
+                              <Input
+                                placeholder="Title, description, or post ID..."
+                                value={advancedSearchQuery}
+                                onChange={(e) => setAdvancedSearchQuery(e.target.value)}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label>Date from (ISO)</Label>
+                              <Input
+                                type="date"
+                                value={advancedDateFrom}
+                                onChange={(e) => setAdvancedDateFrom(e.target.value)}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label>Date to (ISO)</Label>
+                              <Input
+                                type="date"
+                                value={advancedDateTo}
+                                onChange={(e) => setAdvancedDateTo(e.target.value)}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox
+                                checked={advancedHasReports}
+                                onCheckedChange={(c) => setAdvancedHasReports(!!c)}
+                              />
+                              <span className="text-sm">Only posts with reports</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox
+                                checked={advancedSuspendedOnly}
+                                onCheckedChange={(c) => setAdvancedSuspendedOnly(!!c)}
+                              />
+                              <span className="text-sm">Suspended only</span>
+                            </label>
+                            <Button onClick={runAdvancedSearch} disabled={advancedSearchLoading}>
+                              {advancedSearchLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                              Search
+                            </Button>
+                          </div>
+                          {advancedSearchRun && (
+                            <div className="rounded-md border">
+                              <p className="text-sm text-muted-foreground p-2">
+                                {advancedResults.length} result{advancedResults.length !== 1 ? "s" : ""}
+                              </p>
+                              {advancedResults.length > 0 ? (
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Post</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Views</TableHead>
+                                      <TableHead>Reports</TableHead>
+                                      <TableHead>Creator</TableHead>
+                                      <TableHead className="w-[80px]">Actions</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {advancedResults.map((p) => (
+                                      <TableRow key={p.id}>
+                                        <TableCell className="font-medium max-w-[200px] truncate">{p.title ?? p.id}</TableCell>
+                                        <TableCell><Badge variant="secondary">{p.status ?? "—"}</Badge></TableCell>
+                                        <TableCell>{(p as any).views?.toLocaleString() ?? 0}</TableCell>
+                                        <TableCell>{(p as any).report_count ?? 0}</TableCell>
+                                        <TableCell className="text-muted-foreground">@{p.user?.username ?? "—"}</TableCell>
+                                        <TableCell>
+                                          <Button variant="ghost" size="sm" asChild>
+                                            <Link href={`/dashboard/content/${p.id}`}>View</Link>
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              ) : (
+                                <p className="text-muted-foreground text-sm p-4 text-center">No posts match the filters.</p>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      )}
+                    </Card>
+
                     {/* Search and Primary Filters */}
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="relative flex-1">
