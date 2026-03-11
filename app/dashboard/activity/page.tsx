@@ -1,157 +1,90 @@
-"use client"
+\"use client\"
 
-import { useState } from "react"
-import { ProtectedRoute } from "@/components/protected-route"
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useMemo, useState } from \"react\"
+import { ProtectedRoute } from \"@/components/protected-route\"
+import { DashboardLayout } from \"@/components/dashboard-layout\"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from \"@/components/ui/card\"
+import { Button } from \"@/components/ui/button\"
+import { Input } from \"@/components/ui/input\"
+import { Badge } from \"@/components/ui/badge\"
+import { Avatar, AvatarFallback } from \"@/components/ui/avatar\"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from \"@/components/ui/select\"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from \"@/components/ui/table\"
 import {
   Search,
   Download,
   Activity,
   User,
-  Video,
-  Settings,
   AlertTriangle,
   CheckCircle,
   XCircle,
   Clock,
-} from "lucide-react"
+} from \"lucide-react\"
+import { useActivityLogs } from \"@/hooks/use-activity-logs\"
 
-// Mock activity logs data
-const mockActivityLogs = [
-  {
-    id: "AL001",
-    timestamp: "2024-03-16T14:30:00Z",
-    user: "admin@talentix.com",
-    action: "user_suspended",
-    target: "@suspicious_user",
-    targetId: "U999",
-    targetType: "user",
-    details: "User suspended for violating community guidelines",
-    ipAddress: "192.168.1.100",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    severity: "high",
-  },
-  {
-    id: "AL002",
-    timestamp: "2024-03-16T14:15:00Z",
-    user: "moderator@talentix.com",
-    action: "content_approved",
-    target: "Dance Tutorial",
-    targetId: "V001",
-    targetType: "video",
-    details: "Video approved after manual review",
-    ipAddress: "10.0.0.50",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    severity: "low",
-  },
-  {
-    id: "AL003",
-    timestamp: "2024-03-16T13:45:00Z",
-    user: "admin@talentix.com",
-    action: "settings_changed",
-    target: "Platform Settings",
-    targetId: "SETTINGS",
-    targetType: "system",
-    details: "Updated maximum video length from 180s to 300s",
-    ipAddress: "192.168.1.100",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    severity: "medium",
-  },
-  {
-    id: "AL004",
-    timestamp: "2024-03-16T13:20:00Z",
-    user: "approver@talentix.com",
-    action: "content_rejected",
-    target: "Inappropriate Content",
-    targetId: "V456",
-    targetType: "video",
-    details: "Video rejected for violating content policy",
-    ipAddress: "172.16.0.25",
-    userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-    severity: "medium",
-  },
-  {
-    id: "AL005",
-    timestamp: "2024-03-16T12:55:00Z",
-    user: "admin@talentix.com",
-    action: "user_created",
-    target: "@new_creator",
-    targetId: "U1001",
-    targetType: "user",
-    details: "New user account created with creator privileges",
-    ipAddress: "192.168.1.100",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    severity: "low",
-  },
-  {
-    id: "AL006",
-    timestamp: "2024-03-16T12:30:00Z",
-    user: "system",
-    action: "backup_completed",
-    target: "Database Backup",
-    targetId: "BACKUP_001",
-    targetType: "system",
-    details: "Automated daily database backup completed successfully",
-    ipAddress: "127.0.0.1",
-    userAgent: "System/1.0",
-    severity: "low",
-  },
-  {
-    id: "AL007",
-    timestamp: "2024-03-16T11:45:00Z",
-    user: "moderator@talentix.com",
-    action: "content_flagged",
-    target: "Spam Video",
-    targetId: "V789",
-    targetType: "video",
-    details: "Content flagged for spam and promotional content",
-    ipAddress: "10.0.0.50",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    severity: "high",
-  },
-]
+type UiSeverity = \"high\" | \"medium\" | \"low\"
 
 export default function ActivityPage() {
-  const [logs, setLogs] = useState(mockActivityLogs)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [actionFilter, setActionFilter] = useState("all")
-  const [severityFilter, setSeverityFilter] = useState("all")
-  const [userFilter, setUserFilter] = useState("all")
-  const [timeRange, setTimeRange] = useState("24h")
+  const { logs, loading, error, refetch } = useActivityLogs({ page: 1, limit: 100 })
+  const [searchTerm, setSearchTerm] = useState(\"\")
+  const [actionFilter, setActionFilter] = useState(\"all\")
+  const [severityFilter, setSeverityFilter] = useState(\"all\")
+  const [userFilter, setUserFilter] = useState(\"all\")
 
-  const filteredLogs = logs.filter((log) => {
+  const deriveSeverity = (statusCode?: number, success?: boolean): UiSeverity => {
+    if (statusCode && statusCode >= 500) return \"high\"
+    if (success === false || (statusCode && statusCode >= 400)) return \"medium\"
+    return \"low\"
+  }
+
+  const normalizedLogs = useMemo(() => {
+    return (logs || []).map((log: any) => {
+      const details = log.details || {}
+      const statusCode = details.status_code as number | undefined
+      const success = details.success as boolean | undefined
+      const user = log.userName || details.user?.email || details.user?.username || \"system\"
+
+      return {
+        id: log.id,
+        timestamp: details.created_at || log.timestamp,
+        user,
+        action: log.action || details.action_type || \"activity\",
+        target: details.route || \"—\",
+        targetId: details.trace_id || details.user_id || \"—\",
+        details,
+        ipAddress: details.ip || \"—\",
+        severity: deriveSeverity(statusCode, success),
+      }
+    })
+  }, [logs])
+
+  const filteredLogs = normalizedLogs.filter((log) => {
+    const term = searchTerm.toLowerCase()
     const matchesSearch =
-      log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.target.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.id.toLowerCase().includes(searchTerm.toLowerCase())
+      log.user.toLowerCase().includes(term) ||
+      log.action.toLowerCase().includes(term) ||
+      log.target.toLowerCase().includes(term) ||
+      String(log.details?.error_message || \"\").toLowerCase().includes(term) ||
+      log.id.toLowerCase().includes(term)
 
-    const matchesAction = actionFilter === "all" || log.action.includes(actionFilter)
-    const matchesSeverity = severityFilter === "all" || log.severity === severityFilter
-    const matchesUser = userFilter === "all" || log.user === userFilter
+    const matchesAction = actionFilter === \"all\" || log.action.toLowerCase().includes(actionFilter.toLowerCase())
+    const matchesSeverity = severityFilter === \"all\" || log.severity === severityFilter
+    const matchesUser = userFilter === \"all\" || log.user === userFilter
 
     return matchesSearch && matchesAction && matchesSeverity && matchesUser
   })
 
   const getActionIcon = (action: string) => {
-    if (action.includes("user")) return <User className="h-4 w-4" />
-    if (action.includes("content")) return <Video className="h-4 w-4" />
-    if (action.includes("settings")) return <Settings className="h-4 w-4" />
-    if (action.includes("approved")) return <CheckCircle className="h-4 w-4 text-green-500" />
-    if (action.includes("rejected") || action.includes("suspended")) return <XCircle className="h-4 w-4 text-red-500" />
-    if (action.includes("flagged")) return <AlertTriangle className="h-4 w-4 text-orange-500" />
-    return <Activity className="h-4 w-4" />
+    const lower = action.toLowerCase()
+    if (lower.includes(\"user\")) return <User className=\"h-4 w-4\" />
+    if (lower.includes(\"approved\")) return <CheckCircle className=\"h-4 w-4 text-green-500\" />
+    if (lower.includes(\"rejected\") || lower.includes(\"suspended\") || lower.includes(\"error\"))
+      return <XCircle className=\"h-4 w-4 text-red-500\" />
+    if (lower.includes(\"flag\") || lower.includes(\"warn\")) return <AlertTriangle className=\"h-4 w-4 text-orange-500\" />
+    return <Activity className=\"h-4 w-4\" />
   }
 
-  const getSeverityBadge = (severity: string) => {
+  const getSeverityBadge = (severity: UiSeverity) => {
     switch (severity) {
       case "high":
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">High</Badge>
@@ -164,7 +97,8 @@ export default function ActivityPage() {
     }
   }
 
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = (timestamp?: string) => {
+    if (!timestamp) return \"—\"
     return new Date(timestamp).toLocaleString()
   }
 
@@ -172,7 +106,16 @@ export default function ActivityPage() {
     const csvContent = [
       ["ID", "Timestamp", "User", "Action", "Target", "Details", "Severity", "IP Address"].join(","),
       ...filteredLogs.map((log) =>
-        [log.id, log.timestamp, log.user, log.action, log.target, `"${log.details}"`, log.severity, log.ipAddress].join(
+        [
+          log.id,
+          log.timestamp,
+          log.user,
+          log.action,
+          log.target,
+          `\"${String(log.details?.error_message || \"\").replace(/\"/g, '\"')}\"`,
+          log.severity,
+          log.ipAddress,
+        ].join(
           ",",
         ),
       ),
@@ -187,8 +130,8 @@ export default function ActivityPage() {
     window.URL.revokeObjectURL(url)
   }
 
-  const uniqueUsers = [...new Set(logs.map((log) => log.user))]
-  const uniqueActions = [...new Set(logs.map((log) => log.action.split("_")[0]))]
+  const uniqueUsers = [...new Set(normalizedLogs.map((log) => log.user))]
+  const uniqueActions = [...new Set(normalizedLogs.map((log) => (log.action || '').split(\"_\")[0]))]
 
   return (
     <ProtectedRoute>
@@ -213,7 +156,7 @@ export default function ActivityPage() {
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{logs.length}</div>
+                <div className="text-2xl font-bold">{normalizedLogs.length}</div>
                 <p className="text-xs text-muted-foreground">Last 24 hours</p>
               </CardContent>
             </Card>
@@ -223,7 +166,7 @@ export default function ActivityPage() {
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{logs.filter((l) => l.severity === "high").length}</div>
+                <div className="text-2xl font-bold">{normalizedLogs.filter((l) => l.severity === "high").length}</div>
                 <p className="text-xs text-muted-foreground">Critical actions</p>
               </CardContent>
             </Card>
@@ -243,7 +186,9 @@ export default function ActivityPage() {
                 <Video className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{logs.filter((l) => l.action.includes("content")).length}</div>
+                <div className="text-2xl font-bold">
+                  {normalizedLogs.filter((l) => l.action.toLowerCase().includes("content")).length}
+                </div>
                 <p className="text-xs text-muted-foreground">Moderation activities</p>
               </CardContent>
             </Card>
@@ -310,8 +255,7 @@ export default function ActivityPage() {
                       <TableHead>Timestamp</TableHead>
                       <TableHead>User</TableHead>
                       <TableHead>Action</TableHead>
-                      <TableHead>Target</TableHead>
-                      <TableHead>Details</TableHead>
+                      <TableHead>Route</TableHead>
                       <TableHead>Severity</TableHead>
                       <TableHead>IP Address</TableHead>
                     </TableRow>
@@ -343,16 +287,8 @@ export default function ActivityPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <p className="font-medium">{log.target}</p>
-                            <p className="text-xs text-muted-foreground">ID: {log.targetId}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="text-sm text-muted-foreground max-w-xs truncate" title={log.details}>
-                            {log.details}
-                          </p>
+                        <TableCell className="text-sm">
+                          <span className="font-mono text-xs text-muted-foreground">{log.target}</span>
                         </TableCell>
                         <TableCell>{getSeverityBadge(log.severity)}</TableCell>
                         <TableCell>
@@ -364,10 +300,21 @@ export default function ActivityPage() {
                 </Table>
               </div>
 
-              {filteredLogs.length === 0 && (
+              {filteredLogs.length === 0 && !loading && (
                 <div className="text-center py-8">
                   <Activity className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No activity logs found matching your criteria.</p>
+                </div>
+              )}
+              {loading && (
+                <div className="text-center py-8 text-muted-foreground text-sm">Loading activity logs...</div>
+              )}
+              {error && (
+                <div className="text-center py-4 text-sm text-red-600 flex flex-col gap-2 items-center">
+                  <span>{error}</span>
+                  <Button variant="outline" size="sm" onClick={refetch}>
+                    Retry
+                  </Button>
                 </div>
               )}
             </CardContent>

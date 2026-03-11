@@ -794,21 +794,74 @@ class ApiClient {
   async getActivityLogs(params?: {
     page?: number
     limit?: number
+    dateFrom?: string
+    dateTo?: string
     userId?: string
-    action?: string
-    startDate?: string
-    endDate?: string
+    route?: string
+    method?: string
+    statusCode?: number
+    success?: boolean
+    source?: string
+    actionType?: string
+    ip?: string
+    deviceFingerprint?: string
   }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom)
+    if (params?.dateTo) queryParams.append('dateTo', params.dateTo)
     if (params?.userId) queryParams.append('userId', params.userId)
-    if (params?.action) queryParams.append('action', params.action)
-    if (params?.startDate) queryParams.append('startDate', params.startDate)
-    if (params?.endDate) queryParams.append('endDate', params.endDate)
+    if (params?.route) queryParams.append('route', params.route)
+    if (params?.method) queryParams.append('method', params.method)
+    if (params?.statusCode !== undefined) queryParams.append('statusCode', params.statusCode.toString())
+    if (params?.success !== undefined) queryParams.append('success', params.success ? 'true' : 'false')
+    if (params?.source) queryParams.append('source', params.source)
+    if (params?.actionType) queryParams.append('actionType', params.actionType)
+    if (params?.ip) queryParams.append('ip', params.ip)
+    if (params?.deviceFingerprint) queryParams.append('deviceFingerprint', params.deviceFingerprint)
 
     const queryString = queryParams.toString()
-    return this.request(`/admin/activity${queryString ? `?${queryString}` : ''}`)
+    const response = await this.request(`/admin/logs/activity${queryString ? `?${queryString}` : ''}`)
+
+    if (response.success && response.data) {
+      const raw: any = response.data
+      const container = raw.items ? raw : raw.data ? raw.data : raw
+      const items: any[] = container.items || []
+      const pagination = container.pagination || {
+        page: params?.page ?? 1,
+        limit: params?.limit ?? items.length,
+        total: items.length,
+        totalPages: 1,
+      }
+
+      const logs = items.map((item) => ({
+        id: item.id,
+        action: item.action_type || item.route || item.method || 'activity',
+        description: item.route || '',
+        userId: item.user_id || '',
+        userName: item.user?.username || item.user_id || 'system',
+        timestamp: item.created_at,
+        details: item,
+      }))
+
+      return {
+        success: true as const,
+        data: {
+          logs,
+          pagination: {
+            currentPage: pagination.page,
+            totalPages: pagination.totalPages,
+            totalCount: pagination.total,
+            hasNext: pagination.page < pagination.totalPages,
+            hasPrev: pagination.page > 1,
+          },
+        },
+        message: (raw as any).message,
+      }
+    }
+
+    return response
   }
 
   // Reports

@@ -215,6 +215,16 @@ export function useUser(userId: string) {
   const fetchUser = useCallback(async () => {
     if (!userId) return
 
+    // Frontend safety: ensure we only call the admin user-details API with a UUID
+    const uuidRegex = /^[0-9a-fA-F-]{36}$/
+    if (!uuidRegex.test(userId)) {
+      console.error('Frontend bug: userId passed to useUser is not a UUID', { userId })
+      setError('Invalid user id passed from frontend. Expected UUID.')
+      setUser(null)
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
