@@ -87,6 +87,24 @@ export function getFileType(fileUrl: string | null | undefined): 'image' | 'vide
 }
 
 /**
+ * Returns the best URL for downloading media from a post-like object.
+ * Prefers direct video_url / fullUrl over hls_url when available.
+ */
+export function getBestDownloadUrl(post: {
+  video_url?: string | null
+  fullUrl?: string | null
+  videoUrl?: string | null
+  hls_url?: string | null
+  thumbnail_url?: string | null
+}): string | null {
+  const direct = getFileUrl(post.video_url ?? post.fullUrl ?? post.videoUrl)
+  if (direct) return direct
+  const hls = getFileUrl(post.hls_url)
+  if (hls) return hls
+  return getFileUrl(post.thumbnail_url)
+}
+
+/**
  * Derives a download filename from URL and optional post id/type
  */
 export function getDownloadFilename(

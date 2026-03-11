@@ -1,14 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Download, Calendar, Users, Video, AlertTriangle, CheckCircle, Clock, BarChart3 } from "lucide-react"
+import { FileText, Download, Calendar, Users, Video, AlertTriangle, CheckCircle, Clock, BarChart3, Search } from "lucide-react"
 
 // Mock reports data
 const mockReports = {
@@ -87,6 +88,28 @@ const mockReports = {
 export default function ReportsPage() {
   const [selectedReportType, setSelectedReportType] = useState("all")
   const [timeRange, setTimeRange] = useState("30d")
+  const [searchTerm, setSearchTerm] = useState("")
+
+  const filteredScheduled = useMemo(() => {
+    if (!searchTerm.trim()) return mockReports.scheduled
+    const q = searchTerm.toLowerCase()
+    return mockReports.scheduled.filter(
+      (r) =>
+        (r.name ?? "").toLowerCase().includes(q) ||
+        (r.description ?? "").toLowerCase().includes(q) ||
+        (r.frequency ?? "").toLowerCase().includes(q)
+    )
+  }, [searchTerm])
+
+  const filteredGenerated = useMemo(() => {
+    if (!searchTerm.trim()) return mockReports.generated
+    const q = searchTerm.toLowerCase()
+    return mockReports.generated.filter(
+      (r) =>
+        (r.name ?? "").toLowerCase().includes(q) ||
+        (r.type ?? "").toLowerCase().includes(q)
+    )
+  }, [searchTerm])
 
   const generateReport = (type: string) => {
     console.log(`[v0] Generating ${type} report...`)
@@ -196,6 +219,16 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
 
+          <div className="relative max-w-sm mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search reports by name or type..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
           <Tabs defaultValue="scheduled" className="space-y-6">
             <TabsList>
               <TabsTrigger value="scheduled">Scheduled Reports</TabsTrigger>
@@ -210,7 +243,7 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockReports.scheduled.map((report) => (
+                    {filteredScheduled.map((report) => (
                       <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
@@ -254,7 +287,7 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockReports.generated.map((report) => (
+                    {filteredGenerated.map((report) => (
                       <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-4">
                           {getReportTypeIcon(report.type)}

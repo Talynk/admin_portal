@@ -41,6 +41,7 @@ import {
   Calendar,
   Gift,
   ArrowRight,
+  Search,
 } from "lucide-react"
 import { useChallenges } from "@/hooks/use-challenges"
 import { useChallengeStats } from "@/hooks/use-challenge-stats"
@@ -55,6 +56,7 @@ export default function ChallengesPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "active" | "rejected" | "ended">("all")
   const [page, setPage] = useState(1)
+  const [searchTerm, setSearchTerm] = useState("")
   const [selectedChallenge, setSelectedChallenge] = useState<any>(null)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
@@ -69,6 +71,15 @@ export default function ChallengesPage() {
     limit: 20,
     status: activeTab !== "all" ? activeTab : undefined,
   })
+
+  const filteredChallenges = searchTerm.trim()
+    ? challenges.filter(
+        (c) =>
+          (c.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (c.description ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (c.organizer?.username ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : challenges
 
   const handleAction = (challenge: any, action: "approve" | "reject" | "stop") => {
     setSelectedChallenge(challenge)
@@ -306,10 +317,26 @@ export default function ChallengesPage() {
                 </TabsList>
 
                 <TabsContent value={activeTab} className="mt-4">
+                  <div className="relative mb-4 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name, description, or organizer..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
                   {loading ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
                       <span className="text-muted-foreground">Loading challenges...</span>
+                    </div>
+                  ) : filteredChallenges.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Trophy className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground">
+                        {searchTerm.trim() ? "No challenges match your search" : "No challenges found"}
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-md border">
@@ -326,7 +353,7 @@ export default function ChallengesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {challenges.map((challenge) => (
+                          {filteredChallenges.map((challenge) => (
                             <TableRow key={challenge.id} className="hover:bg-muted/50 transition-colors">
                               <TableCell>
                                 <div>
@@ -432,13 +459,6 @@ export default function ChallengesPage() {
                           ))}
                         </TableBody>
                       </Table>
-                    </div>
-                  )}
-
-                  {challenges.length === 0 && !loading && (
-                    <div className="text-center py-8">
-                      <Trophy className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">No challenges found</p>
                     </div>
                   )}
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -44,23 +44,119 @@ import {
   User,
   Clock,
   BarChart3,
+  GripVertical,
+  Heart,
+  Image as ImageIcon,
 } from "lucide-react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { useChallenge } from "@/hooks/use-challenge"
 import { toast } from "@/hooks/use-toast"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getProfilePictureUrl } from "@/lib/file-utils"
+import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
+import type { ChallengeDetail } from "@/hooks/use-challenge"
+
+type ChallengePost = ChallengeDetail["posts"][0]
+
+function SortableWinnerRow({
+  challengePost,
+  rank,
+  onPreview,
+  getMediaUrl,
+  getMediaType,
+}: {
+  challengePost: ChallengePost
+  rank: number
+  onPreview: () => void
+  getMediaUrl: (cp: ChallengePost) => string | null
+  getMediaType: (cp: ChallengePost) => "video" | "image" | null
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: challengePost.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+  const mediaUrl = getMediaUrl(challengePost)
+  const mediaType = getMediaType(challengePost)
+  return (
+    <tr ref={setNodeRef} style={style} className={isDragging ? "opacity-50 bg-muted/50" : ""}>
+      <TableCell className="w-10">
+        <button type="button" className="cursor-grab active:cursor-grabbing touch-none p-1 rounded" {...attributes} {...listeners}>
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </button>
+      </TableCell>
+      <TableCell className="w-16 font-bold text-lg text-primary">{rank}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={getProfilePictureUrl(challengePost.post.user.profile_picture)} />
+            <AvatarFallback>{challengePost.post.user.username.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium">@{challengePost.post.user.username}</p>
+            {challengePost.post.user.display_name && (
+              <p className="text-sm text-muted-foreground">{challengePost.post.user.display_name}</p>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        {mediaUrl ? (
+          <button
+            type="button"
+            onClick={onPreview}
+            className="block w-20 h-20 rounded-md overflow-hidden border bg-muted hover:opacity-90 transition-opacity"
+          >
+            {mediaType === "image" ? (
+              <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-muted">
+                <ImageIcon className="h-8 w-8 text-muted-foreground" />
+              </div>
+            )}
+          </button>
+        ) : (
+          <span className="text-muted-foreground text-sm">No media</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <span className="inline-flex items-center gap-1">
+          <Heart className="h-4 w-4 text-muted-foreground" />
+          {challengePost.likes_at_challenge_end ?? "—"}
+        </span>
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {new Date(challengePost.submitted_at).toLocaleString()}
+      </TableCell>
+    </tr>
+  )
+}
 
 export default function ChallengeDetailPage() {
   const params = useParams()
   const router = useRouter()
   const challengeId = params.id as string
-  const [activeTab, setActiveTab] = useState<"overview" | "participants" | "posts" | "analytics">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "participants" | "posts" | "analytics" | "winners">("overview")
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [analyticsDays, setAnalyticsDays] = useState(30)
+  const [winnersReordering, setWinnersReordering] = useState(false)
+  const [previewPost, setPreviewPost] = useState<ChallengeDetail["posts"][0] | null>(null)
 
   const {
     challenge,
@@ -72,7 +168,59 @@ export default function ChallengeDetailPage() {
     approveChallenge,
     rejectChallenge,
     stopChallenge,
+    reorderWinners,
   } = useChallenge(challengeId, analyticsDays)
+
+  const sortedWinnerPosts = useMemo(() => {
+    if (!challenge?.posts?.length) return []
+    return [...challenge.posts].sort((a, b) => {
+      const rankA = a.winner_rank ?? 999999
+      const rankB = b.winner_rank ?? 999999
+      if (rankA !== rankB) return rankA - rankB
+      const likesA = a.likes_at_challenge_end ?? 0
+      const likesB = b.likes_at_challenge_end ?? 0
+      if (likesB !== likesA) return likesB - likesA
+      return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
+    })
+  }, [challenge?.posts])
+
+  const winnerIds = useMemo(() => sortedWinnerPosts.map((p) => p.id), [sortedWinnerPosts])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleWinnersDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id || !challenge?.posts?.length) return
+    const oldIndex = winnerIds.indexOf(active.id as string)
+    const newIndex = winnerIds.indexOf(over.id as string)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(sortedWinnerPosts, oldIndex, newIndex)
+    const orderedIds = reordered.map((p) => p.id)
+    setWinnersReordering(true)
+    const result = await reorderWinners(orderedIds)
+    setWinnersReordering(false)
+    if (result.success) {
+      toast({ title: "Winners updated", description: "Ranking saved successfully." })
+    } else {
+      toast({ title: "Error", description: result.error || "Failed to reorder winners", variant: "destructive" })
+    }
+  }
+
+  const getPostMediaUrl = (cp: ChallengeDetail["posts"][0]) => {
+    const p = cp.post as { video_url?: string; thumbnail_url?: string; hls_url?: string }
+    return getFileUrl(p?.thumbnail_url ?? p?.video_url ?? p?.hls_url) ?? null
+  }
+
+  const getPostMediaType = (cp: ChallengeDetail["posts"][0]): "video" | "image" | null => {
+    const url = (cp.post as { video_url?: string; thumbnail_url?: string }).video_url ?? (cp.post as { hls_url?: string }).hls_url
+    if (!url) return null
+    if (url.includes(".m3u8") || url.match(/\.(mp4|mov|webm|avi)$/i)) return "video"
+    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return "image"
+    return "video"
+  }
 
   const handleAction = (action: "approve" | "reject" | "stop") => {
     setActionType(action)
@@ -409,6 +557,9 @@ export default function ChallengeDetailPage() {
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="participants">Participants ({challenge.participants.length})</TabsTrigger>
                   <TabsTrigger value="posts">Posts ({challenge.posts.length})</TabsTrigger>
+                  {challenge.status === "ended" && (
+                    <TabsTrigger value="winners">Winners ({challenge.posts.length})</TabsTrigger>
+                  )}
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
 
@@ -571,6 +722,50 @@ export default function ChallengeDetailPage() {
                   </div>
                 </TabsContent>
 
+                {challenge.status === "ended" && (
+                  <TabsContent value="winners" className="mt-4">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Drag rows to set the official winner order. Changes are saved automatically.
+                    </p>
+                    {winnersReordering && (
+                      <div className="flex items-center gap-2 mb-4 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving order…
+                      </div>
+                    )}
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWinnersDragEnd}>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-10" />
+                              <TableHead className="w-16">Rank</TableHead>
+                              <TableHead>User</TableHead>
+                              <TableHead>Media</TableHead>
+                              <TableHead>Likes at end</TableHead>
+                              <TableHead>Submitted</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <SortableContext items={winnerIds} strategy={verticalListSortingStrategy}>
+                              {sortedWinnerPosts.map((cp, index) => (
+                                <SortableWinnerRow
+                                  key={cp.id}
+                                  challengePost={cp}
+                                  rank={index + 1}
+                                  onPreview={() => setPreviewPost(cp)}
+                                  getMediaUrl={getPostMediaUrl}
+                                  getMediaType={getPostMediaType}
+                                />
+                              ))}
+                            </SortableContext>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </DndContext>
+                  </TabsContent>
+                )}
+
                 <TabsContent value="analytics" className="mt-4">
                   {analytics ? (
                     <div className="space-y-4">
@@ -730,6 +925,37 @@ export default function ChallengeDetailPage() {
                 )}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Media preview modal */}
+        <Dialog open={!!previewPost} onOpenChange={(open) => !open && setPreviewPost(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>Media preview</DialogTitle>
+              <DialogDescription>
+                {previewPost && (
+                  <>@{previewPost.post.user.username} · {new Date(previewPost.submitted_at).toLocaleString()}</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {previewPost && (() => {
+              const p = previewPost.post as { video_url?: string; thumbnail_url?: string; hls_url?: string }
+              const videoUrl = getFileUrl(p?.video_url ?? p?.hls_url)
+              const thumbUrl = getFileUrl(p?.thumbnail_url ?? p?.video_url)
+              const isVideo = !!(p?.video_url ?? p?.hls_url) && (p?.video_url?.match(/\.(mp4|mov|webm|avi)$/i) || p?.hls_url?.includes(".m3u8"))
+              return (
+                <div className="rounded-md overflow-hidden bg-muted">
+                  {isVideo && videoUrl ? (
+                    <video src={videoUrl} controls className="w-full max-h-[70vh]" />
+                  ) : thumbUrl ? (
+                    <img src={thumbUrl} alt="" className="w-full max-h-[70vh] object-contain" />
+                  ) : (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground">No media</div>
+                  )}
+                </div>
+              )
+            })()}
           </DialogContent>
         </Dialog>
       </DashboardLayout>

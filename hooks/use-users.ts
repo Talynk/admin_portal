@@ -139,9 +139,15 @@ export function useUsers(params: UseUsersParams = {}) {
       if (response.success) {
         await fetchUsers() // Refresh the list
         return { success: true, data: response.data }
-      } else {
-        return { success: false, error: response.error }
       }
+      const errMsg = response.error || (response as any).message || 'Failed to suspend user'
+      // Fallback: try PATCH status if manage endpoint failed (e.g. wrong id format or endpoint)
+      const fallback = await apiClient.updateUserStatus(userId, 'suspended')
+      if (fallback.success) {
+        await fetchUsers()
+        return { success: true, data: fallback.data }
+      }
+      return { success: false, error: errMsg }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
     }
@@ -153,9 +159,14 @@ export function useUsers(params: UseUsersParams = {}) {
       if (response.success) {
         await fetchUsers() // Refresh the list
         return { success: true, data: response.data }
-      } else {
-        return { success: false, error: response.error }
       }
+      const errMsg = response.error || (response as any).message || 'Failed to unsuspend user'
+      const fallback = await apiClient.updateUserStatus(userId, 'active')
+      if (fallback.success) {
+        await fetchUsers()
+        return { success: true, data: fallback.data }
+      }
+      return { success: false, error: errMsg }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
     }

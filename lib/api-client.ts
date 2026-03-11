@@ -447,6 +447,53 @@ class ApiClient {
     })
   }
 
+  async reorderChallengeWinners(challengeId: string, orderedChallengePostIds: string[]) {
+    return this.request(`/admin/challenges/${challengeId}/winners/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ orderedChallengePostIds }),
+    })
+  }
+
+  // Ads Management Endpoints
+  async createAdUploadSession(title?: string, description?: string) {
+    return this.request('/admin/ads/create-upload', {
+      method: 'POST',
+      body: JSON.stringify({ title: title || 'Ad', description: description || '' }),
+    })
+  }
+
+  async completeAdUpload(postId: string) {
+    return this.request('/admin/ads/upload-complete', {
+      method: 'POST',
+      body: JSON.stringify({ postId }),
+    })
+  }
+
+  async getAds(params?: { page?: number; limit?: number }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(`/admin/ads${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getAdById(adId: string) {
+    return this.request(`/admin/ads/${adId}`)
+  }
+
+  async updateAd(adId: string, data: { title?: string; description?: string; status?: 'active' | 'suspended' }) {
+    return this.request(`/admin/ads/${adId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteAd(adId: string) {
+    return this.request(`/admin/ads/${adId}`, {
+      method: 'DELETE',
+    })
+  }
+
   // Posts Management Endpoints
   async getPosts(params?: {
     page?: number

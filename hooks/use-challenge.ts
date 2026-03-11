@@ -56,8 +56,13 @@ export interface ChallengeDetail {
     user_id: string
     post_id: string
     submitted_at: string
+    winner_rank?: number | null
+    likes_at_challenge_end?: number | null
     post: {
       id: string
+      video_url?: string
+      thumbnail_url?: string
+      hls_url?: string
       user: {
         id: string
         username: string
@@ -146,6 +151,7 @@ interface UseChallengeReturn {
   approveChallenge: () => Promise<{ success: boolean; error?: string }>
   rejectChallenge: (reason?: string) => Promise<{ success: boolean; error?: string }>
   stopChallenge: () => Promise<{ success: boolean; error?: string }>
+  reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string }>
 }
 
 export function useChallenge(challengeId: string, analyticsDays: number = 30): UseChallengeReturn {
@@ -248,6 +254,21 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     }
   }, [challengeId, fetchChallenge])
 
+  const reorderWinners = useCallback(async (orderedChallengePostIds: string[]) => {
+    if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+
+    try {
+      const response = await apiClient.reorderChallengeWinners(challengeId, orderedChallengePostIds)
+      if (response.success) {
+        await fetchChallenge()
+        return { success: true }
+      }
+      return { success: false, error: response.error || 'Failed to reorder winners' }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+    }
+  }, [challengeId, fetchChallenge])
+
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
@@ -262,6 +283,7 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     approveChallenge,
     rejectChallenge,
     stopChallenge,
+    reorderWinners,
   }
 }
 

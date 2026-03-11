@@ -56,7 +56,7 @@ import {
 } from "lucide-react"
 import { usePost } from "@/hooks/use-posts"
 import { apiClient } from "@/lib/api-client"
-import { getFileUrl, getFileType, getDownloadFilename, downloadMediaFile, getProfilePictureUrl } from "@/lib/file-utils"
+import { getFileUrl, getFileType, getDownloadFilename, getBestDownloadUrl, downloadMediaFile, getProfilePictureUrl } from "@/lib/file-utils"
 import { toast } from "@/hooks/use-toast"
 
 function getContentType(post: any): "video" | "image" {
@@ -82,21 +82,23 @@ export default function PostDetailPage() {
   const [isDownloading, setIsDownloading] = useState(false)
 
   const handleDownload = async () => {
-    const url = (post as any)?.video_url || (post as any)?.fullUrl || post?.videoUrl
-    if (!url) {
+    const fileUrl = getBestDownloadUrl(post as any)
+    if (!fileUrl) {
       toast({ title: "Download unavailable", description: "No media URL for this post.", variant: "destructive" })
       return
     }
-    const fileUrl = getFileUrl(url)
-    if (!fileUrl) return
     const contentType = getContentType(post)
     const filename = getDownloadFilename(fileUrl, post?.id, contentType)
     setIsDownloading(true)
     try {
-      await downloadMediaFile(fileUrl, filename)
-      toast({ title: "Download started", description: `Saving as ${filename}` })
+      const ok = await downloadMediaFile(fileUrl, filename)
+      if (ok) {
+        toast({ title: "Download started", description: `Saving as ${filename}` })
+      } else {
+        toast({ title: "Download failed", description: "Try again or open in new tab.", variant: "destructive" })
+      }
     } catch {
-      toast({ title: "Download failed", description: "Could not download the file.", variant: "destructive" })
+      toast({ title: "Download failed", description: "Try again or open in new tab.", variant: "destructive" })
     } finally {
       setIsDownloading(false)
     }
@@ -232,6 +234,7 @@ export default function PostDetailPage() {
   }
 
   const mediaUrl = getFileUrl((post as any).video_url || (post as any).fullUrl || post.videoUrl)
+  const downloadUrl = getBestDownloadUrl(post as any)
   const contentType = getContentType(post)
   const isFeatured = (post as any).is_featured ?? (post as any).featured ?? post.featured
   const isFrozen = (post as any).frozen ?? false
@@ -268,7 +271,7 @@ export default function PostDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={handleDownload} disabled={!mediaUrl || isDownloading}>
+                <DropdownMenuItem onClick={handleDownload} disabled={!downloadUrl || isDownloading}>
                   <Download className="mr-2 h-4 w-4" />
                   {isDownloading ? "Downloading..." : "Download"}
                 </DropdownMenuItem>
@@ -398,7 +401,7 @@ export default function PostDetailPage() {
                         )}
                       </div>
                       <div className="mt-3">
-                        <Button variant="outline" size="sm" onClick={handleDownload} disabled={!mediaUrl || isDownloading}>
+                        <Button variant="outline" size="sm" onClick={handleDownload} disabled={!downloadUrl || isDownloading}>
                           <Download className="w-4 h-4 mr-2" />
                           {isDownloading ? "Downloading..." : "Download"}
                         </Button>

@@ -156,7 +156,7 @@ export default function UsersPage() {
       } else {
         toast({
           title: "Error",
-          description: result?.error || "Failed to perform action",
+          description: result?.error || (result as any)?.message || "Failed to perform action",
           variant: "destructive",
         });
       }
@@ -895,9 +895,19 @@ export default function UsersPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem className="hover:bg-blue-50">
+                                  <DropdownMenuItem onClick={() => window.open(`/dashboard/users/${user.id}`, "_blank")}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    View profile
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="hover:bg-blue-50"
+                                    onClick={() => {
+                                      if (user.email) window.location.href = `mailto:${user.email}`;
+                                      else toast({ title: "No email", description: "This user has no email on file.", variant: "destructive" });
+                                    }}
+                                  >
                                     <Mail className="mr-2 h-4 w-4" />
-                                    Send Message
+                                    Send message
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>

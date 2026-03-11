@@ -29,6 +29,7 @@ import {
   UserCheck,
   Trophy,
   Server,
+  Megaphone,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -40,6 +41,7 @@ const navigation = [
   { name: "User Management", href: "/dashboard/users", icon: Users },
   { name: "Content Management", href: "/dashboard/content", icon: Video },
   { name: "Challenges", href: "/dashboard/challenges", icon: Trophy },
+  { name: "Ads", href: "/dashboard/ads", icon: Megaphone },
   { name: "Approver Portal", href: "/dashboard/approvers", icon: UserCheck },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },

@@ -83,7 +83,7 @@ import {
 } from "lucide-react";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
-import { getFileUrl, getThumbnailUrl, getDownloadFilename, downloadMediaFile } from "@/lib/file-utils";
+import { getFileUrl, getThumbnailUrl, getDownloadFilename, getBestDownloadUrl, downloadMediaFile } from "@/lib/file-utils";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -336,8 +336,7 @@ export default function ContentPage() {
   };
 
   const handleDownload = async (post: any) => {
-    const url = post?.video_url ?? post?.fullUrl ?? post?.videoUrl;
-    const fileUrl = getFileUrl(url);
+    const fileUrl = getBestDownloadUrl(post);
     if (!fileUrl) {
       toast({ title: "Download unavailable", description: "No media URL for this post.", variant: "destructive" });
       return;
@@ -346,10 +345,14 @@ export default function ContentPage() {
     const filename = getDownloadFilename(fileUrl, post?.id, contentType);
     setDownloadingId(post?.id ?? null);
     try {
-      await downloadMediaFile(fileUrl, filename);
-      toast({ title: "Download started", description: `Saving as ${filename}` });
+      const ok = await downloadMediaFile(fileUrl, filename);
+      if (ok) {
+        toast({ title: "Download started", description: `Saving as ${filename}` });
+      } else {
+        toast({ title: "Download failed", description: "Try again or open in new tab.", variant: "destructive" });
+      }
     } catch {
-      toast({ title: "Download failed", description: "Could not download the file.", variant: "destructive" });
+      toast({ title: "Download failed", description: "Try again or open in new tab.", variant: "destructive" });
     } finally {
       setDownloadingId(null);
     }
@@ -953,7 +956,7 @@ export default function ContentPage() {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       onClick={() => handleDownload(video)}
-                                      disabled={!getFileUrl((video as any).video_url || (video as any).fullUrl) || downloadingId === video.id}
+                                      disabled={!getBestDownloadUrl(video) || downloadingId === video.id}
                                     >
                                       <Download className="mr-2 h-4 w-4" />
                                       {downloadingId === video.id ? "Downloading..." : "Download"}
@@ -1258,7 +1261,7 @@ export default function ContentPage() {
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => handleDownload(video)}
-                                        disabled={!getFileUrl((video as any).video_url || (video as any).fullUrl) || downloadingId === video.id}
+                                        disabled={!getBestDownloadUrl(video) || downloadingId === video.id}
                                       >
                                         <Download className="mr-2 h-4 w-4" />
                                         {downloadingId === video.id ? "Downloading..." : "Download"}
