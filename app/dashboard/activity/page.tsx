@@ -64,24 +64,24 @@ export default function ActivityPage() {
       log.user.toLowerCase().includes(term) ||
       log.action.toLowerCase().includes(term) ||
       log.target.toLowerCase().includes(term) ||
-      String(log.details?.error_message || \"\").toLowerCase().includes(term) ||
+      String(log.details?.error_message || "").toLowerCase().includes(term) ||
       log.id.toLowerCase().includes(term)
 
-    const matchesAction = actionFilter === \"all\" || log.action.toLowerCase().includes(actionFilter.toLowerCase())
-    const matchesSeverity = severityFilter === \"all\" || log.severity === severityFilter
-    const matchesUser = userFilter === \"all\" || log.user === userFilter
+    const matchesAction = actionFilter === "all" || log.action.toLowerCase().includes(actionFilter.toLowerCase())
+    const matchesSeverity = severityFilter === "all" || log.severity === severityFilter
+    const matchesUser = userFilter === "all" || log.user === userFilter
 
     return matchesSearch && matchesAction && matchesSeverity && matchesUser
   })
 
   const getActionIcon = (action: string) => {
     const lower = action.toLowerCase()
-    if (lower.includes(\"user\")) return <User className=\"h-4 w-4\" />
-    if (lower.includes(\"approved\")) return <CheckCircle className=\"h-4 w-4 text-green-500\" />
-    if (lower.includes(\"rejected\") || lower.includes(\"suspended\") || lower.includes(\"error\"))
-      return <XCircle className=\"h-4 w-4 text-red-500\" />
-    if (lower.includes(\"flag\") || lower.includes(\"warn\")) return <AlertTriangle className=\"h-4 w-4 text-orange-500\" />
-    return <Activity className=\"h-4 w-4\" />
+    if (lower.includes("user")) return <User className="h-4 w-4" />
+    if (lower.includes("approved")) return <CheckCircle className="h-4 w-4 text-green-500" />
+    if (lower.includes("rejected") || lower.includes("suspended") || lower.includes("error"))
+      return <XCircle className="h-4 w-4 text-red-500" />
+    if (lower.includes("flag") || lower.includes("warn")) return <AlertTriangle className="h-4 w-4 text-orange-500" />
+    return <Activity className="h-4 w-4" />
   }
 
   const getSeverityBadge = (severity: UiSeverity) => {
@@ -98,7 +98,7 @@ export default function ActivityPage() {
   }
 
   const formatTimestamp = (timestamp?: string) => {
-    if (!timestamp) return \"—\"
+    if (!timestamp) return "—"
     return new Date(timestamp).toLocaleString()
   }
 
@@ -112,7 +112,7 @@ export default function ActivityPage() {
           log.user,
           log.action,
           log.target,
-          `\"${String(log.details?.error_message || \"\").replace(/\"/g, '\"')}\"`,
+          `"${String(log.details?.error_message || "").replace(/"/g, '""')}"`,
           log.severity,
           log.ipAddress,
         ].join(
@@ -131,7 +131,7 @@ export default function ActivityPage() {
   }
 
   const uniqueUsers = [...new Set(normalizedLogs.map((log) => log.user))]
-  const uniqueActions = [...new Set(normalizedLogs.map((log) => (log.action || '').split(\"_\")[0]))]
+  const uniqueActions = [...new Set(normalizedLogs.map((log) => (log.action || "").split("_")[0]))]
 
   return (
     <ProtectedRoute>
