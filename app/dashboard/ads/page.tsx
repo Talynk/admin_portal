@@ -72,6 +72,7 @@ interface AdItem {
   title?: string;
   description?: string;
   status?: string;
+  type?: "video" | "image";
   processing_status?: string;
   created_at?: string;
   admin?: { username?: string };
@@ -96,7 +97,20 @@ function getAdMediaUrl(ad: AdItem): string | null {
 
 function isVideoAd(ad: AdItem): boolean {
   const url = ad.video_url ?? ad.fullUrl ?? "";
-  return /\.(mp4|mov|webm|mkv|m3u8)(\?|$)/i.test(url) || (url && !/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url));
+  if (!url) return false;
+  if (/\.(mp4|mov|webm|mkv|m3u8)(\?|$)/i.test(url)) return true;
+  if (/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)) return false;
+  return true;
+}
+
+function getAdTypeLabel(ad: AdItem): "Video" | "Image" | "Unknown" {
+  if (ad.type === "video") return "Video";
+  if (ad.type === "image") return "Image";
+  const url = ad.video_url ?? ad.fullUrl ?? ad.hls_url ?? "";
+  if (!url) return "Unknown";
+  if (url.match(/\.(mp4|mov|webm|mkv|m3u8)(\?|$)/i)) return "Video";
+  if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) return "Image";
+  return "Unknown";
 }
 
 export default function AdsPage() {
@@ -123,6 +137,7 @@ export default function AdsPage() {
   const [uploadSessionPostId, setUploadSessionPostId] = useState<string | null>(null);
   const [uploadUrl, setUploadUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [createMediaType, setCreateMediaType] = useState<"video" | "image">("video");
 
   // Edit form
   const [editTitle, setEditTitle] = useState("");
@@ -180,7 +195,11 @@ export default function AdsPage() {
     setUploadError(null);
     setUploadState("creatingSession");
     try {
-      const res = await apiClient.createAdUploadSession(createTitle || "Ad", createDescription);
+      const mimeType =
+        createMediaType === "video"
+          ? "video/mp4"
+          : "image/jpeg";
+      const res = await apiClient.createAdUploadSession(createTitle || "Ad", createDescription, mimeType);
       if (!res.success) {
         setUploadError((res as any).error || "Failed to create upload session");
         setUploadState("error");
@@ -198,7 +217,13 @@ export default function AdsPage() {
       setUploadSessionPostId(postId);
       setUploadUrl(url);
       setUploadState("selectingFile");
-      toast({ title: "Upload session created", description: "Select a video file to upload." });
+      toast({
+        title: "Upload session created",
+        description:
+          createMediaType === "video"
+            ? "Select a video file to upload."
+            : "Select an image file to upload.",
+      });
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Network error");
       setUploadState("error");
@@ -229,12 +254,18 @@ export default function AdsPage() {
         });
         xhr.addEventListener("error", () => reject(new Error("Upload failed")));
         xhr.open("PUT", url);
-        xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+        xhr.setRequestHeader("Content-Type", file.type || (createMediaType === "video" ? "video/mp4" : "image/jpeg"));
         xhr.send(file);
       });
 
       setUploadState("completing");
-      toast({ title: "Upload complete", description: "Processing video…" });
+      toast({
+        title: "Upload complete",
+        description:
+          createMediaType === "video"
+            ? "Processing video…"
+            : "Finalizing image ad…",
+      });
 
       const completeRes = await apiClient.completeAdUpload(uploadSessionPostId);
       if (!completeRes.success) {
@@ -245,7 +276,13 @@ export default function AdsPage() {
       }
 
       setUploadState("done");
-      toast({ title: "Ad created", description: "Video is being processed. It will appear in the list shortly." });
+      toast({
+        title: "Ad created",
+        description:
+          createMediaType === "video"
+            ? "Video is being processed. It will appear in the list shortly."
+            : "Image ad created. It will appear in the list shortly.",
+      });
       setCreateOpen(false);
       fetchAds();
     } catch (e) {
@@ -259,8 +296,22 @@ export default function AdsPage() {
   const handleCreateFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("video/")) {
-      toast({ title: "Invalid file", description: "Please select a video file (e.g. MP4).", variant: "destructive" });
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+    if (createMediaType === "video" && !isVideo) {
+      toast({
+        title: "Invalid file",
+        description: "Please select a video file (e.g. MP4, WebM).",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (createMediaType === "image" && !isImage) {
+      toast({
+        title: "Invalid file",
+        description: "Please select an image file (JPEG, PNG, GIF, WebP).",
+        variant: "destructive",
+      });
       return;
     }
     uploadFile(file);
@@ -385,7 +436,7 @@ export default function AdsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Ads</h1>
-              <p className="text-muted-foreground">Create and manage feed ads (video)</p>
+              <p className="text-muted-foreground">Create and manage feed ads (video and image)</p>
             </div>
             <Button onClick={startCreate}>
               <Plus className="mr-2 h-4 w-4" />
@@ -438,6 +489,7 @@ export default function AdsPage() {
                   ) : (
                     filteredAds.map((ad) => {
                       const previewUrl = getAdPreviewUrl(ad);
+                      const typeLabel = getAdTypeLabel(ad);
                       return (
                         <Card key={ad.id} className="overflow-hidden">
                           <button
@@ -460,6 +512,11 @@ export default function AdsPage() {
                                 )}
                               </div>
                             )}
+                            <div className="absolute left-2 top-2">
+                              <Badge variant="secondary" className="bg-black/70 text-white border-none text-[10px]">
+                                {typeLabel}
+                              </Badge>
+                            </div>
                             <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
                               <span className="rounded-full bg-black/50 p-2 text-white">
                                 <Eye className="h-5 w-5" />
@@ -505,6 +562,7 @@ export default function AdsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[120px]">Preview</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Processing</TableHead>
@@ -523,6 +581,7 @@ export default function AdsPage() {
                       ) : (
                         filteredAds.map((ad) => {
                           const previewUrl = getAdPreviewUrl(ad);
+                          const typeLabel = getAdTypeLabel(ad);
                           return (
                             <TableRow key={ad.id}>
                               <TableCell className="p-2">
@@ -549,6 +608,9 @@ export default function AdsPage() {
                                 </button>
                               </TableCell>
                               <TableCell>
+                                <Badge variant="outline">{typeLabel}</Badge>
+                              </TableCell>
+                              <TableCell>
                                 <div>
                                   <p className="font-medium">{ad.title || "Ad"}</p>
                                   {ad.description && (
@@ -561,7 +623,9 @@ export default function AdsPage() {
                                   {ad.status || "—"}
                                 </Badge>
                               </TableCell>
-                              <TableCell>{getProcessingBadge(ad.processing_status)}</TableCell>
+                              <TableCell>
+                                {getAdTypeLabel(ad) === "Video" ? getProcessingBadge(ad.processing_status) : "—"}
+                              </TableCell>
                               <TableCell className="text-muted-foreground">
                                 {ad.created_at ? new Date(ad.created_at).toLocaleDateString() : "—"}
                               </TableCell>
@@ -608,7 +672,7 @@ export default function AdsPage() {
             <DialogHeader>
               <DialogTitle>Create ad</DialogTitle>
               <DialogDescription>
-                Create an upload session, then select a video file. The file is uploaded directly for fast uploads.
+                Create an upload session, then select a media file. The file is uploaded directly for fast uploads.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -630,6 +694,24 @@ export default function AdsPage() {
                       onChange={(e) => setCreateDescription(e.target.value)}
                     />
                   </div>
+                  <div>
+                    <Label>Media type</Label>
+                    <Select
+                      value={createMediaType}
+                      onValueChange={(val: "video" | "image") => setCreateMediaType(val)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select media type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="video">Video (MP4, WebM, etc.)</SelectItem>
+                        <SelectItem value="image">Image (JPEG, PNG, GIF, WebP)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Image ads are available immediately after upload. Video ads may show a short processing state.
+                    </p>
+                  </div>
                 </>
               )}
               {uploadState === "creatingSession" && (
@@ -640,13 +722,15 @@ export default function AdsPage() {
               )}
               {uploadState === "selectingFile" && (
                 <div className="space-y-2">
-                  <Label>Select video file</Label>
+                  <Label>Select media file</Label>
                   <Input
                     type="file"
-                    accept="video/*"
+                    accept={createMediaType === "video" ? "video/*" : "image/*"}
                     onChange={handleCreateFileChange}
                   />
-                  <p className="text-sm text-muted-foreground">Upload will start as soon as you select a file.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Upload will start as soon as you select a file.
+                  </p>
                 </div>
               )}
               {uploadState === "uploading" && (
@@ -819,6 +903,11 @@ export default function AdsPage() {
                   <p><strong>Status:</strong> {displayAd?.status ?? "—"}</p>
                   <p><strong>Processing:</strong> {displayAd?.processing_status ?? "—"}</p>
                   <p><strong>Created:</strong> {displayAd?.created_at ? new Date(displayAd.created_at).toLocaleString() : "—"}</p>
+                </div>
+                <div>
+                  <p>
+                    <strong>Media type:</strong> {displayAd ? getAdTypeLabel(displayAd) : "—"}
+                  </p>
                 </div>
                 {hasPerformance && (
                   <div className="flex items-center gap-2">

@@ -520,10 +520,17 @@ class ApiClient {
   }
 
   // Ads Management Endpoints
-  async createAdUploadSession(title?: string, description?: string) {
+  async createAdUploadSession(title?: string, description?: string, mimeType?: string) {
+    const body: Record<string, unknown> = {
+      title: title || 'Ad',
+      description: description || '',
+    }
+    if (mimeType) {
+      body.mimeType = mimeType
+    }
     return this.request('/admin/ads/create-upload', {
       method: 'POST',
-      body: JSON.stringify({ title: title || 'Ad', description: description || '' }),
+      body: JSON.stringify(body),
     })
   }
 
