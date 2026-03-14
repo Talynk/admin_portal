@@ -1319,15 +1319,18 @@ export default function ChallengeDetailPage() {
             ) : userPostsViewPosts.length === 0 ? (
               <p className="text-center py-16 text-muted-foreground">No posts found.</p>
             ) : (
-              <div className="grid gap-6 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {userPostsViewPosts.map((p: any) => {
                   const contentType = getContentType(p)
                   const fileUrl = getFileUrl(p.video_url)
                   const previewUrl = getPreviewUrl(p)
                   const isPlaying = playingPostId === p.id
                   return (
-                    <Card key={p.id} className="overflow-hidden">
-                      <div className="relative w-full aspect-video bg-muted/50 overflow-hidden rounded-t-lg flex items-center justify-center group">
+                    <Card
+                      key={p.id}
+                      className="overflow-hidden hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                    >
+                      <div className="relative w-full aspect-video min-h-[240px] bg-muted/50 overflow-hidden rounded-t-lg flex items-center justify-center group">
                         {isPlaying && fileUrl ? (
                           <>
                             {contentType === "video" ? (
@@ -1335,24 +1338,24 @@ export default function ChallengeDetailPage() {
                                 src={fileUrl}
                                 controls
                                 autoPlay
-                                className="w-full h-full object-contain bg-black"
+                                className="w-full h-full object-contain bg-black min-h-[240px]"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             ) : (
                               <img
                                 src={fileUrl}
                                 alt={p.title || "Media"}
-                                className="w-full h-full object-contain bg-black"
+                                className="w-full h-full object-contain bg-black min-h-[240px]"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             )}
                             <Button
                               variant="secondary"
                               size="sm"
-                              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white z-10"
+                              className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 text-white z-10 h-9 w-9 p-0"
                               onClick={() => setPlayingPostId(null)}
                             >
-                              <XCircle className="w-4 h-4" />
+                              <XCircle className="h-5 w-5" />
                             </Button>
                           </>
                         ) : (
@@ -1361,13 +1364,13 @@ export default function ChallengeDetailPage() {
                               <img
                                 src={previewUrl}
                                 alt={p.title || "Preview"}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover min-h-[240px]"
                                 loading="lazy"
                               />
                             ) : (
-                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                                {contentType === "video" ? <Video className="w-10 h-10 opacity-60" /> : <ImageIcon className="w-10 h-10 opacity-60" />}
-                                <span className="text-xs">No preview</span>
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground min-h-[240px] justify-center">
+                                {contentType === "video" ? <Video className="w-12 h-12 opacity-60" /> : <ImageIcon className="w-12 h-12 opacity-60" />}
+                                <span className="text-sm">No preview</span>
                               </div>
                             )}
                             {fileUrl && (
@@ -1377,17 +1380,17 @@ export default function ChallengeDetailPage() {
                                 onClick={() => setPlayingPostId(isPlaying ? null : p.id)}
                                 aria-label="Play"
                               >
-                                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-3">
-                                  <Play className="w-8 h-8 text-white" />
+                                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-4">
+                                  <Play className="w-10 h-10 text-white" />
                                 </span>
                               </button>
                             )}
                           </>
                         )}
                       </div>
-                      <CardContent className="p-3">
-                        <p className="text-sm font-medium line-clamp-1">{p.title}</p>
-                        <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-2">{p.title}</h3>
+                        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                           {p.likes_at_challenge_end != null && <span>♥ {p.likes_at_challenge_end}</span>}
                           {p.winner_rank != null && <span>Rank {p.winner_rank}</span>}
                           {p.submitted_at && <span>{new Date(p.submitted_at).toLocaleDateString()}</span>}
