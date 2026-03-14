@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { apiClient, ApiResponse } from '@/lib/api-client'
+import { normalizeQuery, userMatchesSearch } from '@/lib/user-search'
 
 interface User {
   id: string
@@ -63,11 +64,9 @@ function isUsersResponse(value: unknown): value is UsersResponse {
   return Array.isArray(o.users) && typeof o.total === 'number'
 }
 
-function normalizeSearch(s: unknown): string | undefined {
-  if (s == null) return undefined
-  const t = typeof s === 'string' ? s : String(s)
-  const trimmed = t.trim()
-  return trimmed.length > 0 ? trimmed : undefined
+function searchParamForApi(s: unknown): string | undefined {
+  const normalized = normalizeQuery(s)
+  return normalized ?? undefined
 }
 
 export function useUsers(params: UseUsersParams = {}) {
@@ -82,7 +81,7 @@ export function useUsers(params: UseUsersParams = {}) {
       setLoading(true)
       setError(null)
 
-      const search = normalizeSearch(params.search)
+      const search = searchParamForApi(params.search)
       const page = typeof params.page === 'number' && params.page >= 1 ? params.page : 1
       const limit = typeof params.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
       const status = typeof params.status === 'string' && params.status.trim().length > 0 ? params.status.trim() : undefined
@@ -119,20 +118,21 @@ export function useUsers(params: UseUsersParams = {}) {
       }
 
       const raw = (response as ApiResponse).data
+      let list: User[] = []
       if (isUsersResponse(raw)) {
-        setUsers(Array.isArray(raw.users) ? raw.users : [])
+        list = Array.isArray(raw.users) ? raw.users : []
         setTotal(Number(raw.total) || 0)
         setTotalPages(typeof raw.totalPages === 'number' ? raw.totalPages : Math.ceil((Number(raw.total) || 0) / limit))
       } else if (raw != null && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).users)) {
         const fallback = raw as Record<string, unknown>
-        setUsers((fallback.users as User[]) ?? [])
+        list = (fallback.users as User[]) ?? []
         setTotal(Number(fallback.total) ?? 0)
         setTotalPages(typeof fallback.totalPages === 'number' ? fallback.totalPages : Math.ceil((Number(fallback.total) ?? 0) / limit))
       } else {
-        setUsers([])
         setTotal(0)
         setTotalPages(0)
       }
+      setUsers(list)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
       setUsers([])
@@ -267,8 +267,14 @@ export function useUsers(params: UseUsersParams = {}) {
     }
   }
 
+  const normalizedSearch = normalizeQuery(params.search)
+  const displayUsers = useMemo(() => {
+    if (!normalizedSearch) return users
+    return users.filter((u) => userMatchesSearch(u, normalizedSearch))
+  }, [users, normalizedSearch])
+
   return {
-    users,
+    users: displayUsers,
     loading,
     error,
     total,

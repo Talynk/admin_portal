@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { apiClient } from '@/lib/api-client'
+import { normalizeQuery, userMatchesSearch } from '@/lib/user-search'
 
 export interface RankingParticipantUser {
   id: string
@@ -50,10 +51,11 @@ export function useChallengeParticipantsRanking(
     setLoading(true)
     setError(null)
     try {
+      const searchNorm = normalizeQuery(search) ?? undefined
       const res = await apiClient.getChallengeParticipantsRanking(challengeId, {
         page,
         limit,
-        search: search.trim() || undefined,
+        search: searchNorm,
       })
       const data = res?.data as any
       const raw = data?.data ?? data?.participants ?? data?.ranking ?? data
@@ -88,8 +90,14 @@ export function useChallengeParticipantsRanking(
     setPage(1)
   }, [])
 
+  const normalizedSearch = normalizeQuery(search)
+  const displayParticipants = useMemo(() => {
+    if (!normalizedSearch) return participants
+    return participants.filter((row) => userMatchesSearch(row.user, normalizedSearch))
+  }, [participants, normalizedSearch])
+
   return {
-    participants,
+    participants: displayParticipants,
     pagination,
     loading,
     error,

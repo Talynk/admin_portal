@@ -288,6 +288,7 @@ class ApiClient {
     has_posts?: boolean
     date_from?: string
     date_to?: string
+    suspended?: boolean
   }) {
     const queryParams = new URLSearchParams()
     const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
@@ -295,7 +296,7 @@ class ApiClient {
     queryParams.append('page', String(page))
     queryParams.append('limit', String(limit))
 
-    const search = typeof params?.search === 'string' ? params.search.trim() : ''
+    const search = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : ''
     if (search.length > 0) {
       queryParams.append('search', search)
       queryParams.append('q', search)
@@ -321,11 +322,18 @@ class ApiClient {
     if (typeof params?.has_posts === 'boolean') {
       queryParams.append('has_posts', params.has_posts ? '1' : '0')
     }
-    if (typeof params?.date_from === 'string' && params.date_from.trim().length > 0) {
-      queryParams.append('date_from', params.date_from.trim())
+    const dateFrom = typeof params?.date_from === 'string' && params.date_from.trim().length > 0 ? params.date_from.trim() : undefined
+    const dateTo = typeof params?.date_to === 'string' && params.date_to.trim().length > 0 ? params.date_to.trim() : undefined
+    if (dateFrom) {
+      queryParams.append('date_from', dateFrom)
+      queryParams.append('dateFrom', dateFrom)
     }
-    if (typeof params?.date_to === 'string' && params.date_to.trim().length > 0) {
-      queryParams.append('date_to', params.date_to.trim())
+    if (dateTo) {
+      queryParams.append('date_to', dateTo)
+      queryParams.append('dateTo', dateTo)
+    }
+    if (typeof params?.suspended === 'boolean') {
+      queryParams.append('suspended', params.suspended ? '1' : '0')
     }
 
     const queryString = queryParams.toString()
@@ -579,8 +587,11 @@ class ApiClient {
     const queryParams = new URLSearchParams()
     if (params?.page != null) queryParams.append('page', params.page.toString())
     if (params?.limit != null) queryParams.append('limit', params.limit.toString())
-    if (params?.search != null && params.search.trim() !== '')
-      queryParams.append('search', params.search.trim())
+    const searchNorm = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : ''
+    if (searchNorm.length > 0) {
+      queryParams.append('search', searchNorm)
+      queryParams.append('q', searchNorm)
+    }
     const queryString = queryParams.toString()
     return this.request(
       `/admin/challenges/${challengeId}/participants/ranking${queryString ? `?${queryString}` : ''}`
