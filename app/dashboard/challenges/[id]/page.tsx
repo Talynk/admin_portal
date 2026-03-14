@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -41,12 +41,8 @@ import {
   Calendar,
   Gift,
   ArrowLeft,
-  User,
-  Clock,
   BarChart3,
   GripVertical,
-  Heart,
-  Image as ImageIcon,
 } from "lucide-react"
 import {
   DndContext,
@@ -73,30 +69,22 @@ import { apiClient } from "@/lib/api-client"
 import { Input } from "@/components/ui/input"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
-import type { ChallengeDetail } from "@/hooks/use-challenge"
+import { getProfilePictureUrl } from "@/lib/file-utils"
 
-type ChallengePost = ChallengeDetail["posts"][0]
-
-function SortableWinnerRow({
-  challengePost,
+/** Sortable row for one winner (user). Drag handle + Set rank for manual reorder. */
+function SortableWinnerUserRow({
+  row,
   rank,
-  onPreview,
+  onViewPosts,
   onSetRank,
-  getMediaUrl,
-  getMediaType,
 }: {
-  challengePost: ChallengePost
+  row: AggregatedWinnerRow
   rank: number
-  onPreview: () => void
+  onViewPosts: () => void
   onSetRank?: () => void
-  getMediaUrl: (cp: ChallengePost) => string | null
-  getMediaType: (cp: ChallengePost) => "video" | "image" | null
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: challengePost.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.user.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
-  const mediaUrl = getMediaUrl(challengePost)
-  const mediaType = getMediaType(challengePost)
   return (
     <tr ref={setNodeRef} style={style} className={isDragging ? "opacity-50 bg-muted/50" : ""}>
       <TableCell className="w-10">
@@ -108,44 +96,27 @@ function SortableWinnerRow({
       <TableCell>
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={getProfilePictureUrl(challengePost.post.user.profile_picture)} />
-            <AvatarFallback>{challengePost.post.user.username.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarImage src={getProfilePictureUrl(row.user.profile_picture)} />
+            <AvatarFallback>{row.user.username.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">@{challengePost.post.user.username}</p>
-            {challengePost.post.user.display_name && (
-              <p className="text-sm text-muted-foreground">{challengePost.post.user.display_name}</p>
+            <p className="font-medium">@{row.user.username}</p>
+            {row.user.display_name && (
+              <p className="text-sm text-muted-foreground">{row.user.display_name}</p>
             )}
           </div>
         </div>
       </TableCell>
-      <TableCell>
-        {mediaUrl ? (
-          <button
-            type="button"
-            onClick={onPreview}
-            className="block w-20 h-20 rounded-md overflow-hidden border bg-muted hover:opacity-90 transition-opacity"
-          >
-            {mediaType === "image" ? (
-              <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-muted">
-                <ImageIcon className="h-8 w-8 text-muted-foreground" />
-              </div>
-            )}
-          </button>
-        ) : (
-          <span className="text-muted-foreground text-sm">No media</span>
-        )}
-      </TableCell>
-      <TableCell>
-        <span className="inline-flex items-center gap-1">
-          <Heart className="h-4 w-4 text-muted-foreground" />
-          {challengePost.likes_at_challenge_end ?? "—"}
-        </span>
-      </TableCell>
+      <TableCell>{row.total_winner_posts}</TableCell>
+      <TableCell>{row.total_likes_during_challenge}</TableCell>
+      <TableCell>{row.winner_rank ?? "—"}</TableCell>
       <TableCell className="text-muted-foreground text-sm">
-        {new Date(challengePost.submitted_at).toLocaleString()}
+        {row.latest_submission_at ? new Date(row.latest_submission_at).toLocaleString() : "—"}
+      </TableCell>
+      <TableCell>
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onViewPosts(); }}>
+          View posts
+        </Button>
       </TableCell>
       {onSetRank && (
         <TableCell className="w-24">
@@ -168,8 +139,6 @@ export default function ChallengeDetailPage() {
   const [rejectionReason, setRejectionReason] = useState("")
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [analyticsDays, setAnalyticsDays] = useState(30)
-  const [winnersReordering, setWinnersReordering] = useState(false)
-  const [previewPost, setPreviewPost] = useState<ChallengeDetail["posts"][0] | null>(null)
 
   const {
     challenge,
@@ -195,7 +164,9 @@ export default function ChallengeDetailPage() {
   const [participantPostsDialog, setParticipantPostsDialog] = useState<RankingParticipantRow | null>(null)
   const [participantPostsData, setParticipantPostsData] = useState<any[] | null>(null)
   const [participantPostsLoading, setParticipantPostsLoading] = useState(false)
-  const [setRankDialogPost, setSetRankDialogPost] = useState<ChallengePost | null>(null)
+  const [orderedWinnerUserIds, setOrderedWinnerUserIds] = useState<string[] | null>(null)
+  const [winnersReordering, setWinnersReordering] = useState(false)
+  const [setRankDialogUser, setSetRankDialogUser] = useState<AggregatedWinnerRow | null>(null)
   const [setRankValue, setSetRankValue] = useState("")
   const [setRankSubmitting, setSetRankSubmitting] = useState(false)
 
@@ -207,21 +178,6 @@ export default function ChallengeDetailPage() {
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId }
   )
-
-  const sortedWinnerPosts = useMemo(() => {
-    if (!challenge?.posts?.length) return []
-    return [...challenge.posts].sort((a, b) => {
-      const rankA = a.winner_rank ?? 999999
-      const rankB = b.winner_rank ?? 999999
-      if (rankA !== rankB) return rankA - rankB
-      const likesA = a.likes_at_challenge_end ?? 0
-      const likesB = b.likes_at_challenge_end ?? 0
-      if (likesB !== likesA) return likesB - likesA
-      return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
-    })
-  }, [challenge?.posts])
-
-  const winnerIds = useMemo(() => sortedWinnerPosts.map((p) => p.id), [sortedWinnerPosts])
 
   useEffect(() => {
     if (!participantPostsDialog || !challengeId) return
@@ -242,6 +198,52 @@ export default function ChallengeDetailPage() {
       .finally(() => setParticipantPostsLoading(false))
   }, [participantPostsDialog?.user.id, challengeId])
 
+  const orderedWinnersForDisplay = useMemo(() => {
+    if (!aggregatedWinners.length) return []
+    if (!orderedWinnerUserIds?.length) return aggregatedWinners
+    const idToIndex = new Map(orderedWinnerUserIds.map((id, i) => [id, i]))
+    return [...aggregatedWinners].sort((a, b) => {
+      const i = idToIndex.get(a.user.id) ?? 9999
+      const j = idToIndex.get(b.user.id) ?? 9999
+      return i - j
+    })
+  }, [aggregatedWinners, orderedWinnerUserIds])
+
+  const buildOrderedChallengePostIds = useCallback(
+    (orderedUserIds: string[]) => {
+      if (!challenge?.posts?.length) return []
+      const byUser = new Map<string, typeof challenge.posts>()
+      for (const cp of challenge.posts) {
+        const uid = cp.user_id ?? (cp.post as { user?: { id: string } })?.user?.id
+        if (!uid) continue
+        if (!byUser.has(uid)) byUser.set(uid, [])
+        byUser.get(uid)!.push(cp)
+      }
+      for (const [, posts] of byUser) {
+        posts.sort((a, b) => {
+          const rA = a.winner_rank ?? 999999
+          const rB = b.winner_rank ?? 999999
+          if (rA !== rB) return rA - rB
+          const lA = a.likes_at_challenge_end ?? 0
+          const lB = b.likes_at_challenge_end ?? 0
+          return lB - lA
+        })
+      }
+      const result: string[] = []
+      for (const uid of orderedUserIds) {
+        const posts = byUser.get(uid) ?? []
+        for (const p of posts) result.push(p.id)
+      }
+      const orderedSet = new Set(orderedUserIds)
+      for (const [uid, posts] of byUser) {
+        if (orderedSet.has(uid)) continue
+        for (const p of posts) result.push(p.id)
+      }
+      return result
+    },
+    [challenge?.posts]
+  )
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -249,58 +251,53 @@ export default function ChallengeDetailPage() {
 
   const handleWinnersDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over || active.id === over.id || !challenge?.posts?.length) return
-    const oldIndex = winnerIds.indexOf(active.id as string)
-    const newIndex = winnerIds.indexOf(over.id as string)
+    if (!over || active.id === over.id || !orderedWinnersForDisplay.length) return
+    const currentOrder = orderedWinnerUserIds ?? orderedWinnersForDisplay.map((r) => r.user.id)
+    const oldIndex = currentOrder.indexOf(active.id as string)
+    const newIndex = currentOrder.indexOf(over.id as string)
     if (oldIndex === -1 || newIndex === -1) return
-    const reordered = arrayMove(sortedWinnerPosts, oldIndex, newIndex)
-    const orderedIds = reordered.map((p) => p.id)
+    const reordered = arrayMove(currentOrder, oldIndex, newIndex)
+    setOrderedWinnerUserIds(reordered)
+    const postIds = buildOrderedChallengePostIds(reordered)
     setWinnersReordering(true)
-    const result = await reorderWinners(orderedIds)
+    const result = await reorderWinners(postIds)
     setWinnersReordering(false)
     if (result.success) {
       toast({ title: "Winners updated", description: "Ranking saved successfully." })
+      refetch()
+      refetchAggregated()
     } else {
       toast({ title: "Error", description: result.error || "Failed to reorder winners", variant: "destructive" })
     }
   }
 
-  const handleSetRank = async () => {
-    if (!setRankDialogPost || !challenge?.posts?.length) return
+  const handleSetRankUser = async () => {
+    if (!setRankDialogUser || !orderedWinnersForDisplay.length) return
     const rank = parseInt(setRankValue, 10)
-    if (isNaN(rank) || rank < 1 || rank > sortedWinnerPosts.length) {
-      toast({ title: "Invalid rank", description: "Enter a number between 1 and the number of winners.", variant: "destructive" })
+    if (isNaN(rank) || rank < 1 || rank > orderedWinnersForDisplay.length) {
+      toast({ title: "Invalid rank", description: `Enter a number between 1 and ${orderedWinnersForDisplay.length}.`, variant: "destructive" })
       return
     }
-    const currentIndex = sortedWinnerPosts.findIndex((p) => p.id === setRankDialogPost.id)
+    const currentOrder = orderedWinnerUserIds ?? orderedWinnersForDisplay.map((r) => r.user.id)
+    const userId = setRankDialogUser.user.id
+    const currentIndex = currentOrder.indexOf(userId)
     if (currentIndex === -1) return
     const targetIndex = rank - 1
-    const reordered = arrayMove(sortedWinnerPosts, currentIndex, Math.min(targetIndex, sortedWinnerPosts.length - 1))
-    const orderedIds = reordered.map((p) => p.id)
+    const reordered = arrayMove(currentOrder, currentIndex, Math.min(targetIndex, currentOrder.length - 1))
+    setOrderedWinnerUserIds(reordered)
+    const postIds = buildOrderedChallengePostIds(reordered)
     setSetRankSubmitting(true)
-    const result = await reorderWinners(orderedIds)
+    const result = await reorderWinners(postIds)
     setSetRankSubmitting(false)
-    setSetRankDialogPost(null)
+    setSetRankDialogUser(null)
     setSetRankValue("")
     if (result.success) {
       toast({ title: "Rank updated", description: "Winner position saved." })
       refetch()
+      refetchAggregated()
     } else {
       toast({ title: "Error", description: result.error || "Failed to set rank", variant: "destructive" })
     }
-  }
-
-  const getPostMediaUrl = (cp: ChallengeDetail["posts"][0]) => {
-    const p = cp.post as { video_url?: string; thumbnail_url?: string; hls_url?: string }
-    return getFileUrl(p?.thumbnail_url ?? p?.video_url ?? p?.hls_url) ?? null
-  }
-
-  const getPostMediaType = (cp: ChallengeDetail["posts"][0]): "video" | "image" | null => {
-    const url = (cp.post as { video_url?: string; thumbnail_url?: string }).video_url ?? (cp.post as { hls_url?: string }).hls_url
-    if (!url) return null
-    if (url.includes(".m3u8") || url.match(/\.(mp4|mov|webm|avi)$/i)) return "video"
-    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return "image"
-    return "video"
   }
 
   const handleAction = (action: "approve" | "reject" | "stop") => {
@@ -879,7 +876,10 @@ export default function ChallengeDetailPage() {
                 </TabsContent>
 
                 {(challenge.status === "ended" || challenge.status === "stopped") && (
-                  <TabsContent value="winners" className="mt-4 space-y-6">
+                  <TabsContent value="winners" className="mt-6 space-y-6">
+                    <p className="text-sm text-muted-foreground">
+                      Winners are users (one row per user), ranked by total likes across their posts. You can reorder based on other criteria (e.g. quality, rules) using drag-and-drop or Set rank, then confirm to notify participants.
+                    </p>
                     {winnersConfirmedAt ? (
                       <div className="rounded-lg border bg-muted/30 p-4">
                         <p className="text-sm font-medium">
@@ -892,18 +892,26 @@ export default function ChallengeDetailPage() {
                           Reordering and confirming are no longer available.
                         </p>
                       </div>
+                    ) : null}
+                    {aggLoading ? (
+                      <div className="flex items-center gap-2 py-6 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Loading winners…
+                      </div>
                     ) : (
                       <>
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Drag rows to set the official winner order. Then click &quot;Confirm winners&quot; to notify all participants.
+                        {!winnersConfirmedAt && (
+                          <p className="text-sm text-muted-foreground">
+                            Drag rows or use &quot;Set rank&quot; to set the official winner order. Then click &quot;Confirm winners&quot; to notify all participants.
                           </p>
-                          {winnersReordering && (
-                            <div className="flex items-center gap-2 mb-2 text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Saving order…
-                            </div>
-                          )}
+                        )}
+                        {winnersReordering && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Saving order…
+                          </div>
+                        )}
+                        {!winnersConfirmedAt && orderedWinnersForDisplay.length > 0 && (
                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWinnersDragEnd}>
                             <div className="rounded-md border">
                               <Table>
@@ -912,23 +920,23 @@ export default function ChallengeDetailPage() {
                                     <TableHead className="w-10" />
                                     <TableHead className="w-16">Rank</TableHead>
                                     <TableHead>User</TableHead>
-                                    <TableHead>Media</TableHead>
-                                    <TableHead>Likes at end</TableHead>
-                                    <TableHead>Submitted</TableHead>
-                                    {!winnersConfirmedAt && <TableHead className="w-24">Actions</TableHead>}
+                                    <TableHead>Posts</TableHead>
+                                    <TableHead>Total likes</TableHead>
+                                    <TableHead>Best rank</TableHead>
+                                    <TableHead>Latest submission</TableHead>
+                                    <TableHead className="w-24">View</TableHead>
+                                    <TableHead className="w-24">Actions</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  <SortableContext items={winnerIds} strategy={verticalListSortingStrategy}>
-                                    {sortedWinnerPosts.map((cp, index) => (
-                                      <SortableWinnerRow
-                                        key={cp.id}
-                                        challengePost={cp}
+                                  <SortableContext items={orderedWinnersForDisplay.map((r) => r.user.id)} strategy={verticalListSortingStrategy}>
+                                    {orderedWinnersForDisplay.map((row, index) => (
+                                      <SortableWinnerUserRow
+                                        key={row.user.id}
+                                        row={row}
                                         rank={index + 1}
-                                        onPreview={() => setPreviewPost(cp)}
-                                        onSetRank={!winnersConfirmedAt ? () => { setSetRankDialogPost(cp); setSetRankValue(String(index + 1)); } : undefined}
-                                        getMediaUrl={getPostMediaUrl}
-                                        getMediaType={getPostMediaType}
+                                        onViewPosts={() => setWinnerUserPostsOpen(row)}
+                                        onSetRank={() => { setSetRankDialogUser(row); setSetRankValue(String(index + 1)); }}
                                       />
                                     ))}
                                   </SortableContext>
@@ -936,104 +944,84 @@ export default function ChallengeDetailPage() {
                               </Table>
                             </div>
                           </DndContext>
-                          <Button
-                            className="mt-4"
-                            onClick={() => setConfirmWinnersDialogOpen(true)}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Confirm winners
-                          </Button>
-                        </div>
-                      </>
-                    )}
-
-                    <div>
-                      <h3 className="font-semibold mb-2">Winners by user</h3>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        One row per user. Click a row to view that user&apos;s winning posts.
-                      </p>
-                      {aggLoading ? (
-                        <div className="flex items-center gap-2 py-6 text-muted-foreground">
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          Loading…
-                        </div>
-                      ) : (
-                        <>
+                        )}
+                        {winnersConfirmedAt && (
                           <div className="rounded-md border">
                             <Table>
                               <TableHeader>
                                 <TableRow>
+                                  <TableHead className="w-16">Rank</TableHead>
                                   <TableHead>User</TableHead>
-                                  <TableHead>Winner posts</TableHead>
-                                  <TableHead>Total likes (at end)</TableHead>
+                                  <TableHead>Posts</TableHead>
+                                  <TableHead>Total likes</TableHead>
                                   <TableHead>Best rank</TableHead>
                                   <TableHead>Latest submission</TableHead>
                                   <TableHead className="w-24" />
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {aggregatedWinners.length === 0 ? (
-                                  <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                      No winners yet. Reorder posts above and confirm when ready.
+                                {orderedWinnersForDisplay.map((row, index) => (
+                                  <TableRow
+                                    key={row.user.id}
+                                    className="cursor-pointer hover:bg-muted/50"
+                                    onClick={() => setWinnerUserPostsOpen(row)}
+                                  >
+                                    <TableCell className="font-bold text-primary">{index + 1}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <Avatar className="h-8 w-8">
+                                          <AvatarImage src={getProfilePictureUrl(row.user.profile_picture)} />
+                                          <AvatarFallback>{row.user.username.charAt(0).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <p className="font-medium">@{row.user.username}</p>
+                                          {row.user.display_name && (
+                                            <p className="text-xs text-muted-foreground">{row.user.display_name}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>{row.total_winner_posts}</TableCell>
+                                    <TableCell>{row.total_likes_during_challenge}</TableCell>
+                                    <TableCell>{row.winner_rank ?? "—"}</TableCell>
+                                    <TableCell className="text-muted-foreground text-sm">
+                                      {row.latest_submission_at ? new Date(row.latest_submission_at).toLocaleString() : "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setWinnerUserPostsOpen(row); }}>
+                                        View posts
+                                      </Button>
                                     </TableCell>
                                   </TableRow>
-                                ) : (
-                                  aggregatedWinners.map((row) => (
-                                    <TableRow
-                                      key={row.user.id}
-                                      className="cursor-pointer hover:bg-muted/50"
-                                      onClick={() => setWinnerUserPostsOpen(row)}
-                                    >
-                                      <TableCell>
-                                        <div className="flex items-center gap-2">
-                                          <Avatar className="h-8 w-8">
-                                            <AvatarImage src={getProfilePictureUrl(row.user.profile_picture)} />
-                                            <AvatarFallback>{row.user.username.charAt(0).toUpperCase()}</AvatarFallback>
-                                          </Avatar>
-                                          <div>
-                                            <p className="font-medium">@{row.user.username}</p>
-                                            {row.user.display_name && (
-                                              <p className="text-xs text-muted-foreground">{row.user.display_name}</p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell>{row.total_winner_posts}</TableCell>
-                                      <TableCell>{row.total_likes_during_challenge}</TableCell>
-                                      <TableCell>{row.winner_rank ?? "—"}</TableCell>
-                                      <TableCell className="text-muted-foreground text-sm">
-                                        {row.latest_submission_at
-                                          ? new Date(row.latest_submission_at).toLocaleString()
-                                          : "—"}
-                                      </TableCell>
-                                      <TableCell>
-                                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setWinnerUserPostsOpen(row); }}>
-                                          View posts
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))
-                                )}
+                                ))}
                               </TableBody>
                             </Table>
                           </div>
-                          {aggPagination && (aggPagination.totalPages ?? 0) > 1 && (
-                            <div className="flex items-center justify-between mt-2">
-                              <Button variant="outline" size="sm" disabled={aggPage <= 1} onClick={() => setAggPage(Math.max(1, aggPage - 1))}>
-                                Previous
-                              </Button>
-                              <span className="text-sm text-muted-foreground">
-                                Page {aggPage} of {aggPagination.totalPages ?? 1}
-                              </span>
-                              <Button variant="outline" size="sm" disabled={aggPage >= (aggPagination.totalPages ?? 1)} onClick={() => setAggPage(aggPage + 1)}>
-                                Next
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
+                        )}
+                        {aggregatedWinners.length === 0 && !aggLoading ? (
+                          <p className="text-center py-8 text-muted-foreground">No winners yet.</p>
+                        ) : null}
+                        {!winnersConfirmedAt && orderedWinnersForDisplay.length > 0 && (
+                          <Button className="mt-4" onClick={() => setConfirmWinnersDialogOpen(true)}>
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Confirm winners
+                          </Button>
+                        )}
+                        {aggPagination && (aggPagination.totalPages ?? 0) > 1 && (
+                          <div className="flex items-center justify-between mt-2">
+                            <Button variant="outline" size="sm" disabled={aggPage <= 1} onClick={() => setAggPage(Math.max(1, aggPage - 1))}>
+                              Previous
+                            </Button>
+                            <span className="text-sm text-muted-foreground">
+                              Page {aggPage} of {aggPagination.totalPages ?? 1}
+                            </span>
+                            <Button variant="outline" size="sm" disabled={aggPage >= (aggPagination.totalPages ?? 1)} onClick={() => setAggPage(aggPage + 1)}>
+                              Next
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </TabsContent>
                 )}
 
@@ -1220,37 +1208,6 @@ export default function ChallengeDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Media preview modal */}
-        <Dialog open={!!previewPost} onOpenChange={(open) => !open && setPreviewPost(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>Media preview</DialogTitle>
-              <DialogDescription>
-                {previewPost && (
-                  <>@{previewPost.post.user.username} · {new Date(previewPost.submitted_at).toLocaleString()}</>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            {previewPost && (() => {
-              const p = previewPost.post as { video_url?: string; thumbnail_url?: string; hls_url?: string }
-              const videoUrl = getFileUrl(p?.video_url ?? p?.hls_url)
-              const thumbUrl = getFileUrl(p?.thumbnail_url ?? p?.video_url)
-              const isVideo = !!(p?.video_url ?? p?.hls_url) && (p?.video_url?.match(/\.(mp4|mov|webm|avi)$/i) || p?.hls_url?.includes(".m3u8"))
-              return (
-                <div className="rounded-md overflow-hidden bg-muted">
-                  {isVideo && videoUrl ? (
-                    <video src={videoUrl} controls className="w-full max-h-[70vh]" />
-                  ) : thumbUrl ? (
-                    <img src={thumbUrl} alt="" className="w-full max-h-[70vh] object-contain" />
-                  ) : (
-                    <div className="flex items-center justify-center h-48 text-muted-foreground">No media</div>
-                  )}
-                </div>
-              )
-            })()}
-          </DialogContent>
-        </Dialog>
-
         {/* Winner user posts dialog */}
         <Dialog open={!!winnerUserPostsOpen} onOpenChange={(open) => !open && setWinnerUserPostsOpen(null)}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
@@ -1297,13 +1254,15 @@ export default function ChallengeDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Set rank dialog */}
-        <Dialog open={!!setRankDialogPost} onOpenChange={(open) => !open && setSetRankDialogPost(null)}>
+        {/* Set rank dialog (for winner user) */}
+        <Dialog open={!!setRankDialogUser} onOpenChange={(open) => !open && setSetRankDialogUser(null)}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Set winner rank</DialogTitle>
               <DialogDescription>
-                Enter the rank position (1–{sortedWinnerPosts.length}) for this winner. The post will move to that position.
+                {setRankDialogUser && (
+                  <>Enter the rank position (1–{orderedWinnersForDisplay.length}) for @{setRankDialogUser.user.username}. This user will move to that position.</>
+                )}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -1313,18 +1272,18 @@ export default function ChallengeDetailPage() {
                   id="rank-input"
                   type="number"
                   min={1}
-                  max={sortedWinnerPosts.length}
+                  max={orderedWinnersForDisplay.length || 1}
                   value={setRankValue}
                   onChange={(e) => setSetRankValue(e.target.value)}
-                  placeholder={`1–${sortedWinnerPosts.length}`}
+                  placeholder={orderedWinnersForDisplay.length ? `1–${orderedWinnersForDisplay.length}` : "1"}
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSetRankDialogPost(null)} disabled={setRankSubmitting}>
+              <Button variant="outline" onClick={() => setSetRankDialogUser(null)} disabled={setRankSubmitting}>
                 Cancel
               </Button>
-              <Button onClick={handleSetRank} disabled={setRankSubmitting}>
+              <Button onClick={handleSetRankUser} disabled={setRankSubmitting}>
                 {setRankSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Move to rank
               </Button>
