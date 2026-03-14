@@ -282,14 +282,51 @@ class ApiClient {
     status?: string
     role?: string
     country_id?: number
+    sort?: string
+    order?: 'asc' | 'desc'
+    verified?: boolean
+    has_posts?: boolean
+    date_from?: string
+    date_to?: string
   }) {
     const queryParams = new URLSearchParams()
-    if (params?.page) queryParams.append('page', params.page.toString())
-    if (params?.limit) queryParams.append('limit', params.limit.toString())
-    if (params?.search) queryParams.append('search', params.search)
-    if (params?.status) queryParams.append('status', params.status)
-    if (params?.role) queryParams.append('role', params.role)
-    if (params?.country_id !== undefined) queryParams.append('country_id', params.country_id.toString())
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit = typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+
+    const search = typeof params?.search === 'string' ? params.search.trim() : ''
+    if (search.length > 0) {
+      queryParams.append('search', search)
+      queryParams.append('q', search)
+    }
+    if (typeof params?.status === 'string' && params.status.trim().length > 0) {
+      queryParams.append('status', params.status.trim())
+    }
+    if (typeof params?.role === 'string' && params.role.trim().length > 0) {
+      queryParams.append('role', params.role.trim())
+    }
+    if (typeof params?.country_id === 'number' && !Number.isNaN(params.country_id)) {
+      queryParams.append('country_id', String(params.country_id))
+    }
+    if (typeof params?.sort === 'string' && params.sort.trim().length > 0) {
+      queryParams.append('sort', params.sort.trim())
+    }
+    if (params?.order === 'asc' || params?.order === 'desc') {
+      queryParams.append('order', params.order)
+    }
+    if (typeof params?.verified === 'boolean') {
+      queryParams.append('verified', params.verified ? '1' : '0')
+    }
+    if (typeof params?.has_posts === 'boolean') {
+      queryParams.append('has_posts', params.has_posts ? '1' : '0')
+    }
+    if (typeof params?.date_from === 'string' && params.date_from.trim().length > 0) {
+      queryParams.append('date_from', params.date_from.trim())
+    }
+    if (typeof params?.date_to === 'string' && params.date_to.trim().length > 0) {
+      queryParams.append('date_to', params.date_to.trim())
+    }
 
     const queryString = queryParams.toString()
     return this.request(`/admin/users${queryString ? `?${queryString}` : ''}`)

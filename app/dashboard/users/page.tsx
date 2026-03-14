@@ -73,7 +73,7 @@ import { toast } from "@/hooks/use-toast";
 import { getProfilePictureUrl } from "@/lib/file-utils";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-const SEARCH_DEBOUNCE_MS = 350;
+const SEARCH_DEBOUNCE_MS = 400;
 
 export default function UsersPage() {
   const [statsPeriod, setStatsPeriod] = useState<"7d" | "30d" | "90d" | "1y">("30d");
@@ -83,11 +83,21 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [verifiedFilter, setVerifiedFilter] = useState<"all" | "yes" | "no">("all");
+  const [hasPostsFilter, setHasPostsFilter] = useState<"all" | "yes" | "no">("all");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchTerm), SEARCH_DEBOUNCE_MS);
+    const trimmed = typeof searchTerm === "string" ? searchTerm.trim() : "";
+    const t = setTimeout(() => setDebouncedSearch(trimmed), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter, roleFilter, countryFilter, sortBy, sortOrder, verifiedFilter, hasPostsFilter]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
@@ -127,10 +137,22 @@ export default function UsersPage() {
     unsuspendUser,
     activateUser,
   } = useUsers({
+    page,
+    limit: 20,
     search: debouncedSearch || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     role: roleFilter !== "all" ? roleFilter : undefined,
-    country_id: countryFilter !== "all" ? parseInt(countryFilter) : undefined,
+    country_id:
+      countryFilter !== "all" ? (() => {
+        const n = parseInt(countryFilter, 10);
+        return Number.isNaN(n) ? undefined : n;
+      })() : undefined,
+    sort: sortBy,
+    order: sortOrder,
+    verified:
+      verifiedFilter === "yes" ? true : verifiedFilter === "no" ? false : undefined,
+    has_posts:
+      hasPostsFilter === "yes" ? true : hasPostsFilter === "no" ? false : undefined,
   });
 
   const handleUserAction = (
@@ -764,20 +786,21 @@ export default function UsersPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by username, email, ID, or name..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 hover:border-blue-300 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
+              <div className="space-y-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by username, email, ID, or name..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 hover:border-blue-300 focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[160px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
@@ -785,20 +808,75 @@ export default function UsersPage() {
                       <SelectItem value="frozen">Frozen</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                     </SelectContent>
-                </Select>
-                <Select value={countryFilter} onValueChange={setCountryFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
-                    <SelectValue placeholder="Filter by country" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Countries</SelectItem>
-                    {countries.map((country) => (
-                      <SelectItem key={country.id} value={country.id.toString()}>
-                        {country.flag_emoji} {country.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  </Select>
+                  <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="w-full sm:w-[140px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="creator">Creator</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={countryFilter} onValueChange={setCountryFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Countries</SelectItem>
+                      {countries.map((country) => (
+                        <SelectItem key={country.id} value={country.id.toString()}>
+                          {country.flag_emoji} {country.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-full sm:w-[180px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_at">Join date</SelectItem>
+                      <SelectItem value="username">Username</SelectItem>
+                      <SelectItem value="last_active_date">Last active</SelectItem>
+                      <SelectItem value="posts_count">Posts count</SelectItem>
+                      <SelectItem value="fullName">Name</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "asc" | "desc")}>
+                    <SelectTrigger className="w-full sm:w-[120px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Order" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Ascending</SelectItem>
+                      <SelectItem value="desc">Descending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={verifiedFilter} onValueChange={(v) => setVerifiedFilter(v as "all" | "yes" | "no")}>
+                    <SelectTrigger className="w-full sm:w-[140px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Verified" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="yes">Verified only</SelectItem>
+                      <SelectItem value="no">Not verified</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={hasPostsFilter} onValueChange={(v) => setHasPostsFilter(v as "all" | "yes" | "no")}>
+                    <SelectTrigger className="w-full sm:w-[140px] hover:border-blue-300 transition-colors">
+                      <SelectValue placeholder="Has posts" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="yes">With posts</SelectItem>
+                      <SelectItem value="no">No posts</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Users Table */}
@@ -1000,6 +1078,32 @@ export default function UsersPage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+
+              {totalPages > 1 && !loading && (
+                <div className="flex items-center justify-between gap-4 mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Page {page} of {totalPages} · {total.toLocaleString()} total
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               )}
 

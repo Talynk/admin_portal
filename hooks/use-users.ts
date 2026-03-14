@@ -42,13 +42,32 @@ interface UsersResponse {
   totalPages: number
 }
 
-interface UseUsersParams {
+export interface UseUsersParams {
   page?: number
   limit?: number
   search?: string
   status?: string
   role?: string
   country_id?: number
+  sort?: string
+  order?: 'asc' | 'desc'
+  verified?: boolean
+  has_posts?: boolean
+  date_from?: string
+  date_to?: string
+}
+
+function isUsersResponse(value: unknown): value is UsersResponse {
+  if (!value || typeof value !== 'object') return false
+  const o = value as Record<string, unknown>
+  return Array.isArray(o.users) && typeof o.total === 'number'
+}
+
+function normalizeSearch(s: unknown): string | undefined {
+  if (s == null) return undefined
+  const t = typeof s === 'string' ? s : String(s)
+  const trimmed = t.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 export function useUsers(params: UseUsersParams = {}) {
@@ -62,23 +81,80 @@ export function useUsers(params: UseUsersParams = {}) {
     try {
       setLoading(true)
       setError(null)
-      
-      const response = await apiClient.getUsers(params)
-      
-      if (response.success && response.data) {
-        const data = response.data as UsersResponse
-        setUsers(data.users)
-        setTotal(data.total)
-        setTotalPages(data.totalPages)
+
+      const search = normalizeSearch(params.search)
+      const page = typeof params.page === 'number' && params.page >= 1 ? params.page : 1
+      const limit = typeof params.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+      const status = typeof params.status === 'string' && params.status.trim().length > 0 ? params.status.trim() : undefined
+      const role = typeof params.role === 'string' && params.role.trim().length > 0 ? params.role.trim() : undefined
+      const country_id = typeof params.country_id === 'number' && !Number.isNaN(params.country_id) ? params.country_id : undefined
+      const sort = typeof params.sort === 'string' && params.sort.trim().length > 0 ? params.sort.trim() : undefined
+      const order = params.order === 'asc' || params.order === 'desc' ? params.order : undefined
+      const verified = typeof params.verified === 'boolean' ? params.verified : undefined
+      const has_posts = typeof params.has_posts === 'boolean' ? params.has_posts : undefined
+      const date_from = typeof params.date_from === 'string' && params.date_from.trim().length > 0 ? params.date_from.trim() : undefined
+      const date_to = typeof params.date_to === 'string' && params.date_to.trim().length > 0 ? params.date_to.trim() : undefined
+
+      const response = await apiClient.getUsers({
+        page,
+        limit,
+        search,
+        status,
+        role,
+        country_id,
+        sort,
+        order,
+        verified,
+        has_posts,
+        date_from,
+        date_to,
+      })
+
+      if (!response.success) {
+        setError((response as { error?: string }).error || 'Failed to fetch users')
+        setUsers([])
+        setTotal(0)
+        setTotalPages(0)
+        return
+      }
+
+      const raw = (response as ApiResponse).data
+      if (isUsersResponse(raw)) {
+        setUsers(Array.isArray(raw.users) ? raw.users : [])
+        setTotal(Number(raw.total) || 0)
+        setTotalPages(typeof raw.totalPages === 'number' ? raw.totalPages : Math.ceil((Number(raw.total) || 0) / limit))
+      } else if (raw != null && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).users)) {
+        const fallback = raw as Record<string, unknown>
+        setUsers((fallback.users as User[]) ?? [])
+        setTotal(Number(fallback.total) ?? 0)
+        setTotalPages(typeof fallback.totalPages === 'number' ? fallback.totalPages : Math.ceil((Number(fallback.total) ?? 0) / limit))
       } else {
-        setError(response.error || 'Failed to fetch users')
+        setUsers([])
+        setTotal(0)
+        setTotalPages(0)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
+      setUsers([])
+      setTotal(0)
+      setTotalPages(0)
     } finally {
       setLoading(false)
     }
-  }, [params.page, params.limit, params.search, params.status, params.role, params.country_id])
+  }, [
+    params.page,
+    params.limit,
+    params.search,
+    params.status,
+    params.role,
+    params.country_id,
+    params.sort,
+    params.order,
+    params.verified,
+    params.has_posts,
+    params.date_from,
+    params.date_to,
+  ])
 
   useEffect(() => {
     fetchUsers()
