@@ -5,7 +5,7 @@ export interface ChallengeDetail {
   id: string
   name: string
   description: string
-  status: 'pending' | 'approved' | 'active' | 'rejected' | 'ended'
+  status: 'pending' | 'approved' | 'active' | 'rejected' | 'ended' | 'stopped'
   start_date: string
   end_date: string
   has_rewards: boolean
@@ -23,6 +23,8 @@ export interface ChallengeDetail {
   approved_by?: string | null
   approved_at?: string | null
   rejection_reason?: string | null
+  winners_confirmed_at?: string | null
+  winners_confirmed_by?: { id: string; username: string } | null
   organizer: {
     id: string
     username: string
@@ -152,6 +154,7 @@ interface UseChallengeReturn {
   rejectChallenge: (reason?: string) => Promise<{ success: boolean; error?: string }>
   stopChallenge: () => Promise<{ success: boolean; error?: string }>
   reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string }>
+  confirmChallengeWinners: () => Promise<{ success: boolean; error?: string }>
 }
 
 export function useChallenge(challengeId: string, analyticsDays: number = 30): UseChallengeReturn {
@@ -269,6 +272,21 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     }
   }, [challengeId, fetchChallenge])
 
+  const confirmChallengeWinners = useCallback(async () => {
+    if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+
+    try {
+      const response = await apiClient.confirmChallengeWinners(challengeId)
+      if (response.success) {
+        await fetchChallenge()
+        return { success: true }
+      }
+      return { success: false, error: response.error || 'Failed to confirm winners' }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+    }
+  }, [challengeId, fetchChallenge])
+
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
@@ -284,6 +302,7 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     rejectChallenge,
     stopChallenge,
     reorderWinners,
+    confirmChallengeWinners,
   }
 }
 

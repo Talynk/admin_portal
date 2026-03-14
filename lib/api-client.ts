@@ -442,7 +442,7 @@ class ApiClient {
   async getChallenges(params?: {
     page?: number
     limit?: number
-    status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended'
+    status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended' | 'stopped'
   }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
@@ -517,6 +517,37 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify({ orderedChallengePostIds }),
     })
+  }
+
+  async confirmChallengeWinners(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}/winners/confirm`, {
+      method: 'PUT',
+    })
+  }
+
+  async getChallengeAggregatedWinners(challengeId: string, params?: { page?: number; limit?: number }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page != null) queryParams.append('page', params.page.toString())
+    if (params?.limit != null) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/admin/challenges/${challengeId}/winners/aggregated${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async getChallengeParticipantsRanking(
+    challengeId: string,
+    params?: { page?: number; limit?: number; search?: string }
+  ) {
+    const queryParams = new URLSearchParams()
+    if (params?.page != null) queryParams.append('page', params.page.toString())
+    if (params?.limit != null) queryParams.append('limit', params.limit.toString())
+    if (params?.search != null && params.search.trim() !== '')
+      queryParams.append('search', params.search.trim())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/admin/challenges/${challengeId}/participants/ranking${queryString ? `?${queryString}` : ''}`
+    )
   }
 
   // Ads Management Endpoints
