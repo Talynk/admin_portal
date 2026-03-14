@@ -94,7 +94,10 @@ interface PostsResponse {
     page: number
     limit: number
     total: number
-    totalPages: number
+    totalPages?: number
+    pages?: number
+    hasNext?: boolean
+    hasPrev?: boolean
   }
 }
 
@@ -121,16 +124,34 @@ export function usePosts(params: UsePostsParams = {}) {
     try {
       setLoading(true)
       setError(null)
-      
-      const response = await apiClient.getPosts(params)
-      
+
+      const page = typeof params.page === 'number' && params.page >= 1 ? params.page : 1
+      const limit = typeof params.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+      const search = typeof params.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : undefined
+      const safeSearch = search && search.length > 0 ? search : undefined
+
+      const response = await apiClient.getPosts({
+        ...params,
+        page,
+        limit,
+        search: safeSearch,
+      })
+
       if (response.success && response.data) {
         const data = response.data as PostsResponse
-        setPosts(data.posts)
-        setTotal(data.pagination.total)
-        setTotalPages(data.pagination.totalPages)
+        const list = Array.isArray(data.posts) ? data.posts : []
+        setPosts(list)
+        const pag = data.pagination
+        if (pag && typeof pag.total === 'number') {
+          setTotal(pag.total)
+          const totalPagesVal = typeof pag.totalPages === 'number' ? pag.totalPages : typeof pag.pages === 'number' ? pag.pages : Math.ceil(pag.total / limit)
+          setTotalPages(totalPagesVal)
+        } else {
+          setTotal(list.length)
+          setTotalPages(1)
+        }
       } else {
-        setError(response.error || 'Failed to fetch posts')
+        setError((response as { error?: string }).error || 'Failed to fetch posts')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')

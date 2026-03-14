@@ -128,12 +128,19 @@ export default function ContentPage() {
   const [advancedResults, setAdvancedResults] = useState<AdminSearchPost[]>([]);
   const [advancedSearchLoading, setAdvancedSearchLoading] = useState(false);
   const [advancedSearchRun, setAdvancedSearchRun] = useState(false);
+  const [page, setPage] = useState(1);
 
-  // Debounce search so we don't refetch on every keystroke
+  // Debounce search so we don't refetch on every keystroke (normalize: trim + collapse whitespace)
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchTerm), SEARCH_DEBOUNCE_MS);
+    const trimmed = typeof searchTerm === "string" ? searchTerm.trim().replace(/\s+/g, " ") : "";
+    const t = setTimeout(() => setDebouncedSearch(trimmed), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchTerm]);
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter, sortBy, sortOrder, activeTab]);
 
   // Determine status filter based on active tab and status filter dropdown
   const getStatusFilter = () => {
@@ -177,6 +184,8 @@ export default function ContentPage() {
     flagPost,
     unflagPost,
   } = usePosts({
+    page,
+    limit: 20,
     search: debouncedSearch || undefined,
     status: getStatusFilter(),
     sort: apiSort,
@@ -1439,10 +1448,36 @@ export default function ContentPage() {
                     </div>
                   )}
 
+                  {totalPages > 1 && !loading && (
+                    <div className="flex items-center justify-between gap-4 mt-4">
+                      <p className="text-sm text-muted-foreground">
+                        Page {page} of {totalPages} · {total.toLocaleString()} total
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          disabled={page <= 1}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={page >= totalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {filteredVideos.length === 0 && !loading && (
                     <div className="text-center py-8">
                       <p className="text-muted-foreground">
-                        No posts found matching your criteria.
+                        {debouncedSearch ? "No content matches your search." : "No posts found matching your criteria."}
                       </p>
                     </div>
                   )}

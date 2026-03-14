@@ -31,6 +31,7 @@ export interface Challenge {
 interface UseChallengesParams {
   page?: number
   limit?: number
+  search?: string
   status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended'
 }
 
@@ -55,9 +56,13 @@ export function useChallenges(params?: UseChallengesParams): UseChallengesReturn
       setLoading(true)
       setError(null)
 
+      const searchNorm = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : undefined
+      const searchVal = searchNorm && searchNorm.length > 0 ? searchNorm : undefined
+
       const response = await apiClient.getChallenges({
         page: params?.page,
         limit: params?.limit,
+        search: searchVal,
         status: params?.status,
       })
 
@@ -87,7 +92,7 @@ export function useChallenges(params?: UseChallengesParams): UseChallengesReturn
     } finally {
       setLoading(false)
     }
-  }, [params?.page, params?.limit, params?.status])
+  }, [params?.page, params?.limit, params?.search, params?.status])
 
   useEffect(() => {
     fetchChallenges()

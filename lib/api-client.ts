@@ -460,7 +460,7 @@ class ApiClient {
 
   async adminSearch(params: {
     q: string
-    type?: 'all' | 'users' | 'posts'
+    type?: 'all' | 'users' | 'posts' | 'challenges'
     page?: number
     limit?: number
     status?: string
@@ -470,7 +470,8 @@ class ApiClient {
     suspended?: string
   }) {
     const queryParams = new URLSearchParams()
-    queryParams.append('q', params.q)
+    const qNorm = typeof params.q === 'string' ? params.q.trim().replace(/\s+/g, ' ') : ''
+    if (qNorm) queryParams.append('q', qNorm)
     if (params?.type) queryParams.append('type', params.type)
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
@@ -487,11 +488,19 @@ class ApiClient {
   async getChallenges(params?: {
     page?: number
     limit?: number
+    search?: string
     status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended' | 'stopped'
   }) {
     const queryParams = new URLSearchParams()
-    if (params?.page) queryParams.append('page', params.page.toString())
-    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit = typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+    const searchNorm = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : ''
+    if (searchNorm.length > 0) {
+      queryParams.append('q', searchNorm)
+      queryParams.append('search', searchNorm)
+    }
     if (params?.status) queryParams.append('status', params.status)
 
     const queryString = queryParams.toString()
@@ -664,9 +673,15 @@ class ApiClient {
     category?: string
   }) {
     const queryParams = new URLSearchParams()
-    if (params?.page) queryParams.append('page', params.page.toString())
-    if (params?.limit) queryParams.append('limit', params.limit.toString())
-    if (params?.search) queryParams.append('search', params.search)
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit = typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+    const searchNorm = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : ''
+    if (searchNorm.length > 0) {
+      queryParams.append('q', searchNorm)
+      queryParams.append('search', searchNorm)
+    }
     if (params?.status) queryParams.append('status', params.status)
     if (params?.sort) queryParams.append('sort', params.sort)
     if (params?.userId) queryParams.append('userId', params.userId)

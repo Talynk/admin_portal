@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -57,7 +57,18 @@ export default function ChallengesPage() {
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "active" | "rejected" | "ended">("all")
   const [page, setPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [selectedChallenge, setSelectedChallenge] = useState<any>(null)
+
+  const SEARCH_DEBOUNCE_MS = 400
+  useEffect(() => {
+    const trimmed = typeof searchTerm === "string" ? searchTerm.trim().replace(/\s+/g, " ") : ""
+    const t = setTimeout(() => setDebouncedSearch(trimmed), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [searchTerm])
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, activeTab])
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
@@ -69,17 +80,11 @@ export default function ChallengesPage() {
   const { challenges, loading, error, total, totalPages, refetch } = useChallenges({
     page,
     limit: 20,
+    search: debouncedSearch || undefined,
     status: activeTab !== "all" ? activeTab : undefined,
   })
 
-  const filteredChallenges = searchTerm.trim()
-    ? challenges.filter(
-        (c) =>
-          (c.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (c.description ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (c.organizer?.username ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : challenges
+  const displayChallenges = challenges
 
   const handleAction = (challenge: any, action: "approve" | "reject" | "stop") => {
     setSelectedChallenge(challenge)
@@ -333,11 +338,11 @@ export default function ChallengesPage() {
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
                       <span className="text-muted-foreground">Loading challenges...</span>
                     </div>
-                  ) : filteredChallenges.length === 0 ? (
+                  ) : displayChallenges.length === 0 ? (
                     <div className="text-center py-8">
                       <Trophy className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                       <p className="text-muted-foreground">
-                        {searchTerm.trim() ? "No challenges match your search" : "No challenges found"}
+                        {debouncedSearch ? "No challenges match your search." : "No challenges found."}
                       </p>
                     </div>
                   ) : (
@@ -355,7 +360,7 @@ export default function ChallengesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredChallenges.map((challenge) => (
+                          {displayChallenges.map((challenge) => (
                             <TableRow key={challenge.id} className="hover:bg-muted/50 transition-colors">
                               <TableCell>
                                 <div>
