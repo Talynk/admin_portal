@@ -43,6 +43,10 @@ import {
   ArrowLeft,
   BarChart3,
   GripVertical,
+  Video,
+  Play,
+  Eye,
+  Image as ImageIcon,
 } from "lucide-react"
 import {
   DndContext,
@@ -69,7 +73,7 @@ import { apiClient } from "@/lib/api-client"
 import { Input } from "@/components/ui/input"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getProfilePictureUrl } from "@/lib/file-utils"
+import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
 
 /** Sortable row for one winner (user). Drag handle + Set rank for manual reorder. */
 function SortableWinnerUserRow({
@@ -160,10 +164,13 @@ export default function ChallengeDetailPage() {
 
   const [confirmWinnersDialogOpen, setConfirmWinnersDialogOpen] = useState(false)
   const [confirmWinnersLoading, setConfirmWinnersLoading] = useState(false)
-  const [winnerUserPostsOpen, setWinnerUserPostsOpen] = useState<AggregatedWinnerRow | null>(null)
   const [participantPostsDialog, setParticipantPostsDialog] = useState<RankingParticipantRow | null>(null)
   const [participantPostsData, setParticipantPostsData] = useState<any[] | null>(null)
   const [participantPostsLoading, setParticipantPostsLoading] = useState(false)
+  const [viewPostsForUser, setViewPostsForUser] = useState<{ userId: string; username: string } | null>(null)
+  const [viewPostsForUserData, setViewPostsForUserData] = useState<any[] | null>(null)
+  const [viewPostsForUserLoading, setViewPostsForUserLoading] = useState(false)
+  const [playingPostId, setPlayingPostId] = useState<string | null>(null)
   const [orderedWinnerUserIds, setOrderedWinnerUserIds] = useState<string[] | null>(null)
   const [winnersReordering, setWinnersReordering] = useState(false)
   const [setRankDialogUser, setSetRankDialogUser] = useState<AggregatedWinnerRow | null>(null)
@@ -197,6 +204,76 @@ export default function ChallengeDetailPage() {
       .catch(() => setParticipantPostsData([]))
       .finally(() => setParticipantPostsLoading(false))
   }, [participantPostsDialog?.user.id, challengeId])
+
+  useEffect(() => {
+    if (!viewPostsForUser || !challengeId) return
+    setViewPostsForUserLoading(true)
+    setViewPostsForUserData(null)
+    apiClient
+      .getChallengeParticipantPosts(challengeId, viewPostsForUser.userId)
+      .then((res) => {
+        if (res && "data" in res && res.data) {
+          const data = res.data as Record<string, unknown>
+          const raw = data?.posts ?? data?.data ?? (Array.isArray(res.data) ? res.data : [])
+          setViewPostsForUserData(Array.isArray(raw) ? raw : [])
+        } else {
+          setViewPostsForUserData([])
+        }
+      })
+      .catch(() => setViewPostsForUserData([]))
+      .finally(() => setViewPostsForUserLoading(false))
+  }, [viewPostsForUser?.userId, challengeId])
+
+  const userPostsViewOpen = !!(participantPostsDialog || viewPostsForUser)
+  const userPostsViewTitle = participantPostsDialog
+    ? `@${participantPostsDialog.user.username}`
+    : viewPostsForUser
+      ? `@${viewPostsForUser.username}`
+      : ""
+  const userPostsViewLoading = participantPostsLoading || viewPostsForUserLoading
+  const userPostsViewPosts = useMemo(() => {
+    let raw: any[] = []
+    if (participantPostsDialog && participantPostsData) raw = participantPostsData
+    else if (viewPostsForUser && viewPostsForUserData) raw = viewPostsForUserData
+    return raw.map((item: any) => {
+      const post = item.post ?? item
+      const mediaUrl = post.video_url ?? post.hls_url ?? post.thumbnail_url ?? item.video_url
+      const thumbUrl = post.thumbnail_url ?? post.thumbnail ?? (mediaUrl ? getThumbnailUrl(mediaUrl) : null)
+      return {
+        id: item.id ?? post.id ?? item.challenge_post_id,
+        video_url: mediaUrl,
+        thumbnail_url: thumbUrl,
+        title: post.title ?? post.caption ?? "Post",
+        submitted_at: item.submitted_at ?? post.submitted_at,
+        likes_at_challenge_end: item.likes_at_challenge_end ?? post.likes_at_challenge_end,
+        winner_rank: item.winner_rank ?? post.winner_rank,
+      }
+    })
+  }, [participantPostsDialog, participantPostsData, viewPostsForUser, viewPostsForUserData])
+
+  const closeUserPostsView = useCallback(() => {
+    setParticipantPostsDialog(null)
+    setViewPostsForUser(null)
+    setPlayingPostId(null)
+  }, [])
+
+  const getContentType = useCallback((p: { video_url?: string; thumbnail_url?: string }) => {
+    const url = p.video_url ?? p.thumbnail_url ?? ""
+    if (!url) return "video"
+    if (url.includes(".m3u8") || url.match(/\.(mp4|mov|webm|avi)$/i)) return "video"
+    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return "image"
+    return "video"
+  }, [])
+  const getPreviewUrl = useCallback((p: { video_url?: string; thumbnail_url?: string }) => {
+    const contentType = getContentType(p)
+    const mediaUrl = p.video_url ?? null
+    const resolved = getFileUrl(mediaUrl)
+    if (contentType === "video") {
+      const thumb = p.thumbnail_url ?? (mediaUrl ? getThumbnailUrl(mediaUrl) : null)
+      return getFileUrl(thumb) || resolved
+    }
+    return resolved
+  }, [getContentType])
 
   const orderedWinnersForDisplay = useMemo(() => {
     if (!aggregatedWinners.length) return []
@@ -772,7 +849,11 @@ export default function ChallengeDetailPage() {
                               </TableRow>
                             ) : (
                               rankingParticipants.map((row, index) => (
-                                <TableRow key={row.user.id}>
+                                <TableRow
+                                  key={row.user.id}
+                                  className="cursor-pointer hover:bg-muted/50"
+                                  onClick={() => setParticipantPostsDialog(row)}
+                                >
                                   <TableCell className="font-bold">{(rankingPage - 1) * 10 + index + 1}</TableCell>
                                   <TableCell>
                                     <div className="flex items-center gap-2">
@@ -795,7 +876,7 @@ export default function ChallengeDetailPage() {
                                       ? new Date(row.latest_submission_at).toLocaleString()
                                       : "—"}
                                   </TableCell>
-                                  <TableCell>
+                                  <TableCell onClick={(e) => e.stopPropagation()}>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -841,7 +922,16 @@ export default function ChallengeDetailPage() {
                       </TableHeader>
                       <TableBody>
                         {challenge.posts.map((challengePost) => (
-                          <TableRow key={challengePost.id}>
+                          <TableRow
+                            key={challengePost.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() =>
+                              setViewPostsForUser({
+                                userId: challengePost.user_id ?? challengePost.post.user.id,
+                                username: challengePost.post.user.username,
+                              })
+                            }
+                          >
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-8 w-8">
@@ -935,7 +1025,7 @@ export default function ChallengeDetailPage() {
                                         key={row.user.id}
                                         row={row}
                                         rank={index + 1}
-                                        onViewPosts={() => setWinnerUserPostsOpen(row)}
+                                        onViewPosts={() => setViewPostsForUser({ userId: row.user.id, username: row.user.username })}
                                         onSetRank={() => { setSetRankDialogUser(row); setSetRankValue(String(index + 1)); }}
                                       />
                                     ))}
@@ -964,7 +1054,7 @@ export default function ChallengeDetailPage() {
                                   <TableRow
                                     key={row.user.id}
                                     className="cursor-pointer hover:bg-muted/50"
-                                    onClick={() => setWinnerUserPostsOpen(row)}
+                                    onClick={() => setViewPostsForUser({ userId: row.user.id, username: row.user.username })}
                                   >
                                     <TableCell className="font-bold text-primary">{index + 1}</TableCell>
                                     <TableCell>
@@ -988,7 +1078,7 @@ export default function ChallengeDetailPage() {
                                       {row.latest_submission_at ? new Date(row.latest_submission_at).toLocaleString() : "—"}
                                     </TableCell>
                                     <TableCell>
-                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setWinnerUserPostsOpen(row); }}>
+                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setViewPostsForUser({ userId: row.user.id, username: row.user.username }); }}>
                                         View posts
                                       </Button>
                                     </TableCell>
@@ -1208,47 +1298,100 @@ export default function ChallengeDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Winner user posts dialog */}
-        <Dialog open={!!winnerUserPostsOpen} onOpenChange={(open) => !open && setWinnerUserPostsOpen(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+        {/* User posts view (Participants / Winners / Posts row click) – grid like content page */}
+        <Dialog open={userPostsViewOpen} onOpenChange={(open) => !open && closeUserPostsView()}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
             <DialogHeader>
-              <DialogTitle>Winning posts</DialogTitle>
+              <DialogTitle>Posts in this challenge</DialogTitle>
               <DialogDescription>
-                {winnerUserPostsOpen && (
-                  <>@{winnerUserPostsOpen.user.username} · {winnerUserPostsOpen.total_winner_posts} post(s)</>
-                )}
+                {userPostsViewTitle && <>{userPostsViewTitle} · click a card to play or view</>}
               </DialogDescription>
             </DialogHeader>
-            {winnerUserPostsOpen && (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>Likes at end</TableHead>
-                      <TableHead>Submitted</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(winnerUserPostsOpen.posts ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
-                          No post details available.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      (winnerUserPostsOpen.posts ?? []).map((post: any, idx: number) => (
-                        <TableRow key={post.id ?? idx}>
-                          <TableCell>{post.winner_rank ?? "—"}</TableCell>
-                          <TableCell>{post.likes_at_challenge_end ?? "—"}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {post.submitted_at ? new Date(post.submitted_at).toLocaleString() : "—"}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+            {userPostsViewLoading ? (
+              <div className="flex items-center gap-2 py-12 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                Loading posts…
+              </div>
+            ) : userPostsViewPosts.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">No posts found.</p>
+            ) : (
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+                {userPostsViewPosts.map((p: any) => {
+                  const contentType = getContentType(p)
+                  const fileUrl = getFileUrl(p.video_url)
+                  const previewUrl = getPreviewUrl(p)
+                  const isPlaying = playingPostId === p.id
+                  return (
+                    <Card key={p.id} className="overflow-hidden">
+                      <div className="relative w-full aspect-video bg-muted/50 overflow-hidden rounded-t-lg flex items-center justify-center group">
+                        {isPlaying && fileUrl ? (
+                          <>
+                            {contentType === "video" ? (
+                              <video
+                                src={fileUrl}
+                                controls
+                                autoPlay
+                                className="w-full h-full object-contain bg-black"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <img
+                                src={fileUrl}
+                                alt={p.title || "Media"}
+                                className="w-full h-full object-contain bg-black"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            )}
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white z-10"
+                              onClick={() => setPlayingPostId(null)}
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            {previewUrl ? (
+                              <img
+                                src={previewUrl}
+                                alt={p.title || "Preview"}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                {contentType === "video" ? <Video className="w-10 h-10 opacity-60" /> : <ImageIcon className="w-10 h-10 opacity-60" />}
+                                <span className="text-xs">No preview</span>
+                              </div>
+                            )}
+                            {fileUrl && (
+                              <button
+                                type="button"
+                                className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-pointer"
+                                onClick={() => setPlayingPostId(isPlaying ? null : p.id)}
+                                aria-label="Play"
+                              >
+                                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-3">
+                                  <Play className="w-8 h-8 text-white" />
+                                </span>
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <CardContent className="p-3">
+                        <p className="text-xs font-medium line-clamp-1">{p.title}</p>
+                        <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
+                          {p.likes_at_challenge_end != null && <span>♥ {p.likes_at_challenge_end}</span>}
+                          {p.winner_rank != null && <span>Rank {p.winner_rank}</span>}
+                          {p.submitted_at && <span>{new Date(p.submitted_at).toLocaleDateString()}</span>}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </DialogContent>
@@ -1291,56 +1434,6 @@ export default function ChallengeDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Participant posts dialog (View this participant's submissions) */}
-        <Dialog open={!!participantPostsDialog} onOpenChange={(open) => !open && setParticipantPostsDialog(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>Participant submissions</DialogTitle>
-              <DialogDescription>
-                {participantPostsDialog && (
-                  <>@{participantPostsDialog.user.username} · posts in this challenge</>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            {participantPostsLoading ? (
-              <div className="flex items-center gap-2 py-8 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Loading posts…
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Likes (at end)</TableHead>
-                      <TableHead>Winner rank</TableHead>
-                      <TableHead>Submitted</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {!participantPostsData || participantPostsData.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
-                          No posts found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      participantPostsData.map((post: any, idx: number) => (
-                        <TableRow key={post.id ?? post.challenge_post_id ?? idx}>
-                          <TableCell>{post.likes_at_challenge_end ?? post.likes_during_challenge ?? "—"}</TableCell>
-                          <TableCell>{post.winner_rank ?? "—"}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {post.submitted_at ? new Date(post.submitted_at).toLocaleString() : "—"}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </DashboardLayout>
     </ProtectedRoute>
   )
