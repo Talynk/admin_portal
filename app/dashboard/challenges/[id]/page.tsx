@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -67,8 +67,9 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { useChallenge } from "@/hooks/use-challenge"
 import { useChallengeAggregatedWinners, type AggregatedWinnerRow } from "@/hooks/use-challenge-aggregated-winners"
-import { useChallengeParticipantsRanking } from "@/hooks/use-challenge-participants-ranking"
+import { useChallengeParticipantsRanking, type RankingParticipantRow } from "@/hooks/use-challenge-participants-ranking"
 import { toast } from "@/hooks/use-toast"
+import { apiClient } from "@/lib/api-client"
 import { Input } from "@/components/ui/input"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -81,12 +82,14 @@ function SortableWinnerRow({
   challengePost,
   rank,
   onPreview,
+  onSetRank,
   getMediaUrl,
   getMediaType,
 }: {
   challengePost: ChallengePost
   rank: number
   onPreview: () => void
+  onSetRank?: () => void
   getMediaUrl: (cp: ChallengePost) => string | null
   getMediaType: (cp: ChallengePost) => "video" | "image" | null
 }) {
@@ -144,6 +147,13 @@ function SortableWinnerRow({
       <TableCell className="text-muted-foreground text-sm">
         {new Date(challengePost.submitted_at).toLocaleString()}
       </TableCell>
+      {onSetRank && (
+        <TableCell className="w-24">
+          <Button variant="outline" size="sm" onClick={onSetRank}>
+            Set rank
+          </Button>
+        </TableCell>
+      )}
     </tr>
   )
 }
@@ -182,6 +192,12 @@ export default function ChallengeDetailPage() {
   const [confirmWinnersDialogOpen, setConfirmWinnersDialogOpen] = useState(false)
   const [confirmWinnersLoading, setConfirmWinnersLoading] = useState(false)
   const [winnerUserPostsOpen, setWinnerUserPostsOpen] = useState<AggregatedWinnerRow | null>(null)
+  const [participantPostsDialog, setParticipantPostsDialog] = useState<RankingParticipantRow | null>(null)
+  const [participantPostsData, setParticipantPostsData] = useState<any[] | null>(null)
+  const [participantPostsLoading, setParticipantPostsLoading] = useState(false)
+  const [setRankDialogPost, setSetRankDialogPost] = useState<ChallengePost | null>(null)
+  const [setRankValue, setSetRankValue] = useState("")
+  const [setRankSubmitting, setSetRankSubmitting] = useState(false)
 
   const { winners: aggregatedWinners, pagination: aggPagination, loading: aggLoading, setPage: setAggPage, page: aggPage, refetch: refetchAggregated } = useChallengeAggregatedWinners(
     challengeId,
@@ -207,6 +223,25 @@ export default function ChallengeDetailPage() {
 
   const winnerIds = useMemo(() => sortedWinnerPosts.map((p) => p.id), [sortedWinnerPosts])
 
+  useEffect(() => {
+    if (!participantPostsDialog || !challengeId) return
+    setParticipantPostsLoading(true)
+    setParticipantPostsData(null)
+    apiClient
+      .getChallengeParticipantPosts(challengeId, participantPostsDialog.user.id)
+      .then((res) => {
+        if (res && "data" in res && res.data) {
+          const data = res.data as Record<string, unknown>
+          const raw = data?.posts ?? data?.data ?? (Array.isArray(res.data) ? res.data : [])
+          setParticipantPostsData(Array.isArray(raw) ? raw : [])
+        } else {
+          setParticipantPostsData([])
+        }
+      })
+      .catch(() => setParticipantPostsData([]))
+      .finally(() => setParticipantPostsLoading(false))
+  }, [participantPostsDialog?.user.id, challengeId])
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -227,6 +262,31 @@ export default function ChallengeDetailPage() {
       toast({ title: "Winners updated", description: "Ranking saved successfully." })
     } else {
       toast({ title: "Error", description: result.error || "Failed to reorder winners", variant: "destructive" })
+    }
+  }
+
+  const handleSetRank = async () => {
+    if (!setRankDialogPost || !challenge?.posts?.length) return
+    const rank = parseInt(setRankValue, 10)
+    if (isNaN(rank) || rank < 1 || rank > sortedWinnerPosts.length) {
+      toast({ title: "Invalid rank", description: "Enter a number between 1 and the number of winners.", variant: "destructive" })
+      return
+    }
+    const currentIndex = sortedWinnerPosts.findIndex((p) => p.id === setRankDialogPost.id)
+    if (currentIndex === -1) return
+    const targetIndex = rank - 1
+    const reordered = arrayMove(sortedWinnerPosts, currentIndex, Math.min(targetIndex, sortedWinnerPosts.length - 1))
+    const orderedIds = reordered.map((p) => p.id)
+    setSetRankSubmitting(true)
+    const result = await reorderWinners(orderedIds)
+    setSetRankSubmitting(false)
+    setSetRankDialogPost(null)
+    setSetRankValue("")
+    if (result.success) {
+      toast({ title: "Rank updated", description: "Winner position saved." })
+      refetch()
+    } else {
+      toast({ title: "Error", description: result.error || "Failed to set rank", variant: "destructive" })
     }
   }
 
@@ -372,7 +432,7 @@ export default function ChallengeDetailPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
@@ -424,187 +484,191 @@ export default function ChallengeDetailPage() {
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Participants</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{challenge.statistics.total_participants}</div>
-                <p className="text-xs text-muted-foreground">
-                  {challenge.statistics.participants_with_posts} with posts
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Posts</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{challenge.statistics.total_posts}</div>
-                <p className="text-xs text-muted-foreground">
-                  Avg {challenge.statistics.average_posts_per_participant.toFixed(1)} per participant
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {challenge.statistics.recent_activity.participants_last_7_days}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {challenge.statistics.recent_activity.posts_last_7_days} posts (7d)
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Rewards</CardTitle>
-                <Gift className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {challenge.has_rewards ? "Yes" : "No"}
-                </div>
-                {(challenge as any).rewards && (
-                  <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{(challenge as any).rewards}</p>
-                )}
-                <p className="text-xs text-muted-foreground">Challenge rewards</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Challenge Info */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Challenge Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Organizer</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={getProfilePictureUrl(challenge.organizer.profile_picture)} />
-                      <AvatarFallback>
-                        {challenge.organizer.username.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">@{challenge.organizer.username}</p>
-                      {(challenge as any).organizer_name && (
-                        <p className="text-sm text-muted-foreground">
-                          {(challenge as any).organizer_name}
-                        </p>
-                      )}
-                      {challenge.organizer.display_name && !(challenge as any).organizer_name && (
-                        <p className="text-sm text-muted-foreground">
-                          {challenge.organizer.display_name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {((challenge as any).organizer_contact || (challenge as any).contact_email) && (
-                    <div className="mt-2 space-y-1 text-sm">
-                      {(challenge as any).organizer_contact && (
-                        <p><span className="text-muted-foreground">Contact:</span> {(challenge as any).organizer_contact}</p>
-                      )}
-                      {(challenge as any).contact_email && (
-                        <p><span className="text-muted-foreground">Email:</span> {(challenge as any).contact_email}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Start Date</p>
-                  <p className="mt-1">{new Date(challenge.start_date).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">End Date</p>
-                  <p className="mt-1">{new Date(challenge.end_date).toLocaleString()}</p>
-                </div>
-                {challenge.approver && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Approved By</p>
-                    <p className="mt-1">@{challenge.approver.username}</p>
-                  </div>
-                )}
-                {(challenge as any).approved_at && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Approved At</p>
-                    <p className="mt-1">{new Date((challenge as any).approved_at).toLocaleString()}</p>
-                  </div>
-                )}
-                {(challenge as any).rejection_reason && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Rejection Reason</p>
-                    <p className="mt-1 text-amber-600">{(challenge as any).rejection_reason}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Statistics</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Participants</p>
-                    <p className="text-2xl font-bold">{challenge.statistics.total_participants}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Posts</p>
-                    <p className="text-2xl font-bold">{challenge.statistics.total_posts}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">With Posts</p>
-                    <p className="text-2xl font-bold">{challenge.statistics.participants_with_posts}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Without Posts</p>
-                    <p className="text-2xl font-bold">{challenge.statistics.participants_without_posts}</p>
-                  </div>
-                </div>
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground mb-2">Average Posts per Participant</p>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full"
-                      style={{
-                        width: `${Math.min((challenge.statistics.average_posts_per_participant / 10) * 100, 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-sm mt-1">{challenge.statistics.average_posts_per_participant.toFixed(2)} posts</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Tabs */}
+          {/* Tabs at top */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-2">
+                <span>{challenge.statistics.total_participants} participants</span>
+                <span>·</span>
+                <span>{challenge.statistics.total_posts} posts</span>
+                <span>·</span>
+                <span>{new Date(challenge.start_date).toLocaleDateString()} – {new Date(challenge.end_date).toLocaleDateString()}</span>
+              </div>
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
-                <TabsList>
+                <TabsList className="w-full flex-wrap h-auto gap-1">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="participants">Participants ({challenge.participants.length})</TabsTrigger>
+                  <TabsTrigger value="participants">Participants ({challenge.statistics.total_participants})</TabsTrigger>
                   <TabsTrigger value="posts">Posts ({challenge.posts.length})</TabsTrigger>
                   {(challenge.status === "ended" || challenge.status === "stopped") && (
                     <TabsTrigger value="winners">Winners</TabsTrigger>
                   )}
-                  <TabsTrigger value="ranking">Participants ranking</TabsTrigger>
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="overview" className="mt-4">
+                <TabsContent value="overview" className="mt-6">
+                  {/* Stats Cards */}
+                  <div className="grid gap-4 md:grid-cols-4 mb-6">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Participants</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{challenge.statistics.total_participants}</div>
+                        <p className="text-xs text-muted-foreground">
+                          {challenge.statistics.participants_with_posts} with posts
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Posts</CardTitle>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{challenge.statistics.total_posts}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Avg {challenge.statistics.average_posts_per_participant.toFixed(1)} per participant
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {challenge.statistics.recent_activity.participants_last_7_days}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {challenge.statistics.recent_activity.posts_last_7_days} posts (7d)
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Rewards</CardTitle>
+                        <Gift className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {challenge.has_rewards ? "Yes" : "No"}
+                        </div>
+                        {(challenge as any).rewards && (
+                          <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{(challenge as any).rewards}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">Challenge rewards</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  {/* Challenge Info */}
+                  <div className="grid gap-4 md:grid-cols-2 mb-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Challenge Information</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Organizer</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={getProfilePictureUrl(challenge.organizer.profile_picture)} />
+                              <AvatarFallback>
+                                {challenge.organizer.username.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">@{challenge.organizer.username}</p>
+                              {(challenge as any).organizer_name && (
+                                <p className="text-sm text-muted-foreground">
+                                  {(challenge as any).organizer_name}
+                                </p>
+                              )}
+                              {challenge.organizer.display_name && !(challenge as any).organizer_name && (
+                                <p className="text-sm text-muted-foreground">
+                                  {challenge.organizer.display_name}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {((challenge as any).organizer_contact || (challenge as any).contact_email) && (
+                            <div className="mt-2 space-y-1 text-sm">
+                              {(challenge as any).organizer_contact && (
+                                <p><span className="text-muted-foreground">Contact:</span> {(challenge as any).organizer_contact}</p>
+                              )}
+                              {(challenge as any).contact_email && (
+                                <p><span className="text-muted-foreground">Email:</span> {(challenge as any).contact_email}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">Start Date</p>
+                          <p className="mt-1">{new Date(challenge.start_date).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">End Date</p>
+                          <p className="mt-1">{new Date(challenge.end_date).toLocaleString()}</p>
+                        </div>
+                        {challenge.approver && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Approved By</p>
+                            <p className="mt-1">@{challenge.approver.username}</p>
+                          </div>
+                        )}
+                        {(challenge as any).approved_at && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Approved At</p>
+                            <p className="mt-1">{new Date((challenge as any).approved_at).toLocaleString()}</p>
+                          </div>
+                        )}
+                        {(challenge as any).rejection_reason && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">Rejection Reason</p>
+                            <p className="mt-1 text-amber-600">{(challenge as any).rejection_reason}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Statistics</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Total Participants</p>
+                            <p className="text-2xl font-bold">{challenge.statistics.total_participants}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Total Posts</p>
+                            <p className="text-2xl font-bold">{challenge.statistics.total_posts}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">With Posts</p>
+                            <p className="text-2xl font-bold">{challenge.statistics.participants_with_posts}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Without Posts</p>
+                            <p className="text-2xl font-bold">{challenge.statistics.participants_without_posts}</p>
+                          </div>
+                        </div>
+                        <div className="pt-4 border-t">
+                          <p className="text-sm text-muted-foreground mb-2">Average Posts per Participant</p>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary rounded-full"
+                              style={{
+                                width: `${Math.min((challenge.statistics.average_posts_per_participant / 10) * 100, 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-sm mt-1">{challenge.statistics.average_posts_per_participant.toFixed(2)} posts</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                   <div className="space-y-4">
                     <div>
                       <h3 className="font-semibold mb-2">Description</h3>
@@ -671,55 +735,102 @@ export default function ChallengeDetailPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="participants" className="mt-4">
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User</TableHead>
-                          <TableHead>Joined</TableHead>
-                          <TableHead>Posts</TableHead>
-                          <TableHead>Total Posts</TableHead>
-                          <TableHead>Followers</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {challenge.participants.map((participant) => (
-                          <TableRow key={participant.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={getProfilePictureUrl(participant.user.profile_picture)} />
-                                  <AvatarFallback>
-                                    {participant.user.username.charAt(0).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">@{participant.user.username}</p>
-                                  {participant.user.display_name && (
-                                    <p className="text-sm text-muted-foreground">
-                                      {participant.user.display_name}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(participant.joined_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{participant.post_count}</Badge>
-                            </TableCell>
-                            <TableCell>{participant.user.posts_count || 0}</TableCell>
-                            <TableCell>{participant.user.follower_count || 0}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                <TabsContent value="participants" className="mt-6">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Participants ranked by total likes (and latest submission for ties). Search by username or display name.
+                  </p>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Input
+                      placeholder="Search by username or display name..."
+                      value={rankingSearch}
+                      onChange={(e) => setRankingSearch(e.target.value)}
+                      className="max-w-sm"
+                    />
                   </div>
+                  {rankingLoading ? (
+                    <div className="flex items-center gap-2 py-6 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Loading ranking…
+                    </div>
+                  ) : (
+                    <>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-14">Rank</TableHead>
+                              <TableHead>User</TableHead>
+                              <TableHead>Posts</TableHead>
+                              <TableHead>Total likes</TableHead>
+                              <TableHead>Latest submission</TableHead>
+                              <TableHead className="w-24" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {rankingParticipants.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                  No participants found.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              rankingParticipants.map((row, index) => (
+                                <TableRow key={row.user.id}>
+                                  <TableCell className="font-bold">{(rankingPage - 1) * 10 + index + 1}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-8 w-8">
+                                        <AvatarImage src={getProfilePictureUrl(row.user.profile_picture)} />
+                                        <AvatarFallback>{row.user.username.charAt(0).toUpperCase()}</AvatarFallback>
+                                      </Avatar>
+                                      <div>
+                                        <p className="font-medium">@{row.user.username}</p>
+                                        {row.user.display_name && (
+                                          <p className="text-xs text-muted-foreground">{row.user.display_name}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>{row.total_posts}</TableCell>
+                                  <TableCell>{row.total_likes}</TableCell>
+                                  <TableCell className="text-muted-foreground text-sm">
+                                    {row.latest_submission_at
+                                      ? new Date(row.latest_submission_at).toLocaleString()
+                                      : "—"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setParticipantPostsDialog(row)}
+                                    >
+                                      View posts
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {rankingPagination && (rankingPagination.totalPages ?? 0) > 1 && (
+                        <div className="flex items-center justify-between mt-2">
+                          <Button variant="outline" size="sm" disabled={rankingPage <= 1} onClick={() => setRankingPage(Math.max(1, rankingPage - 1))}>
+                            Previous
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {rankingPage} of {rankingPagination.totalPages ?? 1}
+                          </span>
+                          <Button variant="outline" size="sm" disabled={rankingPage >= (rankingPagination.totalPages ?? 1)} onClick={() => setRankingPage(rankingPage + 1)}>
+                            Next
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </TabsContent>
 
-                <TabsContent value="posts" className="mt-4">
+                <TabsContent value="posts" className="mt-6">
                   <div className="rounded-md border">
                     <Table>
                       <TableHeader>
@@ -727,6 +838,8 @@ export default function ChallengeDetailPage() {
                           <TableHead>User</TableHead>
                           <TableHead>Submitted</TableHead>
                           <TableHead>Post ID</TableHead>
+                          <TableHead>Likes at end</TableHead>
+                          <TableHead>Winner rank</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -756,6 +869,8 @@ export default function ChallengeDetailPage() {
                             <TableCell>
                               <code className="text-xs">{challengePost.post_id}</code>
                             </TableCell>
+                            <TableCell>{challengePost.likes_at_challenge_end ?? "—"}</TableCell>
+                            <TableCell>{challengePost.winner_rank ?? "—"}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -800,6 +915,7 @@ export default function ChallengeDetailPage() {
                                     <TableHead>Media</TableHead>
                                     <TableHead>Likes at end</TableHead>
                                     <TableHead>Submitted</TableHead>
+                                    {!winnersConfirmedAt && <TableHead className="w-24">Actions</TableHead>}
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -810,6 +926,7 @@ export default function ChallengeDetailPage() {
                                         challengePost={cp}
                                         rank={index + 1}
                                         onPreview={() => setPreviewPost(cp)}
+                                        onSetRank={!winnersConfirmedAt ? () => { setSetRankDialogPost(cp); setSetRankValue(String(index + 1)); } : undefined}
                                         getMediaUrl={getPostMediaUrl}
                                         getMediaType={getPostMediaType}
                                       />
@@ -920,92 +1037,7 @@ export default function ChallengeDetailPage() {
                   </TabsContent>
                 )}
 
-                <TabsContent value="ranking" className="mt-4">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Participants ranked by total likes (and latest submission for ties). Search by username or display name.
-                  </p>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Input
-                      placeholder="Search by username or display name..."
-                      value={rankingSearch}
-                      onChange={(e) => setRankingSearch(e.target.value)}
-                      className="max-w-sm"
-                    />
-                  </div>
-                  {rankingLoading ? (
-                    <div className="flex items-center gap-2 py-6 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Loading ranking…
-                    </div>
-                  ) : (
-                    <>
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-14">Rank</TableHead>
-                              <TableHead>User</TableHead>
-                              <TableHead>Posts</TableHead>
-                              <TableHead>Total likes</TableHead>
-                              <TableHead>Latest submission</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {rankingParticipants.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                  No participants found.
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              rankingParticipants.map((row, index) => (
-                                <TableRow key={row.user.id}>
-                                  <TableCell className="font-bold">{(rankingPage - 1) * 10 + index + 1}</TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="h-8 w-8">
-                                        <AvatarImage src={getProfilePictureUrl(row.user.profile_picture)} />
-                                        <AvatarFallback>{row.user.username.charAt(0).toUpperCase()}</AvatarFallback>
-                                      </Avatar>
-                                      <div>
-                                        <p className="font-medium">@{row.user.username}</p>
-                                        {row.user.display_name && (
-                                          <p className="text-xs text-muted-foreground">{row.user.display_name}</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>{row.total_posts}</TableCell>
-                                  <TableCell>{row.total_likes}</TableCell>
-                                  <TableCell className="text-muted-foreground text-sm">
-                                    {row.latest_submission_at
-                                      ? new Date(row.latest_submission_at).toLocaleString()
-                                      : "—"}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-                      {rankingPagination && (rankingPagination.totalPages ?? 0) > 1 && (
-                        <div className="flex items-center justify-between mt-2">
-                          <Button variant="outline" size="sm" disabled={rankingPage <= 1} onClick={() => setRankingPage(Math.max(1, rankingPage - 1))}>
-                            Previous
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            Page {rankingPage} of {rankingPagination.totalPages ?? 1}
-                          </span>
-                          <Button variant="outline" size="sm" disabled={rankingPage >= (rankingPagination.totalPages ?? 1)} onClick={() => setRankingPage(rankingPage + 1)}>
-                            Next
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="analytics" className="mt-4">
+                <TabsContent value="analytics" className="mt-6">
                   {analytics ? (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -1252,6 +1284,92 @@ export default function ChallengeDetailPage() {
                         <TableRow key={post.id ?? idx}>
                           <TableCell>{post.winner_rank ?? "—"}</TableCell>
                           <TableCell>{post.likes_at_challenge_end ?? "—"}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {post.submitted_at ? new Date(post.submitted_at).toLocaleString() : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Set rank dialog */}
+        <Dialog open={!!setRankDialogPost} onOpenChange={(open) => !open && setSetRankDialogPost(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Set winner rank</DialogTitle>
+              <DialogDescription>
+                Enter the rank position (1–{sortedWinnerPosts.length}) for this winner. The post will move to that position.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="rank-input">Rank</Label>
+                <Input
+                  id="rank-input"
+                  type="number"
+                  min={1}
+                  max={sortedWinnerPosts.length}
+                  value={setRankValue}
+                  onChange={(e) => setSetRankValue(e.target.value)}
+                  placeholder={`1–${sortedWinnerPosts.length}`}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSetRankDialogPost(null)} disabled={setRankSubmitting}>
+                Cancel
+              </Button>
+              <Button onClick={handleSetRank} disabled={setRankSubmitting}>
+                {setRankSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Move to rank
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Participant posts dialog (View this participant's submissions) */}
+        <Dialog open={!!participantPostsDialog} onOpenChange={(open) => !open && setParticipantPostsDialog(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>Participant submissions</DialogTitle>
+              <DialogDescription>
+                {participantPostsDialog && (
+                  <>@{participantPostsDialog.user.username} · posts in this challenge</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {participantPostsLoading ? (
+              <div className="flex items-center gap-2 py-8 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Loading posts…
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Likes (at end)</TableHead>
+                      <TableHead>Winner rank</TableHead>
+                      <TableHead>Submitted</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {!participantPostsData || participantPostsData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
+                          No posts found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      participantPostsData.map((post: any, idx: number) => (
+                        <TableRow key={post.id ?? post.challenge_post_id ?? idx}>
+                          <TableCell>{post.likes_at_challenge_end ?? post.likes_during_challenge ?? "—"}</TableCell>
+                          <TableCell>{post.winner_rank ?? "—"}</TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {post.submitted_at ? new Date(post.submitted_at).toLocaleString() : "—"}
                           </TableCell>

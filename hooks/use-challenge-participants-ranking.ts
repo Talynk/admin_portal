@@ -83,6 +83,11 @@ export function useChallengeParticipantsRanking(
     fetchRanking()
   }, [fetchRanking])
 
+  const setSearchAndResetPage = useCallback((s: string) => {
+    setSearch(s)
+    setPage(1)
+  }, [])
+
   return {
     participants,
     pagination,
@@ -90,7 +95,7 @@ export function useChallengeParticipantsRanking(
     error,
     refetch: fetchRanking,
     setPage,
-    setSearch,
+    setSearch: setSearchAndResetPage,
     search,
     page,
   }

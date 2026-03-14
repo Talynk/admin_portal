@@ -550,6 +550,11 @@ class ApiClient {
     )
   }
 
+  /** Public endpoint: all posts that user submitted to this challenge. Use for "View this participant's submissions". */
+  async getChallengeParticipantPosts(challengeId: string, userId: string) {
+    return this.request(`/challenges/${challengeId}/participants/${userId}/posts`)
+  }
+
   // Ads Management Endpoints
   async createAdUploadSession(title?: string, description?: string, mimeType?: string) {
     const body: Record<string, unknown> = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -73,13 +73,21 @@ import { toast } from "@/hooks/use-toast";
 import { getProfilePictureUrl } from "@/lib/file-utils";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
+const SEARCH_DEBOUNCE_MS = 350;
+
 export default function UsersPage() {
   const [statsPeriod, setStatsPeriod] = useState<"7d" | "30d" | "90d" | "1y">("30d");
   const { stats: userStats, loading: statsLoading, error: statsError } = useUserStats(statsPeriod);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
@@ -119,7 +127,7 @@ export default function UsersPage() {
     unsuspendUser,
     activateUser,
   } = useUsers({
-    search: searchTerm || undefined,
+    search: debouncedSearch || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     role: roleFilter !== "all" ? roleFilter : undefined,
     country_id: countryFilter !== "all" ? parseInt(countryFilter) : undefined,
