@@ -25,6 +25,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  ExpandableScreen,
+  ExpandableScreenContent,
+} from "@/components/ui/expandable-screen"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -1298,24 +1302,24 @@ export default function ChallengeDetailPage() {
           </DialogContent>
         </Dialog>
 
-        {/* User posts view (Participants / Winners / Posts row click) – grid like content page */}
-        <Dialog open={userPostsViewOpen} onOpenChange={(open) => !open && closeUserPostsView()}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>Posts in this challenge</DialogTitle>
-              <DialogDescription>
+        {/* User posts view (Participants / Winners / Posts row click) – expandable screen modal */}
+        <ExpandableScreen open={userPostsViewOpen} onOpenChange={(open) => !open && closeUserPostsView()}>
+          <ExpandableScreenContent contentRadius="24px" className="h-[90vh] max-h-[90vh]">
+            <div className="mb-6">
+              <h2 className="text-2xl font-semibold tracking-tight">Posts in this challenge</h2>
+              <p className="text-muted-foreground mt-1">
                 {userPostsViewTitle && <>{userPostsViewTitle} · click a card to play or view</>}
-              </DialogDescription>
-            </DialogHeader>
+              </p>
+            </div>
             {userPostsViewLoading ? (
-              <div className="flex items-center gap-2 py-12 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
-                Loading posts…
+              <div className="flex items-center gap-2 py-16 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span>Loading posts…</span>
               </div>
             ) : userPostsViewPosts.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">No posts found.</p>
+              <p className="text-center py-16 text-muted-foreground">No posts found.</p>
             ) : (
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+              <div className="grid gap-6 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
                 {userPostsViewPosts.map((p: any) => {
                   const contentType = getContentType(p)
                   const fileUrl = getFileUrl(p.video_url)
@@ -1382,7 +1386,7 @@ export default function ChallengeDetailPage() {
                         )}
                       </div>
                       <CardContent className="p-3">
-                        <p className="text-xs font-medium line-clamp-1">{p.title}</p>
+                        <p className="text-sm font-medium line-clamp-1">{p.title}</p>
                         <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground">
                           {p.likes_at_challenge_end != null && <span>♥ {p.likes_at_challenge_end}</span>}
                           {p.winner_rank != null && <span>Rank {p.winner_rank}</span>}
@@ -1394,8 +1398,8 @@ export default function ChallengeDetailPage() {
                 })}
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+          </ExpandableScreenContent>
+        </ExpandableScreen>
 
         {/* Set rank dialog (for winner user) */}
         <Dialog open={!!setRankDialogUser} onOpenChange={(open) => !open && setSetRankDialogUser(null)}>
