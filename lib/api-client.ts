@@ -458,6 +458,16 @@ class ApiClient {
     return this.request(`/admin/users/suspended${queryString ? `?${queryString}` : ''}`)
   }
 
+  async getUserSessions(userId: string) {
+    return this.request(`/admin/users/${userId}/sessions`)
+  }
+
+  async revokeUserSession(userId: string, sessionId: string) {
+    return this.request(`/admin/users/${userId}/sessions/${sessionId}/revoke`, {
+      method: 'POST',
+    })
+  }
+
   async adminSearch(params: {
     q: string
     type?: 'all' | 'users' | 'posts' | 'challenges'
@@ -587,6 +597,13 @@ class ApiClient {
     return this.request(
       `/admin/challenges/${challengeId}/winners/aggregated${queryString ? `?${queryString}` : ''}`
     )
+  }
+
+  async updateChallengeWinnersConfig(challengeId: string, body: { maxWinners: number | null }) {
+    return this.request(`/admin/challenges/${challengeId}/winners/config`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    })
   }
 
   async getChallengeParticipantsRanking(
@@ -1349,6 +1366,49 @@ class ApiClient {
     return this.request(`/admin/appeals/${appealId}/review`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    })
+  }
+
+  // Support (admin) – user issues
+  async getSupportIssues(params?: {
+    page?: number
+    limit?: number
+    status?: string
+    category?: string
+    email?: string
+    q?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit = typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+    if (typeof params?.status === 'string' && params.status.trim().length > 0) {
+      queryParams.append('status', params.status.trim())
+    }
+    if (typeof params?.category === 'string' && params.category.trim().length > 0) {
+      queryParams.append('category', params.category.trim())
+    }
+    if (typeof params?.email === 'string' && params.email.trim().length > 0) {
+      queryParams.append('email', params.email.trim())
+    }
+    const q = typeof params?.q === 'string' ? params.q.trim().replace(/\s+/g, ' ') : ''
+    if (q.length > 0) queryParams.append('q', q)
+    const queryString = queryParams.toString()
+    return this.request(`/support/admin/issues${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getSupportIssue(id: string) {
+    return this.request(`/support/admin/issues/${id}`)
+  }
+
+  async updateSupportIssue(
+    id: string,
+    payload: { status?: string; category?: string; metadata?: unknown }
+  ) {
+    return this.request(`/support/admin/issues/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     })
   }
 

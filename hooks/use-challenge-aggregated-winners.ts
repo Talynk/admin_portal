@@ -36,6 +36,9 @@ export interface UseChallengeAggregatedWinnersReturn {
   refetch: () => Promise<void>
   setPage: (p: number) => void
   page: number
+  maxWinners: number | null
+  orderedBy: string | null
+  winnersConfirmedAt: string | null
 }
 
 export function useChallengeAggregatedWinners(
@@ -46,6 +49,9 @@ export function useChallengeAggregatedWinners(
   const [page, setPage] = useState(options.page ?? 1)
   const [winners, setWinners] = useState<AggregatedWinnerRow[]>([])
   const [pagination, setPagination] = useState<UseChallengeAggregatedWinnersReturn['pagination']>(null)
+  const [maxWinners, setMaxWinners] = useState<number | null>(null)
+  const [orderedBy, setOrderedBy] = useState<string | null>(null)
+  const [winnersConfirmedAt, setWinnersConfirmedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,6 +59,9 @@ export function useChallengeAggregatedWinners(
     if (!challengeId || !enabled) {
       setWinners([])
       setPagination(null)
+      setMaxWinners(null)
+      setOrderedBy(null)
+      setWinnersConfirmedAt(null)
       return
     }
     setLoading(true)
@@ -74,10 +83,16 @@ export function useChallengeAggregatedWinners(
       } else {
         setPagination({ page, limit })
       }
+      setMaxWinners(typeof data?.max_winners === 'number' ? data.max_winners : data?.max_winners ?? null)
+      setOrderedBy(typeof data?.ordered_by === 'string' ? data.ordered_by : null)
+      setWinnersConfirmedAt(typeof data?.winners_confirmed_at === 'string' ? data.winners_confirmed_at : null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load aggregated winners')
       setWinners([])
       setPagination(null)
+      setMaxWinners(null)
+      setOrderedBy(null)
+      setWinnersConfirmedAt(null)
     } finally {
       setLoading(false)
     }
@@ -87,5 +102,16 @@ export function useChallengeAggregatedWinners(
     fetchWinners()
   }, [fetchWinners])
 
-  return { winners, pagination, loading, error, refetch: fetchWinners, setPage, page }
+  return {
+    winners,
+    pagination,
+    loading,
+    error,
+    refetch: fetchWinners,
+    setPage,
+    page,
+    maxWinners,
+    orderedBy,
+    winnersConfirmedAt,
+  }
 }

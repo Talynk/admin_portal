@@ -46,12 +46,15 @@ import {
   MessageSquare,
   Share2,
   AlertTriangle,
+  Monitor,
+  LogOut,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useUser } from "@/hooks/use-users";
 import { useUserActivity } from "@/hooks/use-user-activity";
 import { useUserPosts } from "@/hooks/use-user-posts";
 import { useUserPostsEngagement } from "@/hooks/use-user-posts-engagement";
+import { useUserSessions } from "@/hooks/use-user-sessions";
 import { useCountries } from "@/hooks/use-countries";
 import { apiClient } from "@/lib/api-client";
 import { getProfilePictureUrl } from "@/lib/file-utils";
@@ -111,6 +114,9 @@ export default function UserProfilePage() {
   const [suspendReason, setSuspendReason] = useState("");
   const [suspendLoading, setSuspendLoading] = useState(false);
   const [suspendAction, setSuspendAction] = useState<"suspend" | "unsuspend">("suspend");
+  const { sessions: userSessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions, revokeSession } = useUserSessions(userId);
+  const [sessionToRevoke, setSessionToRevoke] = useState<string | null>(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -187,6 +193,23 @@ export default function UserProfilePage() {
       toast({ title: "Error", description: "Action failed", variant: "destructive" });
     } finally {
       setSuspendLoading(false);
+    }
+  };
+
+  const handleRevokeSession = async () => {
+    if (!sessionToRevoke) return;
+    setRevokeLoading(true);
+    try {
+      const result = await revokeSession(sessionToRevoke);
+      if (result.success) {
+        toast({ title: "Session revoked", description: "The session has been revoked." });
+        setSessionToRevoke(null);
+        refetchSessions();
+      } else {
+        toast({ title: "Error", description: result.error ?? "Failed to revoke session", variant: "destructive" });
+      }
+    } finally {
+      setRevokeLoading(false);
     }
   };
 
@@ -525,6 +548,84 @@ export default function UserProfilePage() {
             </CardContent>
           </Card>
 
+          {/* Active sessions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Monitor className="h-5 w-5" />
+                Active sessions
+              </CardTitle>
+              <CardDescription>
+                Devices and sessions where this user is signed in. Revoked sessions may still appear until you refresh.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {sessionsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : sessionsError ? (
+                <p className="text-muted-foreground text-center py-4">{sessionsError}</p>
+              ) : !userSessions.length ? (
+                <p className="text-muted-foreground text-center py-8">No sessions found.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Device</TableHead>
+                        <TableHead>IP address</TableHead>
+                        <TableHead>Created at</TableHead>
+                        <TableHead>Last active</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[100px]">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userSessions.map((session) => {
+                        const isRevoked = !!session.revoked_at;
+                        return (
+                          <TableRow key={session.id}>
+                            <TableCell className="max-w-[200px] truncate text-sm" title={session.user_agent ?? undefined}>
+                              {session.user_agent || "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">{session.ip_address || "—"}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {session.created_at ? new Date(session.created_at).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {session.last_active_at ? new Date(session.last_active_at).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell>
+                              {isRevoked ? (
+                                <Badge variant="secondary">Revoked</Badge>
+                              ) : (
+                                <Badge className="bg-green-100 text-green-800">Active</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {!isRevoked && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => setSessionToRevoke(session.id)}
+                                >
+                                  <LogOut className="h-4 w-4 mr-1" />
+                                  Revoke
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Activity logs (legacy) */}
           <Card>
             <CardHeader>
@@ -567,6 +668,26 @@ export default function UserProfilePage() {
             </CardContent>
           </Card>
         </div>
+
+        <Dialog open={!!sessionToRevoke} onOpenChange={(open) => !open && setSessionToRevoke(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Revoke session</DialogTitle>
+              <DialogDescription>
+                This will log out the user from this device. They will need to sign in again. Continue?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSessionToRevoke(null)} disabled={revokeLoading}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleRevokeSession} disabled={revokeLoading}>
+                {revokeLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Revoke
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
           <DialogContent>

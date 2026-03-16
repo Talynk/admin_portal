@@ -25,12 +25,27 @@ import { useActivityLogs } from "@/hooks/use-activity-logs"
 
 type UiSeverity = "high" | "medium" | "low"
 
+const AUDIT_ACTION_TYPE_OPTIONS = [
+  { value: "", label: "All audit types" },
+  { value: "SESSION_REVOKED_BY_ADMIN", label: "Session revoked by admin" },
+  { value: "USER_ISSUE_CREATED", label: "User issue created" },
+  { value: "USER_ISSUE_UPDATED", label: "User issue updated" },
+  { value: "CHALLENGE_WINNERS_CONFIG_UPDATED", label: "Challenge winners config updated" },
+  { value: "LOGOUT", label: "Logout" },
+  { value: "LOGOUT_ALL_SESSIONS", label: "Logout all sessions" },
+  { value: "PASSWORD_CHANGE_REQUESTED", label: "Password change requested" },
+  { value: "PASSWORD_CHANGED", label: "Password changed" },
+  { value: "ACCOUNT_DELETION_REQUESTED", label: "Account deletion requested" },
+  { value: "ACCOUNT_DELETION_COMPLETED", label: "Account deletion completed" },
+]
+
 export default function ActivityPage() {
-  const { logs, loading, error, refetch } = useActivityLogs({ page: 1, limit: 100 })
+  const { logs, loading, error, refetch, params, setParams } = useActivityLogs({ page: 1, limit: 100 })
   const [searchTerm, setSearchTerm] = useState("")
   const [actionFilter, setActionFilter] = useState("all")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [userFilter, setUserFilter] = useState("all")
+  const auditActionType = params.actionType ?? ""
 
   const deriveSeverity = (statusCode?: number, success?: boolean): UiSeverity => {
     if (statusCode && statusCode >= 500) return "high"
@@ -247,6 +262,22 @@ export default function ActivityPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select
+                  value={auditActionType || "all"}
+                  onValueChange={(v) => setParams((prev) => ({ ...prev, actionType: v === "all" ? undefined : v }))}
+                >
+                  <SelectTrigger className="w-full lg:w-[220px]">
+                    <SelectValue placeholder="Audit action type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All audit types</SelectItem>
+                    {AUDIT_ACTION_TYPE_OPTIONS.filter((o) => o.value).map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="rounded-md border">
@@ -284,7 +315,7 @@ export default function ActivityPage() {
                           <div className="flex items-center gap-2">
                             {getActionIcon(log.action)}
                             <span className="text-sm font-medium">
-                              {log.action.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                              {log.action.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </span>
                           </div>
                         </TableCell>

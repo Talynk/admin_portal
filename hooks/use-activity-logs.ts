@@ -8,6 +8,7 @@ export interface ActivityLogsParams {
   dateFrom?: string
   dateTo?: string
   userId?: string
+  actionType?: string
 }
 
 export function useActivityLogs(initialParams: ActivityLogsParams = {}) {

@@ -155,6 +155,7 @@ interface UseChallengeReturn {
   stopChallenge: () => Promise<{ success: boolean; error?: string }>
   reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string }>
   confirmChallengeWinners: () => Promise<{ success: boolean; error?: string }>
+  updateMaxWinners: (max: number | null) => Promise<{ success: boolean; error?: string }>
 }
 
 export function useChallenge(challengeId: string, analyticsDays: number = 30): UseChallengeReturn {
@@ -287,6 +288,21 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     }
   }, [challengeId, fetchChallenge])
 
+  const updateMaxWinners = useCallback(async (max: number | null) => {
+    if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+
+    try {
+      const response = await apiClient.updateChallengeWinnersConfig(challengeId, { maxWinners: max })
+      if (response.success) {
+        await fetchChallenge()
+        return { success: true }
+      }
+      return { success: false, error: response.error || 'Failed to update max winners' }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+    }
+  }, [challengeId, fetchChallenge])
+
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
@@ -303,6 +319,7 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     stopChallenge,
     reorderWinners,
     confirmChallengeWinners,
+    updateMaxWinners,
   }
 }
 

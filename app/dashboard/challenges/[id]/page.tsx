@@ -160,6 +160,7 @@ export default function ChallengeDetailPage() {
     stopChallenge,
     reorderWinners,
     confirmChallengeWinners,
+    updateMaxWinners,
   } = useChallenge(challengeId, analyticsDays)
 
   const isEndedOrStopped = challenge?.status === "ended" || challenge?.status === "stopped"
@@ -180,11 +181,43 @@ export default function ChallengeDetailPage() {
   const [setRankDialogUser, setSetRankDialogUser] = useState<AggregatedWinnerRow | null>(null)
   const [setRankValue, setSetRankValue] = useState("")
   const [setRankSubmitting, setSetRankSubmitting] = useState(false)
+  const [maxWinnersInput, setMaxWinnersInput] = useState("")
+  const [maxWinnersSaving, setMaxWinnersSaving] = useState(false)
 
-  const { winners: aggregatedWinners, pagination: aggPagination, loading: aggLoading, setPage: setAggPage, page: aggPage, refetch: refetchAggregated } = useChallengeAggregatedWinners(
+  const { winners: aggregatedWinners, pagination: aggPagination, loading: aggLoading, setPage: setAggPage, page: aggPage, refetch: refetchAggregated, maxWinners: aggMaxWinners, orderedBy: aggOrderedBy } = useChallengeAggregatedWinners(
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId && isEndedOrStopped }
   )
+
+  useEffect(() => {
+    if (aggMaxWinners != null) {
+      setMaxWinnersInput(String(aggMaxWinners))
+    } else {
+      setMaxWinnersInput("")
+    }
+  }, [aggMaxWinners])
+
+  const handleSaveMaxWinners = async () => {
+    const trimmed = maxWinnersInput.trim()
+    const value = trimmed === "" ? null : parseInt(trimmed, 10)
+    if (value !== null && (Number.isNaN(value) || value < 1)) {
+      toast({ title: "Invalid value", description: "Enter a positive number or leave blank.", variant: "destructive" })
+      return
+    }
+    setMaxWinnersSaving(true)
+    try {
+      const result = await updateMaxWinners(value)
+      if (result.success) {
+        toast({ title: "Saved", description: "Max winners configuration updated." })
+        refetchAggregated()
+      } else {
+        toast({ title: "Error", description: result.error ?? "Failed to update", variant: "destructive" })
+      }
+    } finally {
+      setMaxWinnersSaving(false)
+    }
+  }
+
   const { participants: rankingParticipants, loading: rankingLoading, search: rankingSearch, setSearch: setRankingSearch, setPage: setRankingPage, page: rankingPage, pagination: rankingPagination, refetch: refetchRanking } = useChallengeParticipantsRanking(
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId }
@@ -974,6 +1007,37 @@ export default function ChallengeDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       Winners are users (one row per user), ranked by total likes across their posts. You can reorder based on other criteria (e.g. quality, rules) using drag-and-drop or Set rank, then confirm to notify participants.
                     </p>
+                    {aggOrderedBy && (
+                      <p className="text-xs text-muted-foreground">
+                        Current ordering: {aggOrderedBy === "admin_rank" ? "admin rank" : "total likes per user"}
+                      </p>
+                    )}
+                    <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
+                      <Label htmlFor="max-winners">Max winners</Label>
+                      <div className="flex flex-wrap items-end gap-2">
+                        <Input
+                          id="max-winners"
+                          type="number"
+                          min={1}
+                          placeholder="Leave blank for no limit"
+                          value={maxWinnersInput}
+                          onChange={(e) => setMaxWinnersInput(e.target.value)}
+                          disabled={!!winnersConfirmedAt}
+                          className="w-32"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleSaveMaxWinners}
+                          disabled={!!winnersConfirmedAt || maxWinnersSaving}
+                        >
+                          {maxWinnersSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Save
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Leave blank to use backend default (no explicit limit). Disabled after winners are confirmed.
+                      </p>
+                    </div>
                     {winnersConfirmedAt ? (
                       <div className="rounded-lg border bg-muted/30 p-4">
                         <p className="text-sm font-medium">
