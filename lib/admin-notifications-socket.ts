@@ -12,6 +12,17 @@ const notificationListeners: Set<(payload: AdminNotificationSocketPayload) => vo
 
 function getSocketServerUrl(): string {
   if (typeof window === 'undefined') return ''
+  // Optional: use a dedicated Socket.IO URL (e.g. if realtime runs on a different host/path)
+  const socketUrl = process.env.NEXT_PUBLIC_SOCKET_IO_URL
+  if (socketUrl && socketUrl.startsWith('http')) {
+    try {
+      const url = new URL(socketUrl)
+      return `${url.protocol}//${url.host}`
+    } catch {
+      // fall through to API-derived URL
+    }
+  }
+  // Same host as REST API (e.g. https://api.talentix.net when NEXT_PUBLIC_API_URL=https://api.talentix.net/api)
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.talentix.net/api'
   try {
     const url = new URL(apiUrl)
@@ -41,10 +52,17 @@ export function connectAdminNotificationsSocket(token: string): void {
     socket = null
   }
 
+  const socketPath = process.env.NEXT_PUBLIC_SOCKET_IO_PATH || '/socket.io'
   socket = io(serverUrl, {
-    path: '/socket.io',
-    transports: ['websocket', 'polling'],
+    path: socketPath,
+    // Try polling first to avoid "Invalid frame header" when proxy/load balancer doesn't handle raw WebSocket
+    transports: ['polling', 'websocket'],
     autoConnect: true,
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000,
+    timeout: 20000,
   })
 
   socket.on('connect', () => {
@@ -67,8 +85,13 @@ export function connectAdminNotificationsSocket(token: string): void {
     })
   })
 
+  let lastConnectErrorLog = 0
   socket.on('connect_error', (err) => {
-    console.warn('[Admin Notifications Socket] Connect error:', err.message)
+    const now = Date.now()
+    if (now - lastConnectErrorLog > 15000) {
+      lastConnectErrorLog = now
+      console.warn('[Admin Notifications Socket] Connect error:', err.message)
+    }
   })
 
   socket.on('disconnect', (reason) => {
