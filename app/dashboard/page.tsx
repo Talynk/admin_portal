@@ -7,12 +7,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle, Image as ImageIcon, Wifi, WifiOff } from "lucide-react"
+import { Users, Video, AlertTriangle, TrendingUp, Eye, MessageSquare, Heart, Loader2, AlertCircle, Image as ImageIcon, Wifi, WifiOff, Clock } from "lucide-react"
 import { useDashboard } from "@/hooks/use-dashboard"
 import { useAdminWebSocket } from "@/hooks/use-admin-websocket"
 import { useAuth } from "@/components/auth-provider"
-import { getFileUrl } from "@/lib/file-utils"
+import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
 import { toast } from "@/hooks/use-toast"
+
+function formatTimeAgo(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return "—"
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput
+  if (Number.isNaN(date.getTime())) return "—"
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffSec < 60) return "Just now"
+  if (diffMin < 60) return `${diffMin} min${diffMin === 1 ? "" : "s"} ago`
+  if (diffHour < 24) return `${diffHour} hr${diffHour === 1 ? "" : "s"} ago`
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`
+  return date.toLocaleDateString()
+}
 
 export default function DashboardPage() {
   const { stats, loading, error, refetch } = useDashboard()
@@ -278,119 +295,114 @@ export default function DashboardPage() {
                   </div>
                 ) : stats?.recentContent && stats.recentContent.length > 0 ? (
                   stats.recentContent.map((post: any) => {
-                    const videoUrl = post.video_url || post.fullUrl || post.file_url;
-                    const fileUrl = getFileUrl(videoUrl);
-                    const isImage = post.type === 'image';
-                    const isVideo = post.type === 'video';
-                    
+                    const videoUrl = post.video_url || post.fullUrl || post.file_url
+                    const fileUrl = getFileUrl(videoUrl)
+                    const isImage = post.type === "image"
+                    const isVideo = post.type === "video"
+                    const thumbnailUrl =
+                      getFileUrl(post.thumbnail_url) ||
+                      (isVideo ? getThumbnailUrl(videoUrl) : null) ||
+                      (isImage ? fileUrl : null) ||
+                      fileUrl
+                    const createdAt = post.createdAt ?? post.created_at
+
                     return (
-                      <div 
-                        key={post.id} 
-                        className="flex items-center space-x-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                      <div
+                        key={post.id}
+                        className="flex items-center gap-4 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/50 cursor-pointer"
                         onClick={() => {
                           setSelectedPost(post)
                           setPostDialogOpen(true)
                         }}
                       >
-                        {videoUrl ? (
-                          <div className="relative w-16 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-md flex items-center justify-center overflow-hidden group">
-                            {isImage ? (
-                              // Image content
-                              <img 
-                                src={fileUrl || '/placeholder.svg'} 
-                                alt={post.title || 'Image'} 
-                                className="w-full h-full object-cover"
+                        <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg bg-muted [&.thumb-failed_img]:hidden [&.thumb-failed_.thumb-fallback]:flex">
+                          {thumbnailUrl ? (
+                            <>
+                              <img
+                                src={thumbnailUrl}
+                                alt={post.title || "Thumbnail"}
+                                className="h-full w-full object-cover"
                                 loading="lazy"
                                 onError={(e) => {
-                                  if (e.currentTarget.src !== '/placeholder.svg') {
-                                    e.currentTarget.src = '/placeholder.svg'
-                                  }
+                                  e.currentTarget.parentElement?.classList.add("thumb-failed")
                                 }}
                               />
-                            ) : isVideo ? (
-                              // Video content - use video URL directly as thumbnail (canvas extraction causes CORS issues)
-                              <>
-                                <img 
-                                  src={fileUrl || '/placeholder.svg'} 
-                                  alt={post.title || 'Video thumbnail'} 
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                  data-post-id={post.id}
-                                  onError={(e) => {
-                                    if (e.currentTarget.src !== '/placeholder.svg') {
-                                      e.currentTarget.src = '/placeholder.svg'
-                                    }
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                  <Video className="w-4 h-4 text-white" />
+                              <div className="thumb-fallback absolute inset-0 hidden items-center justify-center bg-muted" aria-hidden>
+                                <Video className="h-8 w-8 text-muted-foreground" />
+                              </div>
+                              {isVideo && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
+                                  <div className="rounded-full bg-black/50 p-2">
+                                    <Video className="h-4 w-4 text-white" />
+                                  </div>
                                 </div>
-                              </>
-                            ) : (
-                              // Fallback for unknown type
-                              <img 
-                                src={fileUrl || '/placeholder.svg'} 
-                                alt={post.title || 'Content'} 
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
-                                  if (e.currentTarget.src !== '/placeholder.svg') {
-                                    e.currentTarget.src = '/placeholder.svg'
-                                  }
-                                }}
-                              />
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                              {isImage ? (
+                                <ImageIcon className="h-8 w-8" />
+                              ) : (
+                                <Video className="h-8 w-8" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="truncate text-sm font-medium">{post.title || "Untitled"}</p>
+                          <p className="text-xs text-muted-foreground">@{post.user?.username || "unknown"}</p>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                            {post.category && (
+                              <span>Category: {post.category.name}</span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatTimeAgo(createdAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Eye className="h-3 w-3" />
+                              {post.views ?? post.view_count ?? 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Heart className="h-3 w-3" />
+                              {post.likes ?? 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3" />
+                              {post.comment_count ?? 0}
+                            </span>
+                            {(post.shares ?? 0) > 0 && (
+                              <span className="flex items-center gap-1">
+                                <TrendingUp className="h-3 w-3" />
+                                {post.shares}
+                              </span>
                             )}
                           </div>
-                        ) : (
-                          <div className="w-16 h-12 bg-gradient-to-br from-gray-500 to-gray-600 rounded-md flex items-center justify-center">
-                            <MessageSquare className="w-6 h-6 text-white" />
-                          </div>
-                        )}
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none">{post.title || "Untitled Post"}</p>
-                        <p className="text-sm text-muted-foreground">@{post.user?.username || "unknown"}</p>
-                        {post.category && (
-                          <p className="text-xs text-muted-foreground">Category: {post.category.name}</p>
-                        )}
-                        <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            {post.views || 0}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Heart className="w-3 h-3" />
-                            {post.likes || 0}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3" />
-                            {post.comment_count || 0}
-                          </span>
-                          {post.shares > 0 && (
-                            <span className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />
-                              {post.shares}
-                            </span>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <Badge
+                            variant={
+                              post.status === "active"
+                                ? "default"
+                                : post.status === "draft"
+                                  ? "secondary"
+                                  : post.status === "suspended"
+                                    ? "destructive"
+                                    : "outline"
+                            }
+                          >
+                            {post.status || "draft"}
+                          </Badge>
+                          {post.is_featured && (
+                            <Badge variant="outline" className="text-xs">
+                              Featured
+                            </Badge>
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant={
-                          post.status === "active" 
-                            ? "default" 
-                            : post.status === "draft"
-                            ? "secondary" 
-                            : post.status === "suspended"
-                            ? "destructive"
-                            : "outline"
-                        }>
-                          {post.status || "draft"}
-                        </Badge>
-                        {post.is_featured && (
-                          <Badge variant="outline" className="text-xs">Featured</Badge>
-                        )}
-                      </div>
-                    </div>
-                    );
+                    )
                   })
                 ) : (
                   <div className="text-center py-8">
