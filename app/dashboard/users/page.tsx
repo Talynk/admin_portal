@@ -1130,7 +1130,7 @@ export default function UsersPage() {
               </DialogTitle>
               <DialogDescription>
                 {actionType === "suspend" &&
-                  `Are you sure you want to suspend @${selectedUser?.username}? This will prevent them from accessing the platform.`}
+                  `Suspend @${selectedUser?.username}? Suspension takes effect immediately: they cannot perform authenticated actions. Client apps will receive 403 (account_suspended), log the user out, and show the reason. No extra step to revoke tokens is required.`}
                 {actionType === "unsuspend" &&
                   `Are you sure you want to unsuspend @${selectedUser?.username}? This will restore their platform access.`}
                 {actionType === "activate" &&

@@ -57,7 +57,7 @@ export default function SuspendedUsersPage() {
               </Button>
               <h1 className="text-3xl font-bold tracking-tight mt-2">Suspended users</h1>
               <p className="text-muted-foreground">
-                Users with report context: who reported them, when, and reasons
+                Accounts suspended here receive 403 (account_suspended) and are logged out by the app. View suspension reason, date, and associated report context below.
               </p>
             </div>
             <Select value={sort} onValueChange={(v: "suspended_at_desc" | "created_at_desc") => { setSort(v); setPage(1); }}>

@@ -102,6 +102,11 @@ export default function PostDetailPage() {
   const [isReviewing, setIsReviewing] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [reportReviewOpen, setReportReviewOpen] = useState(false)
+  const [reportReviewTarget, setReportReviewTarget] = useState<{ id: string; reason: string } | null>(null)
+  const [reportReviewStatus, setReportReviewStatus] = useState<"reviewed" | "resolved" | "dismissed">("reviewed")
+  const [reportReviewNotes, setReportReviewNotes] = useState("")
+  const [reportReviewSubmitting, setReportReviewSubmitting] = useState(false)
 
   const TIME_FRAMES: { value: TimeFrame; label: string }[] = [
     { value: "1h", label: "1 hour" },
@@ -193,6 +198,53 @@ export default function PostDetailPage() {
   const handleAIModerationAction = (action: AIReviewAction) => {
     setIsReviewing(true)
     setTimeout(() => setIsReviewing(false), 2000)
+  }
+
+  const openReportReview = (r: { id: string; reason: string }) => {
+    setReportReviewTarget(r)
+    setReportReviewStatus("reviewed")
+    setReportReviewNotes("")
+    setReportReviewOpen(true)
+  }
+
+  const closeReportReview = () => {
+    setReportReviewOpen(false)
+    setReportReviewTarget(null)
+    setReportReviewNotes("")
+  }
+
+  const handleReportReviewSubmit = async () => {
+    if (!reportReviewTarget) return
+    setReportReviewSubmitting(true)
+    try {
+      const res = await apiClient.reviewReport(reportReviewTarget.id, {
+        status: reportReviewStatus,
+        adminNotes: reportReviewNotes.trim() || undefined,
+      })
+      if (res.success) {
+        toast({
+          title: "Report reviewed",
+          description: reportReviewStatus === "resolved" ? "Post will be unfrozen; reporter and owner will be notified." : "Reporter and post owner will be notified.",
+        })
+        closeReportReview()
+        refetchReports()
+        refetch()
+      } else {
+        const fallback = await apiClient.updateReportStatus(reportReviewTarget.id, reportReviewStatus, reportReviewNotes.trim() || undefined)
+        if (fallback.success) {
+          toast({ title: "Report updated", description: "Status and notes saved." })
+          closeReportReview()
+          refetchReports()
+          refetch()
+        } else {
+          toast({ title: "Error", description: (fallback as { error?: string }).error ?? "Failed to update report", variant: "destructive" })
+        }
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to review report", variant: "destructive" })
+    } finally {
+      setReportReviewSubmitting(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -768,6 +820,7 @@ export default function PostDetailPage() {
                             <TableHead>Description</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Date</TableHead>
+                            <TableHead className="w-[100px]">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -787,6 +840,11 @@ export default function PostDetailPage() {
                               <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{r.description ?? "—"}</TableCell>
                               <TableCell><Badge variant={r.status === "resolved" ? "default" : "secondary"}>{r.status}</Badge></TableCell>
                               <TableCell className="text-muted-foreground text-sm">{new Date(r.createdAt).toLocaleString()}</TableCell>
+                              <TableCell>
+                                <Button variant="outline" size="sm" onClick={() => openReportReview({ id: r.id, reason: r.reason })}>
+                                  Review
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -833,7 +891,9 @@ export default function PostDetailPage() {
               <DialogDescription>
                 {actionType === "delete" &&
                   "This cannot be undone. The post and related data will be removed."}
-                {actionType !== "delete" &&
+                {actionType === "suspend" &&
+                  "The post owner will be notified and can appeal if they believe it's a mistake (one appeal per post). Suspended posts are frozen (read-only)."}
+                {actionType !== "delete" && actionType !== "suspend" &&
                   `Confirm: ${actionType} for "${post?.title || "this post"}".`}
               </DialogDescription>
             </DialogHeader>
@@ -867,6 +927,46 @@ export default function PostDetailPage() {
                 ) : (
                   <>Confirm</>
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Report review dialog */}
+        <Dialog open={reportReviewOpen} onOpenChange={(open) => !open && closeReportReview()}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Review report</DialogTitle>
+              <DialogDescription>
+                Resolved: post will be unfrozen and set to active; reporter and post owner will be notified. Dismissed: reporter and owner get notifications; post unchanged.
+              </DialogDescription>
+            </DialogHeader>
+            {reportReviewTarget && (
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Outcome</Label>
+                  <Select value={reportReviewStatus} onValueChange={(v) => setReportReviewStatus(v as "reviewed" | "resolved" | "dismissed")}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="reviewed">Reviewed</SelectItem>
+                      <SelectItem value="resolved">Resolved (unfreeze post)</SelectItem>
+                      <SelectItem value="dismissed">Dismissed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="report-review-notes">Admin notes (included in notification to reporter)</Label>
+                  <Textarea id="report-review-notes" placeholder="Optional note for the reporter and post owner" value={reportReviewNotes} onChange={(e) => setReportReviewNotes(e.target.value)} className="mt-1 min-h-[80px]" />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={closeReportReview} disabled={reportReviewSubmitting}>Cancel</Button>
+              <Button onClick={handleReportReviewSubmit} disabled={reportReviewSubmitting}>
+                {reportReviewSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Submit review
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -1,15 +1,38 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, Download, Calendar, Users, Video, AlertTriangle, CheckCircle, Clock, BarChart3, Search } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { FileText, Download, Calendar, Users, Video, AlertTriangle, CheckCircle, Clock, BarChart3, Search, Loader2, MessageSquare } from "lucide-react"
+import { useReports } from "@/hooks/use-reports"
+import { apiClient } from "@/lib/api-client"
+import { toast } from "@/hooks/use-toast"
+import type { ContentReport } from "@/hooks/use-reports"
 
 // Mock reports data
 const mockReports = {
@@ -85,10 +108,31 @@ const mockReports = {
   ],
 }
 
+const REPORT_STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "pending", label: "Pending" },
+  { value: "reviewed", label: "Reviewed" },
+  { value: "resolved", label: "Resolved" },
+  { value: "dismissed", label: "Dismissed" },
+]
+
 export default function ReportsPage() {
   const [selectedReportType, setSelectedReportType] = useState("all")
   const [timeRange, setTimeRange] = useState("30d")
   const [searchTerm, setSearchTerm] = useState("")
+  const [contentReportsPage, setContentReportsPage] = useState(1)
+  const [contentReportStatus, setContentReportStatus] = useState("")
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<ContentReport | null>(null)
+  const [reviewStatus, setReviewStatus] = useState<"reviewed" | "resolved" | "dismissed">("reviewed")
+  const [adminNotes, setAdminNotes] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  const { reports: contentReports, pagination: contentPagination, loading: contentReportsLoading, error: contentReportsError, refetch: refetchContentReports } = useReports({
+    page: contentReportsPage,
+    limit: 20,
+    status: contentReportStatus || undefined,
+  })
 
   const filteredScheduled = useMemo(() => {
     if (!searchTerm.trim()) return mockReports.scheduled
@@ -151,6 +195,69 @@ export default function ReportsPage() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
+  }
+
+  const openReview = (report: ContentReport) => {
+    setSelectedReport(report)
+    setReviewStatus("reviewed")
+    setAdminNotes("")
+    setReviewDialogOpen(true)
+  }
+
+  const closeReview = () => {
+    setReviewDialogOpen(false)
+    setSelectedReport(null)
+    setAdminNotes("")
+  }
+
+  const handleReviewSubmit = async () => {
+    if (!selectedReport) return
+    setSubmitting(true)
+    try {
+      const res = await apiClient.reviewReport(selectedReport.id, {
+        status: reviewStatus,
+        adminNotes: adminNotes.trim() || undefined,
+      })
+      if (res.success) {
+        toast({
+          title: "Report reviewed",
+          description: reviewStatus === "resolved" ? "Post will be unfrozen and set to active; reporter and post owner will be notified." : "Reporter and post owner will be notified.",
+        })
+        closeReview()
+        refetchContentReports()
+      } else {
+        const err = (res as { error?: string }).error
+        if (err && err.includes("404") || err?.toLowerCase().includes("not found")) {
+          const fallback = await apiClient.updateReportStatus(selectedReport.id, reviewStatus, adminNotes.trim() || undefined)
+          if (fallback.success) {
+            toast({ title: "Report updated", description: "Status and notes saved." })
+            closeReview()
+            refetchContentReports()
+          } else {
+            toast({ title: "Error", description: (fallback as { error?: string }).error ?? "Failed to update report", variant: "destructive" })
+          }
+        } else {
+          toast({ title: "Error", description: err ?? "Failed to review report", variant: "destructive" })
+        }
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to review report", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const getReportStatusBadge = (status: string) => {
+    switch (status) {
+      case "reviewed":
+        return <Badge className="bg-blue-100 text-blue-800">Reviewed</Badge>
+      case "resolved":
+        return <Badge className="bg-green-100 text-green-800">Resolved</Badge>
+      case "dismissed":
+        return <Badge variant="secondary">Dismissed</Badge>
+      default:
+        return <Badge variant="outline">{status ?? "Pending"}</Badge>
+    }
   }
 
   return (
@@ -229,11 +336,105 @@ export default function ReportsPage() {
             />
           </div>
 
-          <Tabs defaultValue="scheduled" className="space-y-6">
+          <Tabs defaultValue="content" className="space-y-6">
             <TabsList>
+              <TabsTrigger value="content">Content Reports</TabsTrigger>
               <TabsTrigger value="scheduled">Scheduled Reports</TabsTrigger>
               <TabsTrigger value="generated">Generated Reports</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="content" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Content report queue
+                  </CardTitle>
+                  <CardDescription>
+                    Review user reports on posts. Resolved: post is unfrozen and set to active; reporter and post owner are notified. Dismissed: reporter and owner get notifications; post unchanged.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Label>Status</Label>
+                    <Select value={contentReportStatus || "all"} onValueChange={(v) => { setContentReportStatus(v === "all" ? "" : v); setContentReportsPage(1); }}>
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REPORT_STATUS_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value || "all"} value={opt.value || "all"}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {contentReportsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : contentReportsError ? (
+                    <p className="text-destructive text-center py-8">{contentReportsError}</p>
+                  ) : !contentReports.length ? (
+                    <p className="text-muted-foreground text-center py-8">No content reports found.</p>
+                  ) : (
+                    <>
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Post</TableHead>
+                              <TableHead>Reporter</TableHead>
+                              <TableHead>Reason</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="w-[100px]">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {contentReports.map((r) => (
+                              <TableRow key={r.id}>
+                                <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                                  {r.createdAt || r.created_at ? formatDate(String(r.createdAt ?? r.created_at)) : "—"}
+                                </TableCell>
+                                <TableCell>
+                                  {(r.postId ?? r.post_id ?? r.post?.id) && (
+                                    <Link href={`/dashboard/content/${r.postId ?? r.post_id ?? r.post?.id}`} className="text-primary hover:underline font-mono text-sm">
+                                      {r.postId ?? r.post_id ?? r.post?.id}
+                                    </Link>
+                                  )}
+                                  {!(r.postId ?? r.post_id ?? r.post?.id) && "—"}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  {r.reporter?.username ? `@${r.reporter.username}` : r.reporter?.email ?? "—"}
+                                </TableCell>
+                                <TableCell className="max-w-[200px] truncate text-sm" title={String(r.reason ?? r.description ?? "")}>
+                                  {String(r.reason ?? r.description ?? "—")}
+                                </TableCell>
+                                <TableCell>{getReportStatusBadge(String(r.status ?? "pending"))}</TableCell>
+                                <TableCell>
+                                  <Button variant="outline" size="sm" onClick={() => openReview(r)}>Review</Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {contentPagination && (contentPagination.totalPages ?? 1) > 1 && (
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-muted-foreground">
+                            Page {contentPagination.page} of {contentPagination.totalPages} ({contentPagination.total} total)
+                          </p>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" disabled={contentReportsPage <= 1} onClick={() => setContentReportsPage((p) => Math.max(1, p - 1))}>Previous</Button>
+                            <Button variant="outline" size="sm" disabled={contentReportsPage >= (contentPagination.totalPages ?? 1)} onClick={() => setContentReportsPage((p) => p + 1)}>Next</Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="scheduled" className="space-y-6">
               <Card>
@@ -358,6 +559,45 @@ export default function ReportsPage() {
             </Card>
           </div>
         </div>
+
+        <Dialog open={reviewDialogOpen} onOpenChange={(open) => !open && closeReview()}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Review report</DialogTitle>
+              <DialogDescription>
+                Resolved: post will be unfrozen and set to active; reporter and post owner will be notified. Dismissed: reporter and owner get appropriate notifications; post unchanged.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedReport && (
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label>Outcome</Label>
+                  <Select value={reviewStatus} onValueChange={(v) => setReviewStatus(v as "reviewed" | "resolved" | "dismissed")}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="reviewed">Reviewed</SelectItem>
+                      <SelectItem value="resolved">Resolved (unfreeze post)</SelectItem>
+                      <SelectItem value="dismissed">Dismissed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="report-admin-notes">Admin notes (included in notification to reporter)</Label>
+                  <Textarea id="report-admin-notes" placeholder="Optional note for the reporter and post owner" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} className="mt-1 min-h-[80px]" />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={closeReview} disabled={submitting}>Cancel</Button>
+              <Button onClick={handleReviewSubmit} disabled={submitting}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Submit review
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </ProtectedRoute>
   )

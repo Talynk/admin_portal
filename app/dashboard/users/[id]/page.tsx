@@ -695,8 +695,8 @@ export default function UserProfilePage() {
               <DialogTitle>{suspendAction === "suspend" ? "Suspend user" : "Unsuspend user"}</DialogTitle>
               <DialogDescription>
                 {suspendAction === "suspend"
-                  ? `Suspend @${user.username}? They will not be able to access the platform.`
-                  : `Restore access for @${user.username}.`}
+                  ? `Suspend @${user.username}? Suspension takes effect immediately: they will not be able to perform any authenticated actions. Client apps will receive a 403 (account_suspended) and will log the user out and show the suspension reason. No extra step to revoke tokens is required.`
+                  : `Restore access for @${user.username}. They will be able to sign in again.`}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">

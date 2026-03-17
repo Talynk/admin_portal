@@ -1505,7 +1505,7 @@ export default function ContentPage() {
                 {actionType === "reject" &&
                   `Are you sure you want to suspend "${selectedVideo?.title}"? This will prevent it from being visible.`}
                 {actionType === "suspend" &&
-                  `Are you sure you want to suspend "${selectedVideo?.title}"? The post will be hidden and the owner will be notified.`}
+                  `Suspend "${selectedVideo?.title}"? The owner will be notified and can appeal if they believe it's a mistake (one appeal per post). Suspended posts are frozen (read-only).`}
                 {actionType === "feature" &&
                   `Are you sure you want to feature "${selectedVideo?.title}"? This will highlight it for all users.`}
                 {actionType === "unfeature" &&

@@ -21,6 +21,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Loader2, AlertCircle, ChevronDown, ChevronRight } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "@/hooks/use-toast"
@@ -66,6 +67,7 @@ export default function SupportIssueDetailPage() {
   const [category, setCategory] = useState("")
   const [metadataOpen, setMetadataOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [adminResponse, setAdminResponse] = useState("")
 
   const fetchIssue = useCallback(async () => {
     if (!id) return
@@ -79,6 +81,7 @@ export default function SupportIssueDetailPage() {
         setIssue(issueData)
         setStatus(issueData.status ?? "NEW")
         setCategory(issueData.category ?? "")
+        setAdminResponse(String((issueData as SupportIssue & { admin_message?: string; adminMessage?: string; response?: string }).admin_message ?? (issueData as SupportIssue & { adminMessage?: string; response?: string }).adminMessage ?? (issueData as SupportIssue & { response?: string }).response ?? ""))
       } else {
         setError((res as { error?: string }).error ?? "Failed to load issue")
         setIssue(null)
@@ -102,6 +105,7 @@ export default function SupportIssueDetailPage() {
       const res = await apiClient.updateSupportIssue(id, {
         status: status || undefined,
         ...(category ? { category } : {}),
+        ...(adminResponse.trim() ? { adminMessage: adminResponse.trim(), response: adminResponse.trim() } : {}),
       })
       if (res.success) {
         toast({ title: "Saved", description: "Issue updated successfully." })
@@ -229,9 +233,23 @@ export default function SupportIssueDetailPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Update issue</CardTitle>
-                  <CardDescription>Change status and category, then save.</CardDescription>
+                  <CardDescription>
+                    Change status, category, and add a response. {issue.user_id && "If the issue has a linked user, they will receive a support_issue_update notification with your response and status."}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="response-to-user">Response to user</Label>
+                    <Textarea
+                      id="response-to-user"
+                      placeholder="Your reply will be sent to the user and included in support_issue_update notifications."
+                      value={adminResponse}
+                      onChange={(e) => setAdminResponse(e.target.value)}
+                      className="mt-1 min-h-[120px]"
+                      disabled={saving}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">User-friendly; visible to the end user.</p>
+                  </div>
                   <div>
                     <Label htmlFor="status">Status</Label>
                     <Select value={status} onValueChange={setStatus}>

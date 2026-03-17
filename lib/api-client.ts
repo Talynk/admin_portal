@@ -1019,6 +1019,14 @@ class ApiClient {
     })
   }
 
+  /** Review a report: updates status and notifies reporter and post owner. Use status "reviewed" | "resolved" | "dismissed". */
+  async reviewReport(reportId: string, body: { status: 'reviewed' | 'resolved' | 'dismissed'; adminNotes?: string }) {
+    return this.request(`/reports/${reportId}/review`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    })
+  }
+
   // Admin Approver Management
   async getApprovers(params?: {
     page?: number
@@ -1404,7 +1412,7 @@ class ApiClient {
 
   async updateSupportIssue(
     id: string,
-    payload: { status?: string; category?: string; metadata?: unknown }
+    payload: { status?: string; category?: string; metadata?: unknown; adminMessage?: string; response?: string }
   ) {
     return this.request(`/support/admin/issues/${id}`, {
       method: 'PUT',
