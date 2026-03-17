@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAdminNotifications } from '@/components/admin-notifications-provider'
 import { Bell, CheckCircle, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toDashboardActionUrl } from '@/lib/notification-action-url'
 import type { AdminNotification } from '@/lib/types/admin'
 
 function formatNotificationTime(createdAt: string) {
@@ -136,15 +137,14 @@ function NotificationItem({
           <span className="text-xs text-muted-foreground">
             {formatNotificationTime(notification.createdAt)}
           </span>
-          {notification.actionUrl && (
-            <Link
-              href={notification.actionUrl}
-              className="text-xs text-primary hover:underline"
-              onClick={() => {}}
-            >
-              View
-            </Link>
-          )}
+          {(() => {
+            const viewHref = toDashboardActionUrl(notification.actionUrl) ?? (notification.actionUrl?.startsWith('/dashboard/') ? notification.actionUrl : null)
+            return viewHref ? (
+              <Link href={viewHref} className="text-xs text-primary hover:underline" onClick={() => {}}>
+                View
+              </Link>
+            ) : null
+          })()}
         </div>
       </div>
     </li>

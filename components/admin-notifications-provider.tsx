@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/ui/toast'
 import { useAdminNotificationsSocket } from '@/hooks/use-admin-notifications-socket'
 import { disconnectAdminNotificationsSocket } from '@/lib/admin-notifications-socket'
+import { toDashboardActionUrl } from '@/lib/notification-action-url'
 import type { AdminNotification, AdminNotificationSocketPayload } from '@/lib/types/admin'
 
 export const ADMIN_NOTIFICATIONS_REFRESH_EVENT = 'admin-notifications-refresh'
@@ -139,14 +140,15 @@ export function AdminNotificationsProvider({ children }: { children: React.React
 
   const handleSocketNotification = useCallback(
     (payload: AdminNotificationSocketPayload) => {
+      const dashboardHref = toDashboardActionUrl(payload.actionUrl) ?? (payload.actionUrl?.startsWith('/dashboard/') ? payload.actionUrl : null)
       toast({
         title: payload.title,
         description: payload.message,
         variant:
           payload.severity === 'critical' || payload.severity === 'action_required' ? 'destructive' : undefined,
-        action: payload.actionUrl ? (
+        action: dashboardHref ? (
           <ToastAction asChild>
-            <Link href={payload.actionUrl}>View</Link>
+            <Link href={dashboardHref}>View</Link>
           </ToastAction>
         ) : undefined,
       })

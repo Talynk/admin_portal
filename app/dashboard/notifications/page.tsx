@@ -22,6 +22,7 @@ import {
   KanbanSquareDashed as MarkAsUnread,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
+import { toDashboardActionUrl } from "@/lib/notification-action-url"
 import {
   useAdminNotifications,
   ADMIN_NOTIFICATIONS_REFRESH_EVENT,
@@ -415,11 +416,14 @@ export default function NotificationsPage() {
                                 Mark read
                               </Button>
                             )}
-                            {notification.actionUrl && (
-                              <Button size="sm" variant="outline" asChild>
-                                <Link href={notification.actionUrl}>View</Link>
-                              </Button>
-                            )}
+                            {(() => {
+                              const viewHref = toDashboardActionUrl(notification.actionUrl) ?? (notification.actionUrl?.startsWith("/dashboard/") ? notification.actionUrl : null)
+                              return viewHref ? (
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={viewHref}>View</Link>
+                                </Button>
+                              ) : null
+                            })()}
                           </div>
                         </div>
                       </div>
