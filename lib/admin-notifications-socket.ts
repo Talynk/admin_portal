@@ -55,8 +55,8 @@ export function connectAdminNotificationsSocket(token: string): void {
   const socketPath = process.env.NEXT_PUBLIC_SOCKET_IO_PATH || '/socket.io'
   socket = io(serverUrl, {
     path: socketPath,
-    // Try polling first to avoid "Invalid frame header" when proxy/load balancer doesn't handle raw WebSocket
-    transports: ['polling', 'websocket'],
+    // Use polling only for now to avoid WebSocket \"Invalid frame header\" issues
+    transports: ['polling'],
     withCredentials: true,
     autoConnect: false,
     reconnection: true,
