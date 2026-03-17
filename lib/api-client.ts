@@ -1407,7 +1407,8 @@ class ApiClient {
     status: 'approved' | 'rejected'
     adminNotes?: string
   }) {
-    return this.request(`/admin/appeals/${appealId}/review`, {
+    // See ADMIN_APPEALS_REVIEW_FRONTEND_INTEGRATION.md – review endpoint lives under /reports, not /admin/appeals
+    return this.request(`/reports/appeals/${appealId}/review`, {
       method: 'PUT',
       body: JSON.stringify(data),
     })
