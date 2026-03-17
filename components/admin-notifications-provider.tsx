@@ -9,7 +9,10 @@ import { useAdminNotificationsSocket } from '@/hooks/use-admin-notifications-soc
 import { disconnectAdminNotificationsSocket } from '@/lib/admin-notifications-socket'
 import type { AdminNotification, AdminNotificationSocketPayload } from '@/lib/types/admin'
 
+export const ADMIN_NOTIFICATIONS_REFRESH_EVENT = 'admin-notifications-refresh'
+
 interface AdminNotificationsContextValue {
+  isProvided: boolean
   unreadCount: number
   recentNotifications: AdminNotification[]
   drawerOpen: boolean
@@ -22,14 +25,25 @@ interface AdminNotificationsContextValue {
   markAllAsRead: () => Promise<void>
 }
 
+const defaultContextValue: AdminNotificationsContextValue = {
+  isProvided: false,
+  unreadCount: 0,
+  recentNotifications: [],
+  drawerOpen: false,
+  setDrawerOpen: () => {},
+  statsLoading: false,
+  listLoading: false,
+  refreshStats: async () => {},
+  refreshList: async () => {},
+  markAsRead: async () => {},
+  markAllAsRead: async () => {},
+}
+
 const AdminNotificationsContext = createContext<AdminNotificationsContextValue | null>(null)
 
-export function useAdminNotifications() {
+export function useAdminNotifications(): AdminNotificationsContextValue {
   const ctx = useContext(AdminNotificationsContext)
-  if (!ctx) {
-    throw new Error('useAdminNotifications must be used within AdminNotificationsProvider')
-  }
-  return ctx
+  return ctx ?? defaultContextValue
 }
 
 function parseListResponse(res: unknown): { items: AdminNotification[]; total: number; page: number; limit: number } {
@@ -167,7 +181,17 @@ export function AdminNotificationsProvider({ children }: { children: React.React
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onRefresh = () => {
+      refreshStats()
+    }
+    window.addEventListener(ADMIN_NOTIFICATIONS_REFRESH_EVENT, onRefresh)
+    return () => window.removeEventListener(ADMIN_NOTIFICATIONS_REFRESH_EVENT, onRefresh)
+  }, [refreshStats])
+
   const value: AdminNotificationsContextValue = {
+    isProvided: true,
     unreadCount,
     recentNotifications,
     drawerOpen,

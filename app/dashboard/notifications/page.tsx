@@ -22,7 +22,10 @@ import {
   KanbanSquareDashed as MarkAsUnread,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
-import { useAdminNotifications } from "@/components/admin-notifications-provider"
+import {
+  useAdminNotifications,
+  ADMIN_NOTIFICATIONS_REFRESH_EVENT,
+} from "@/components/admin-notifications-provider"
 import type {
   AdminNotification,
   AdminNotificationCategory,
@@ -89,8 +92,12 @@ function parseStatsResponse(res: unknown): {
 }
 
 export default function NotificationsPage() {
-  const { markAsRead: contextMarkAsRead, markAllAsRead: contextMarkAllAsRead, refreshStats } =
-    useAdminNotifications()
+  const {
+    isProvided,
+    markAsRead: contextMarkAsRead,
+    markAllAsRead: contextMarkAllAsRead,
+    refreshStats,
+  } = useAdminNotifications()
   const [items, setItems] = useState<AdminNotification[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -152,14 +159,28 @@ export default function NotificationsPage() {
   }, [fetchStats])
 
   const handleMarkAsRead = async (id: string) => {
-    await contextMarkAsRead(id)
+    if (isProvided) {
+      await contextMarkAsRead(id)
+    } else {
+      await apiClient.markAdminNotificationRead(id)
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_REFRESH_EVENT))
+      }
+    }
     await fetchList()
   }
 
   const handleMarkAllAsRead = async () => {
-    await contextMarkAllAsRead()
+    if (isProvided) {
+      await contextMarkAllAsRead()
+      await refreshStats()
+    } else {
+      await apiClient.markAllAdminNotificationsRead()
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_REFRESH_EVENT))
+      }
+    }
     await fetchList()
-    await refreshStats()
   }
 
   const getCategoryIcon = (cat: AdminNotificationCategory) => {
