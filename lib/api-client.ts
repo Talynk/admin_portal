@@ -1457,6 +1457,58 @@ class ApiClient {
     })
   }
 
+  // Support email inbox (contact@support.talentix.net)
+  async getSupportEmails(params?: {
+    page?: number
+    limit?: number
+    isRead?: boolean
+    category?: string
+    timeBucket?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit =
+      typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+    if (typeof params?.isRead === 'boolean') {
+      queryParams.append('isRead', params.isRead ? 'true' : 'false')
+    }
+    if (typeof params?.category === 'string' && params.category.trim().length > 0) {
+      queryParams.append('category', params.category.trim())
+    }
+    if (typeof params?.timeBucket === 'string' && params.timeBucket.trim().length > 0) {
+      queryParams.append('timeBucket', params.timeBucket.trim())
+    }
+    const queryString = queryParams.toString()
+    return this.request(`/admin/support/emails${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getSupportEmailById(id: string) {
+    return this.request(`/admin/support/emails/${id}`)
+  }
+
+  async markSupportEmailAsRead(id: string) {
+    return this.request(`/admin/support/emails/${id}/read`, {
+      method: 'PATCH',
+    })
+  }
+
+  async markAllSupportEmailsAsRead() {
+    return this.request('/admin/support/emails/read-all', {
+      method: 'PATCH',
+    })
+  }
+
+  async getSupportEmailStats(params?: { timeBucket?: '1h' | '24h' | '7d' | '30d' }) {
+    const queryParams = new URLSearchParams()
+    if (typeof params?.timeBucket === 'string' && params.timeBucket.trim().length > 0) {
+      queryParams.append('timeBucket', params.timeBucket.trim())
+    }
+    const queryString = queryParams.toString()
+    return this.request(`/admin/support/emails/stats${queryString ? `?${queryString}` : ''}`)
+  }
+
   // Settings
   async getSettings() {
     return this.request('/admin/settings')

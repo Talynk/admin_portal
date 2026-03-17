@@ -478,6 +478,45 @@ export interface ActivityLogsResponse {
   }
 }
 
+// Support email inbox (contact@support.talentix.net)
+export interface SupportEmailListItem {
+  id: string
+  from: string
+  to: string
+  subject: string | null
+  isRead: boolean
+  category: string | null
+  receivedAt: string
+}
+
+export interface SupportEmailDetail {
+  id: string
+  providerEmailId: string | null
+  from: string
+  to: string
+  subject: string | null
+  text: string | null
+  html: string | null
+  headers?: Record<string, unknown> | null
+  isRead: boolean
+  category: string | null
+  receivedAt: string
+  createdAt: string
+}
+
+export interface SupportEmailListResponse {
+  items: SupportEmailListItem[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface SupportEmailStats {
+  total: number
+  unread: number
+  byCategory: Record<string, number>
+}
+
 export interface Approver {
   id: string
   username: string
