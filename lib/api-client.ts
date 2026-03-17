@@ -1310,7 +1310,48 @@ class ApiClient {
     return this.request(`/approver/posts/search${queryString ? `?${queryString}` : ''}`)
   }
 
-  // Notifications
+  // Admin notifications (per ADMIN_NOTIFICATIONS_INTEGRATION_GUIDE)
+  async getAdminNotifications(params?: {
+    severity?: string
+    category?: string
+    timeBucket?: string
+    page?: number
+    limit?: number
+    unreadOnly?: boolean
+  }) {
+    const queryParams = new URLSearchParams()
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit = typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+    if (typeof params?.severity === 'string' && params.severity.trim()) queryParams.append('severity', params.severity.trim())
+    if (typeof params?.category === 'string' && params.category.trim()) queryParams.append('category', params.category.trim())
+    if (typeof params?.timeBucket === 'string' && params.timeBucket.trim()) queryParams.append('timeBucket', params.timeBucket.trim())
+    if (typeof params?.unreadOnly === 'boolean') queryParams.append('unreadOnly', params.unreadOnly ? 'true' : 'false')
+    const queryString = queryParams.toString()
+    return this.request(`/admin/notifications${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getAdminNotificationStats(params?: { timeBucket?: string }) {
+    const queryParams = new URLSearchParams()
+    if (typeof params?.timeBucket === 'string' && params.timeBucket.trim()) queryParams.append('timeBucket', params.timeBucket.trim())
+    const queryString = queryParams.toString()
+    return this.request(`/admin/notifications/stats${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async markAdminNotificationRead(id: string) {
+    return this.request(`/admin/notifications/${id}/read`, {
+      method: 'PATCH',
+    })
+  }
+
+  async markAllAdminNotificationsRead() {
+    return this.request('/admin/notifications/read-all', {
+      method: 'PATCH',
+    })
+  }
+
+  // Legacy notification methods (use getAdminNotifications / markAdminNotificationRead / markAllAdminNotificationsRead)
   async getNotifications(params?: {
     page?: number
     limit?: number
@@ -1324,21 +1365,16 @@ class ApiClient {
     if (params?.type) queryParams.append('type', params.type)
     if (params?.status) queryParams.append('status', params.status)
     if (params?.priority) queryParams.append('priority', params.priority)
-
     const queryString = queryParams.toString()
     return this.request(`/admin/notifications${queryString ? `?${queryString}` : ''}`)
   }
 
   async markNotificationAsRead(notificationId: string) {
-    return this.request(`/admin/notifications/${notificationId}/read`, {
-      method: 'PUT',
-    })
+    return this.markAdminNotificationRead(notificationId)
   }
 
   async markAllNotificationsAsRead() {
-    return this.request('/admin/notifications/read-all', {
-      method: 'PUT',
-    })
+    return this.markAllAdminNotificationsRead()
   }
 
   async sendBroadcastNotification(data: {

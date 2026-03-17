@@ -408,6 +408,55 @@ export interface NotificationsResponse {
   }
 }
 
+// Admin notifications (REST + Socket.IO per integration guide)
+export type AdminNotificationSeverity = 'info' | 'warning' | 'critical' | 'action_required'
+export type AdminNotificationCategory = 'appeal' | 'report' | 'support' | 'security' | 'queue' | 'system'
+
+export interface AdminNotification {
+  id: string
+  severity: AdminNotificationSeverity
+  category: AdminNotificationCategory
+  title: string
+  message: string
+  actionUrl?: string
+  metadata?: Record<string, unknown>
+  readAt: string | null
+  consolidatedCount?: number
+  consolidatedKey?: string
+  createdAt: string
+}
+
+export interface AdminNotificationListResponse {
+  items: AdminNotification[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface AdminNotificationStats {
+  total: number
+  unread: number
+  bySeverity: Record<AdminNotificationSeverity, number>
+  byCategory: Record<AdminNotificationCategory, number>
+  trend: Array<{
+    date: string
+    total: number
+    bySeverity?: Record<string, number>
+  }>
+}
+
+export interface AdminNotificationSocketPayload {
+  id: string
+  severity: AdminNotificationSeverity
+  category: AdminNotificationCategory
+  title: string
+  message: string
+  actionUrl?: string
+  consolidatedCount?: number
+  createdAt: string
+  metadata?: Record<string, unknown>
+}
+
 export interface ActivityLog {
   id: string
   action: string

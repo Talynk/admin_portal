@@ -38,6 +38,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./theme-toggle"
+import { AdminNotificationsProvider, useAdminNotifications } from "@/components/admin-notifications-provider"
+import { NotificationsDrawer } from "@/components/notifications-drawer"
+import { Toaster } from "@/components/ui/toaster"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -54,6 +57,26 @@ const navigation = [
   { name: "System", href: "/dashboard/system", icon: Server },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
+
+function NotificationBellWithBadge() {
+  const { unreadCount, setDrawerOpen } = useAdminNotifications()
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      className="relative"
+      onClick={() => setDrawerOpen(true)}
+      aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+    >
+      <Bell className="h-4 w-4" />
+      {unreadCount > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium text-destructive-foreground">
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </Button>
+  )
+}
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth()
@@ -96,47 +119,46 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:bg-card">
-        <Sidebar />
-      </div>
+    <AdminNotificationsProvider>
+      <div className="min-h-screen bg-background">
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:bg-card">
+          <Sidebar />
+        </div>
 
-      {/* Mobile Sidebar */}
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
-          <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-          <Sidebar mobile />
-        </SheetContent>
-      </Sheet>
+        {/* Mobile Sidebar */}
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="p-0 w-64">
+            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+            <Sidebar mobile />
+          </SheetContent>
+        </Sheet>
 
-      {/* Main Content */}
-      <div className="lg:pl-64">
-        {/* Top Navigation */}
-        <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="lg:hidden bg-transparent">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
-              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <Sidebar mobile />
-            </SheetContent>
-          </Sheet>
+        {/* Main Content */}
+        <div className="lg:pl-64">
+          {/* Top Navigation */}
+          <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="lg:hidden bg-transparent">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-64">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                <Sidebar mobile />
+              </SheetContent>
+            </Sheet>
 
-          <div className="flex-1" />
+            <div className="flex-1" />
 
-          <Button variant="outline" size="icon">
-            <Search className="h-4 w-4" />
-          </Button>
+            <Button variant="outline" size="icon">
+              <Search className="h-4 w-4" />
+            </Button>
 
-          <Button variant="outline" size="icon">
-            <Bell className="h-4 w-4" />
-          </Button>
+            <NotificationBellWithBadge />
 
-          <ThemeToggle />
+            <ThemeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -165,7 +187,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6">{children}</main>
+        </div>
+        <NotificationsDrawer />
       </div>
-    </div>
+      <Toaster />
+    </AdminNotificationsProvider>
   )
 }
