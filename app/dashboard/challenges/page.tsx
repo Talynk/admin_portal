@@ -361,7 +361,11 @@ export default function ChallengesPage() {
                         </TableHeader>
                         <TableBody>
                           {displayChallenges.map((challenge) => (
-                            <TableRow key={challenge.id} className="hover:bg-muted/50 transition-colors">
+                            <TableRow
+                              key={challenge.id}
+                              className="cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
+                            >
                               <TableCell>
                                 <div>
                                   <p className="font-medium">{challenge.name}</p>
@@ -416,13 +420,16 @@ export default function ChallengesPage() {
                                   <span className="text-sm text-muted-foreground">No</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-wrap items-center justify-end gap-1">
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-8 text-xs"
-                                    onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      router.push(`/dashboard/challenges/${challenge.id}`)
+                                    }}
                                   >
                                     <Eye className="h-3.5 w-3.5 mr-1" />
                                     View details

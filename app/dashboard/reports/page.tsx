@@ -392,13 +392,17 @@ export default function ReportsPage() {
                           </TableHeader>
                           <TableBody>
                             {contentReports.map((r) => (
-                              <TableRow key={r.id}>
+                              <TableRow
+                                key={r.id}
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => openReview(r)}
+                              >
                                 <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                                   {r.createdAt || r.created_at ? formatDate(String(r.createdAt ?? r.created_at)) : "—"}
                                 </TableCell>
                                 <TableCell>
                                   {(r.postId ?? r.post_id ?? r.post?.id) && (
-                                    <Link href={`/dashboard/content/${r.postId ?? r.post_id ?? r.post?.id}`} className="text-primary hover:underline font-mono text-sm">
+                                    <Link href={`/dashboard/content/${r.postId ?? r.post_id ?? r.post?.id}`} className="text-primary hover:underline font-mono text-sm" onClick={(e) => e.stopPropagation()}>
                                       {r.postId ?? r.post_id ?? r.post?.id}
                                     </Link>
                                   )}
@@ -411,8 +415,8 @@ export default function ReportsPage() {
                                   {String(r.reason ?? r.description ?? "—")}
                                 </TableCell>
                                 <TableCell>{getReportStatusBadge(String(r.status ?? "pending"))}</TableCell>
-                                <TableCell>
-                                  <Button variant="outline" size="sm" onClick={() => openReview(r)}>Review</Button>
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); openReview(r); }}>Review</Button>
                                 </TableCell>
                               </TableRow>
                             ))}

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +43,7 @@ const CATEGORY_OPTIONS = [
 ]
 
 export default function SupportIssuesPage() {
+  const router = useRouter()
   const [page, setPage] = useState(1)
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("")
@@ -188,7 +190,11 @@ export default function SupportIssuesPage() {
                       </TableHeader>
                       <TableBody>
                         {issues.map((issue) => (
-                          <TableRow key={issue.id}>
+                          <TableRow
+                            key={issue.id}
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => router.push(`/dashboard/support/${issue.id}`)}
+                          >
                             <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                               {issue.created_at
                                 ? new Date(issue.created_at).toLocaleString()
@@ -207,11 +213,12 @@ export default function SupportIssuesPage() {
                               {issue.category || "—"}
                             </TableCell>
                             <TableCell>{getStatusBadge(issue.status)}</TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               {issue.user?.id ? (
                                 <Link
                                   href={`/dashboard/users/${issue.user.id}`}
                                   className="text-primary hover:underline text-sm"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   @{issue.user.username ?? issue.user.email ?? issue.user.id}
                                 </Link>

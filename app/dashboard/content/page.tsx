@@ -1237,12 +1237,16 @@ export default function ContentPage() {
                             <TableRow
                               key={video.id}
                               className="hover:bg-muted/50 transition-colors cursor-pointer"
+                              onClick={() => openVideoPreview(video)}
                             >
                               <TableCell>
                                 <div className="flex items-center gap-3">
                                   <div
                                     className="relative w-20 h-14 rounded overflow-hidden bg-muted flex-shrink-0 cursor-pointer"
-                                    onClick={() => openVideoPreview(video)}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openVideoPreview(video)
+                                    }}
                                   >
                                     <img
                                       src={getPreviewUrl(video) || "/placeholder.svg"}
@@ -1339,13 +1343,16 @@ export default function ContentPage() {
                                   ).toLocaleDateString()}
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
                                 <div className="flex flex-wrap items-center gap-1">
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-8 text-xs"
-                                    onClick={() => openVideoPreview(video)}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openVideoPreview(video)
+                                    }}
                                   >
                                     <Eye className="h-3.5 w-3.5 mr-1" />
                                     View
@@ -1415,7 +1422,7 @@ export default function ContentPage() {
                                   </Button>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                                         <MoreHorizontal className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>

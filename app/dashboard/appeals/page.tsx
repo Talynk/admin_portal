@@ -204,7 +204,11 @@ export default function AppealsPage() {
                       </TableHeader>
                       <TableBody>
                         {appeals.map((appeal) => (
-                          <TableRow key={appeal.id}>
+                          <TableRow
+                            key={appeal.id}
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => openReview(appeal)}
+                          >
                             <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                               {appeal.createdAt ? new Date(appeal.createdAt).toLocaleString() : "—"}
                             </TableCell>
@@ -213,6 +217,7 @@ export default function AppealsPage() {
                                 <Link
                                   href={`/dashboard/content/${appeal.post?.id}`}
                                   className="text-primary hover:underline font-mono text-sm"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   {appeal.post?.id ?? "—"}
                                 </Link>
@@ -221,10 +226,11 @@ export default function AppealsPage() {
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               <Link
                                 href={`/dashboard/users/${appeal.user?.id}`}
                                 className="text-primary hover:underline text-sm"
+                                onClick={(e) => e.stopPropagation()}
                               >
                                 @{appeal.user?.username ?? appeal.user?.email ?? "—"}
                               </Link>
@@ -233,9 +239,9 @@ export default function AppealsPage() {
                               {appeal.appeal_reason ?? "—"}
                             </TableCell>
                             <TableCell>{getStatusBadge(appeal.status)}</TableCell>
-                            <TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
                               {appeal.status === "pending" && (
-                                <Button variant="outline" size="sm" onClick={() => openReview(appeal)}>
+                                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); openReview(appeal); }}>
                                   Review
                                 </Button>
                               )}

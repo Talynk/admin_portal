@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import {
@@ -76,6 +77,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 const SEARCH_DEBOUNCE_MS = 400;
 
 export default function UsersPage() {
+  const router = useRouter();
   const [statsPeriod, setStatsPeriod] = useState<"7d" | "30d" | "90d" | "1y">("30d");
   const { stats: userStats, loading: statsLoading, error: statsError } = useUserStats(statsPeriod);
   const [searchTerm, setSearchTerm] = useState("");
@@ -905,7 +907,8 @@ export default function UsersPage() {
                       {users.map((user) => (
                         <TableRow
                           key={user.id}
-                          className="hover:bg-muted/50 transition-colors"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => router.push(`/dashboard/users/${user.id}`)}
                         >
                           <TableCell>
                             <div className="flex items-center space-x-3">
@@ -997,13 +1000,16 @@ export default function UsersPage() {
                               {new Date(user.last_active_date).toLocaleDateString()}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex flex-wrap items-center justify-end gap-1">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="h-8 text-xs"
-                                onClick={() => window.open(`/dashboard/users/${user.id}`, "_blank")}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`/dashboard/users/${user.id}`, "_blank");
+                                }}
                               >
                                 <Eye className="h-3.5 w-3.5 mr-1" />
                                 View

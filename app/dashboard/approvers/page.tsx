@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,6 +51,7 @@ import { toast } from "@/hooks/use-toast"
 import { Approver } from "@/lib/types/admin"
 
 export default function ApproversPage() {
+  const router = useRouter()
   const [selectedApprover, setSelectedApprover] = useState<Approver | null>(null)
   const [addApproverDialogOpen, setAddApproverDialogOpen] = useState(false)
   const [viewApproverDialogOpen, setViewApproverDialogOpen] = useState(false)
@@ -403,7 +405,11 @@ export default function ApproversPage() {
                           </TableHeader>
                           <TableBody>
                             {filteredApprovers.map((approver) => (
-                              <TableRow key={approver.id} className="hover:bg-muted/50 transition-colors">
+                              <TableRow
+                                key={approver.id}
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => router.push(`/dashboard/approvers/${approver.id}`)}
+                              >
                                 <TableCell>
                                   <div className="flex items-center gap-3">
                                     <Avatar className="h-8 w-8">
@@ -445,13 +451,14 @@ export default function ApproversPage() {
                                     ? new Date(approver.lastActive).toLocaleDateString()
                                     : "Never"}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button
                                         variant="ghost"
                                         className="h-8 w-8 p-0 hover:bg-muted transition-colors"
                                         disabled={isActionLoading}
+                                        onClick={(e) => e.stopPropagation()}
                                       >
                                         <MoreHorizontal className="h-4 w-4" />
                                       </Button>
