@@ -70,7 +70,7 @@ function NotificationBellWithBadge() {
     >
       <Bell className="h-4 w-4" />
       {unreadCount > 0 && (
-        <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium text-destructive-foreground">
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.4rem] items-center justify-center rounded-full border border-destructive/60 bg-background px-1.5 text-[10px] font-semibold text-destructive shadow-sm">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
