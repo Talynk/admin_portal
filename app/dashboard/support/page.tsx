@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
@@ -28,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { LifeBuoy, Loader2, Mail, Search } from "lucide-react"
 import { useSupportIssues } from "@/hooks/use-support-issues"
 import { useSupportEmails } from "@/hooks/use-support-emails"
+import { apiClient } from "@/lib/api-client"
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -80,6 +81,10 @@ export default function SupportIssuesPage() {
   const [emailTimeBucket, setEmailTimeBucket] = useState<string>("")
   const [emailFilterRead, setEmailFilterRead] = useState<"all" | "unread">("all")
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null)
+  const [selectedEmailHtml, setSelectedEmailHtml] = useState<string | null>(null)
+  const [selectedEmailText, setSelectedEmailText] = useState<string | null>(null)
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false)
+  const [emailDetailError, setEmailDetailError] = useState<string | null>(null)
 
   const { issues, pagination, loading, error, refetch } = useSupportIssues({
     page,
@@ -92,11 +97,9 @@ export default function SupportIssuesPage() {
 
   const {
     emails,
-    pagination: emailPagination,
     stats: emailStats,
     loading: emailLoading,
     error: emailError,
-    refetchEmails,
     markAsRead: markEmailAsRead,
     markAllAsRead: markAllEmailsAsRead,
   } = useSupportEmails({
@@ -105,6 +108,54 @@ export default function SupportIssuesPage() {
     isRead: emailFilterRead === "unread" ? false : undefined,
     timeBucket: emailTimeBucket || undefined,
   })
+
+  // Ensure an email is selected when list loads
+  useEffect(() => {
+    if (!selectedEmailId && emails.length > 0) {
+      setSelectedEmailId(emails[0].id)
+    }
+  }, [emails, selectedEmailId])
+
+  // Fetch full email detail (html/text) when selection changes
+  useEffect(() => {
+    let cancelled = false
+
+    const id = selectedEmailId
+    if (!id) {
+      setSelectedEmailHtml(null)
+      setSelectedEmailText(null)
+      setEmailDetailError(null)
+      return
+    }
+
+    async function loadDetail() {
+      setEmailDetailLoading(true)
+      setEmailDetailError(null)
+      try {
+        const res = await apiClient.getSupportEmailById(id as string)
+        if (!cancelled && res.success && res.data) {
+          const data = (res.data as any).data ?? res.data
+          setSelectedEmailHtml(data.html ?? null)
+          setSelectedEmailText(data.text ?? null)
+        } else if (!cancelled && !res.success) {
+          setEmailDetailError((res as any).error ?? "Failed to load email")
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setEmailDetailError(
+            err instanceof Error ? err.message : "Failed to load email",
+          )
+        }
+      } finally {
+        if (!cancelled) setEmailDetailLoading(false)
+      }
+    }
+
+    loadDetail()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedEmailId])
 
   const handleSearch = () => {
     setPage(1)
@@ -268,57 +319,78 @@ export default function SupportIssuesPage() {
 
                   {/* Right: detail */}
                   <div className="flex-1 rounded-md border p-4">
-                    {selectedEmailId
-                      ? (() => {
-                          const selected = emails.find((e) => e.id === selectedEmailId) ?? emails[0]
-                          if (!selected) {
-                            return (
-                              <p className="text-sm text-muted-foreground">
-                                Select an email from the list to view its contents.
-                              </p>
-                            )
-                          }
+                    {selectedEmailId ? (
+                      (() => {
+                        const selected = emails.find((e) => e.id === selectedEmailId) ?? emails[0]
+                        if (!selected) {
                           return (
-                            <div className="flex h-full flex-col gap-3">
-                              <div className="space-y-1">
-                                <h3 className="text-base font-semibold">
-                                  {selected.subject || "(no subject)"}
-                                </h3>
-                                <p className="text-xs text-muted-foreground">
-                                  From{" "}
-                                  <span className="font-mono">{selected.from}</span> •{" "}
-                                  {formatTimeAgo(selected.receivedAt)}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  To <span className="font-mono">{selected.to}</span>
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 text-xs">
-                                {selected.category && (
-                                  <Badge variant="outline">{selected.category}</Badge>
-                                )}
-                                <Button
-                                  variant="outline"
-                                  size="xs"
-                                  asChild
-                                >
-                                  <a href={`mailto:${selected.from}`}>Reply via email</a>
-                                </Button>
-                              </div>
-                              <div className="mt-2 flex-1 overflow-auto rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                                <p>
-                                  This inbox shows a lightweight preview of the message. For full
-                                  context, reply from your email client.
-                                </p>
-                              </div>
-                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Select an email from the list to view its contents.
+                            </p>
                           )
-                        })()
-                      : (
-                        <p className="text-sm text-muted-foreground">
-                          Select an email from the list to view its contents.
-                        </p>
-                      )}
+                        }
+                        return (
+                          <div className="flex h-full flex-col gap-3">
+                            <div className="space-y-1">
+                              <h3 className="text-base font-semibold">
+                                {selected.subject || "(no subject)"}
+                              </h3>
+                              <p className="text-xs text-muted-foreground">
+                                From{" "}
+                                <span className="font-mono">{selected.from}</span> •{" "}
+                                {formatTimeAgo(selected.receivedAt)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                To <span className="font-mono">{selected.to}</span>
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {selected.category && (
+                                <Badge variant="outline">{selected.category}</Badge>
+                              )}
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={`mailto:${selected.from}`}>Reply via email</a>
+                              </Button>
+                            </div>
+                            <div className="mt-2 flex-1 overflow-auto rounded-md border bg-muted/40 p-3 text-sm">
+                              {emailDetailLoading && (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Loading message…</span>
+                                </div>
+                              )}
+                              {emailDetailError && !emailDetailLoading && (
+                                <p className="text-xs text-destructive">
+                                  {emailDetailError}
+                                </p>
+                              )}
+                              {!emailDetailLoading && !emailDetailError && (
+                                <>
+                                  {selectedEmailHtml ? (
+                                    <div
+                                      className="prose prose-sm max-w-none dark:prose-invert"
+                                      dangerouslySetInnerHTML={{ __html: selectedEmailHtml }}
+                                    />
+                                  ) : selectedEmailText ? (
+                                    <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground">
+                                      {selectedEmailText}
+                                    </pre>
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                      No body content available for this email.
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Select an email from the list to view its contents.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
