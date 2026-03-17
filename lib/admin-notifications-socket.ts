@@ -42,7 +42,7 @@ export function connectAdminNotificationsSocket(token: string): void {
   if (!serverUrl || !token) return
 
   if (socket?.connected) {
-    socket.emit('admin:auth', { token })
+    socket.emit('admin:auth', { token: `Bearer ${token}` })
     return
   }
 
@@ -57,16 +57,22 @@ export function connectAdminNotificationsSocket(token: string): void {
     path: socketPath,
     // Try polling first to avoid "Invalid frame header" when proxy/load balancer doesn't handle raw WebSocket
     transports: ['polling', 'websocket'],
-    autoConnect: true,
+    withCredentials: true,
+    autoConnect: false,
     reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 2000,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
     reconnectionDelayMax: 10000,
     timeout: 20000,
+    auth: {
+      token: `Bearer ${token}`,
+    },
   })
 
+  socket.connect()
+
   socket.on('connect', () => {
-    socket?.emit('admin:auth', { token })
+    socket?.emit('admin:auth', { token: `Bearer ${token}` })
   })
 
   socket.on('admin:auth', (res: { ok?: boolean }) => {
