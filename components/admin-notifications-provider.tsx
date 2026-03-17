@@ -159,7 +159,9 @@ export function AdminNotificationsProvider({ children }: { children: React.React
   )
 
   const enabled =
-    typeof window !== 'undefined' && !!localStorage.getItem('talentix_admin_token')
+    typeof window !== 'undefined' &&
+    process.env.NEXT_PUBLIC_ENABLE_REALTIME !== 'false' &&
+    !!localStorage.getItem('talentix_admin_token')
 
   useAdminNotificationsSocket({
     onNotification: handleSocketNotification,

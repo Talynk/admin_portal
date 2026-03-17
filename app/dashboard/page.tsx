@@ -41,12 +41,14 @@ export default function DashboardPage() {
   // Get admin ID and token for WebSocket
   const adminId = user?.id || null
   const token = typeof window !== 'undefined' ? localStorage.getItem('talentix_admin_token') : null
+  const realtimeEnabled =
+    typeof window === 'undefined' ? true : process.env.NEXT_PUBLIC_ENABLE_REALTIME !== 'false'
 
   // WebSocket integration for real-time updates
   const { isConnected } = useAdminWebSocket({
     adminId,
     token,
-    enabled: !!adminId && !!token,
+    enabled: realtimeEnabled && !!adminId && !!token,
     onDashboardUpdate: (data) => {
       // Update stats with real-time data
       if (stats) {
