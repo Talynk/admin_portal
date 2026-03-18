@@ -16,6 +16,8 @@ export interface RankingParticipantRow {
   total_posts: number
   total_likes: number
   latest_submission_at?: string
+  winner_rank?: number | null
+  is_winner?: boolean
 }
 
 export interface UseChallengeParticipantsRankingReturn {
@@ -28,6 +30,7 @@ export interface UseChallengeParticipantsRankingReturn {
   setSearch: (s: string) => void
   search: string
   page: number
+  maxWinners: number | null
 }
 
 export function useChallengeParticipantsRanking(
@@ -39,6 +42,7 @@ export function useChallengeParticipantsRanking(
   const [search, setSearch] = useState(options.search ?? '')
   const [participants, setParticipants] = useState<RankingParticipantRow[]>([])
   const [pagination, setPagination] = useState<UseChallengeParticipantsRankingReturn['pagination']>(null)
+  const [maxWinners, setMaxWinners] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +50,7 @@ export function useChallengeParticipantsRanking(
     if (!challengeId || !enabled) {
       setParticipants([])
       setPagination(null)
+      setMaxWinners(null)
       return
     }
     setLoading(true)
@@ -61,6 +66,7 @@ export function useChallengeParticipantsRanking(
       const raw = data?.data ?? data?.participants ?? data?.ranking ?? data
       const list = Array.isArray(raw) ? raw : raw?.rows ?? []
       setParticipants(list)
+      setMaxWinners(typeof data?.max_winners === 'number' ? data.max_winners : data?.max_winners ?? null)
       const pag = data?.pagination ?? (res as any)?.pagination
       if (pag) {
         setPagination({
@@ -76,6 +82,7 @@ export function useChallengeParticipantsRanking(
       setError(e instanceof Error ? e.message : 'Failed to load participants ranking')
       setParticipants([])
       setPagination(null)
+      setMaxWinners(null)
     } finally {
       setLoading(false)
     }
@@ -106,5 +113,6 @@ export function useChallengeParticipantsRanking(
     setSearch: setSearchAndResetPage,
     search,
     page,
+    maxWinners,
   }
 }

@@ -183,11 +183,14 @@ export default function ChallengeDetailPage() {
   const [setRankSubmitting, setSetRankSubmitting] = useState(false)
   const [maxWinnersInput, setMaxWinnersInput] = useState("")
   const [maxWinnersSaving, setMaxWinnersSaving] = useState(false)
+  const [confirmMaxWinnersInput, setConfirmMaxWinnersInput] = useState("")
 
   const { winners: aggregatedWinners, pagination: aggPagination, loading: aggLoading, setPage: setAggPage, page: aggPage, refetch: refetchAggregated, maxWinners: aggMaxWinners, orderedBy: aggOrderedBy } = useChallengeAggregatedWinners(
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId && isEndedOrStopped }
   )
+
+  const maxWinnersEffective = useMemo(() => (aggMaxWinners ?? 10), [aggMaxWinners])
 
   useEffect(() => {
     if (aggMaxWinners != null) {
@@ -196,6 +199,11 @@ export default function ChallengeDetailPage() {
       setMaxWinnersInput("")
     }
   }, [aggMaxWinners])
+
+  useEffect(() => {
+    if (!confirmWinnersDialogOpen) return
+    setConfirmMaxWinnersInput(String(maxWinnersEffective))
+  }, [confirmWinnersDialogOpen, maxWinnersEffective])
 
   const handleSaveMaxWinners = async () => {
     const trimmed = maxWinnersInput.trim()
@@ -210,6 +218,7 @@ export default function ChallengeDetailPage() {
       if (result.success) {
         toast({ title: "Saved", description: "Max winners configuration updated." })
         refetchAggregated()
+        refetchRanking()
       } else {
         toast({ title: "Error", description: result.error ?? "Failed to update", variant: "destructive" })
       }
@@ -218,10 +227,12 @@ export default function ChallengeDetailPage() {
     }
   }
 
-  const { participants: rankingParticipants, loading: rankingLoading, search: rankingSearch, setSearch: setRankingSearch, setPage: setRankingPage, page: rankingPage, pagination: rankingPagination, refetch: refetchRanking } = useChallengeParticipantsRanking(
+  const { participants: rankingParticipants, loading: rankingLoading, search: rankingSearch, setSearch: setRankingSearch, setPage: setRankingPage, page: rankingPage, pagination: rankingPagination, refetch: refetchRanking, maxWinners: rankingMaxWinners } = useChallengeParticipantsRanking(
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId }
   )
+
+  const rankingMaxWinnersEffective = useMemo(() => (rankingMaxWinners ?? maxWinnersEffective), [rankingMaxWinners, maxWinnersEffective])
 
   useEffect(() => {
     if (!participantPostsDialog || !challengeId) return
@@ -322,6 +333,15 @@ export default function ChallengeDetailPage() {
       return i - j
     })
   }, [aggregatedWinners, orderedWinnerUserIds])
+
+  const winnersForDisplay = useMemo(() => {
+    if (!orderedWinnersForDisplay.length) return []
+    const hasWinnerMarkers = orderedWinnersForDisplay.some((r: any) => r?.winner_rank != null || r?.is_winner === true)
+    const filtered = hasWinnerMarkers
+      ? orderedWinnersForDisplay.filter((r: any) => r?.winner_rank != null || r?.is_winner === true)
+      : orderedWinnersForDisplay
+    return filtered.slice(0, maxWinnersEffective)
+  }, [orderedWinnersForDisplay, maxWinnersEffective])
 
   const buildOrderedChallengePostIds = useCallback(
     (orderedUserIds: string[]) => {
@@ -486,12 +506,27 @@ export default function ChallengeDetailPage() {
   const handleConfirmWinners = async () => {
     setConfirmWinnersLoading(true)
     try {
+      const trimmed = confirmMaxWinnersInput.trim()
+      const desiredValue = trimmed === "" ? null : parseInt(trimmed, 10)
+      if (desiredValue !== null && (Number.isNaN(desiredValue) || desiredValue < 1)) {
+        toast({ title: "Invalid value", description: "Enter a positive number or leave blank.", variant: "destructive" })
+        return
+      }
+      const desiredEffective = desiredValue ?? 10
+      if (desiredEffective !== maxWinnersEffective) {
+        const up = await updateMaxWinners(desiredValue)
+        if (!up.success) {
+          toast({ title: "Error", description: up.error ?? "Failed to update max winners", variant: "destructive" })
+          return
+        }
+      }
       const result = await confirmChallengeWinners()
       if (result.success) {
         toast({ title: "Winners confirmed", description: "All participants have been notified." })
         setConfirmWinnersDialogOpen(false)
         refetch()
         refetchAggregated()
+        refetchRanking()
       } else {
         toast({ title: "Error", description: result.error ?? "Failed to confirm winners", variant: "destructive" })
       }
@@ -847,9 +882,14 @@ export default function ChallengeDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="participants" className="mt-6">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Participants ranked by total likes (and latest submission for ties). Search by username or display name.
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <p className="text-sm text-muted-foreground">
+                      Participants ranked by total likes (and latest submission for ties). Search by username or display name.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Top <span className="font-medium">{rankingMaxWinnersEffective}</span> winners
+                    </p>
+                  </div>
                   <div className="flex items-center gap-2 mb-4">
                     <Input
                       placeholder="Search by username or display name..."
@@ -871,6 +911,7 @@ export default function ChallengeDetailPage() {
                             <TableRow>
                               <TableHead className="w-14">Rank</TableHead>
                               <TableHead>User</TableHead>
+                              <TableHead className="w-28">Winner</TableHead>
                               <TableHead>Posts</TableHead>
                               <TableHead>Total likes</TableHead>
                               <TableHead>Latest submission</TableHead>
@@ -880,7 +921,7 @@ export default function ChallengeDetailPage() {
                           <TableBody>
                             {rankingParticipants.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                   No participants found.
                                 </TableCell>
                               </TableRow>
@@ -905,6 +946,18 @@ export default function ChallengeDetailPage() {
                                         )}
                                       </div>
                                     </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {row.is_winner === true || row.winner_rank != null ? (
+                                      <div className="flex items-center gap-2">
+                                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Winner</Badge>
+                                        {row.winner_rank != null ? (
+                                          <span className="text-xs font-medium text-muted-foreground">#{row.winner_rank}</span>
+                                        ) : null}
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    )}
                                   </TableCell>
                                   <TableCell>{row.total_posts}</TableCell>
                                   <TableCell>{row.total_likes}</TableCell>
@@ -1019,7 +1072,7 @@ export default function ChallengeDetailPage() {
                           id="max-winners"
                           type="number"
                           min={1}
-                          placeholder="Leave blank for no limit"
+                          placeholder="Default: 10"
                           value={maxWinnersInput}
                           onChange={(e) => setMaxWinnersInput(e.target.value)}
                           disabled={!!winnersConfirmedAt}
@@ -1035,7 +1088,10 @@ export default function ChallengeDetailPage() {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Leave blank to use backend default (no explicit limit). Disabled after winners are confirmed.
+                        Leave blank to use backend default (<span className="font-medium">10</span>). Disabled after winners are confirmed.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Currently showing top <span className="font-medium">{maxWinnersEffective}</span> winners.
                       </p>
                     </div>
                     {winnersConfirmedAt ? (
@@ -1069,7 +1125,7 @@ export default function ChallengeDetailPage() {
                             Saving order…
                           </div>
                         )}
-                        {!winnersConfirmedAt && orderedWinnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && winnersForDisplay.length > 0 && (
                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWinnersDragEnd}>
                             <div className="rounded-md border">
                               <Table>
@@ -1087,8 +1143,8 @@ export default function ChallengeDetailPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  <SortableContext items={orderedWinnersForDisplay.map((r) => r.user.id)} strategy={verticalListSortingStrategy}>
-                                    {orderedWinnersForDisplay.map((row, index) => (
+                                  <SortableContext items={winnersForDisplay.map((r) => r.user.id)} strategy={verticalListSortingStrategy}>
+                                    {winnersForDisplay.map((row, index) => (
                                       <SortableWinnerUserRow
                                         key={row.user.id}
                                         row={row}
@@ -1118,7 +1174,7 @@ export default function ChallengeDetailPage() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {orderedWinnersForDisplay.map((row, index) => (
+                                {winnersForDisplay.map((row, index) => (
                                   <TableRow
                                     key={row.user.id}
                                     className="cursor-pointer hover:bg-muted/50"
@@ -1157,9 +1213,11 @@ export default function ChallengeDetailPage() {
                           </div>
                         )}
                         {aggregatedWinners.length === 0 && !aggLoading ? (
-                          <p className="text-center py-8 text-muted-foreground">No winners yet.</p>
+                          <p className="text-center py-8 text-muted-foreground">
+                            {isEndedOrStopped ? "No winners assigned yet." : "No winners yet."}
+                          </p>
                         ) : null}
-                        {!winnersConfirmedAt && orderedWinnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && winnersForDisplay.length > 0 && (
                           <Button className="mt-4" onClick={() => setConfirmWinnersDialogOpen(true)}>
                             <CheckCircle2 className="h-4 w-4 mr-2" />
                             Confirm winners
@@ -1354,6 +1412,23 @@ export default function ChallengeDetailPage() {
                 This will lock the current winner order and send a notification to every participant. This action cannot be undone. Do you want to continue?
               </DialogDescription>
             </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-max-winners">Max winners (optional)</Label>
+              <Input
+                id="confirm-max-winners"
+                type="number"
+                min={1}
+                placeholder="Default: 10"
+                value={confirmMaxWinnersInput}
+                onChange={(e) => setConfirmMaxWinnersInput(e.target.value)}
+                disabled={confirmWinnersLoading}
+                className="w-40"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to use backend default (<span className="font-medium">10</span>). Current:{" "}
+                <span className="font-medium">{maxWinnersEffective}</span>
+              </p>
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmWinnersDialogOpen(false)} disabled={confirmWinnersLoading}>
                 Cancel
