@@ -234,6 +234,26 @@ export default function ChallengeDetailPage() {
 
   const rankingMaxWinnersEffective = useMemo(() => (rankingMaxWinners ?? maxWinnersEffective), [rankingMaxWinners, maxWinnersEffective])
 
+  // Winners tab must match the backend `max_winners` returned by the latest winner/ranking responses.
+  // Prefer aggregated winners' value, but fall back to participants ranking when aggregated doesn't provide it.
+  const maxWinnersEffectiveForWinnersTab = useMemo(
+    () => (aggMaxWinners ?? rankingMaxWinners ?? 10),
+    [aggMaxWinners, rankingMaxWinners]
+  )
+
+  useEffect(() => {
+    // If aggregated winners didn't return maxWinners but ranking did, keep the max-winners input in sync.
+    if (aggMaxWinners != null) return
+    if (!confirmWinnersDialogOpen) {
+      setMaxWinnersInput(rankingMaxWinners != null ? String(rankingMaxWinners) : "")
+    }
+  }, [aggMaxWinners, rankingMaxWinners, confirmWinnersDialogOpen])
+
+  useEffect(() => {
+    if (!confirmWinnersDialogOpen) return
+    setConfirmMaxWinnersInput(String(maxWinnersEffectiveForWinnersTab))
+  }, [confirmWinnersDialogOpen, maxWinnersEffectiveForWinnersTab])
+
   useEffect(() => {
     if (!participantPostsDialog || !challengeId) return
     setParticipantPostsLoading(true)
@@ -340,8 +360,8 @@ export default function ChallengeDetailPage() {
     const filtered = hasWinnerMarkers
       ? orderedWinnersForDisplay.filter((r: any) => r?.winner_rank != null || r?.is_winner === true)
       : orderedWinnersForDisplay
-    return filtered.slice(0, maxWinnersEffective)
-  }, [orderedWinnersForDisplay, maxWinnersEffective])
+    return filtered.slice(0, maxWinnersEffectiveForWinnersTab)
+  }, [orderedWinnersForDisplay, maxWinnersEffectiveForWinnersTab])
 
   const buildOrderedChallengePostIds = useCallback(
     (orderedUserIds: string[]) => {
@@ -513,7 +533,7 @@ export default function ChallengeDetailPage() {
         return
       }
       const desiredEffective = desiredValue ?? 10
-      if (desiredEffective !== maxWinnersEffective) {
+      if (desiredEffective !== maxWinnersEffectiveForWinnersTab) {
         const up = await updateMaxWinners(desiredValue)
         if (!up.success) {
           toast({ title: "Error", description: up.error ?? "Failed to update max winners", variant: "destructive" })
@@ -1060,6 +1080,9 @@ export default function ChallengeDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       Winners are users (one row per user), ranked by total likes across their posts. You can reorder based on other criteria (e.g. quality, rules) using drag-and-drop or Set rank, then confirm to notify participants.
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Top <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> winners (cap from backend)
+                    </p>
                     {aggOrderedBy && (
                       <p className="text-xs text-muted-foreground">
                         Current ordering: {aggOrderedBy === "admin_rank" ? "admin rank" : "total likes per user"}
@@ -1091,7 +1114,7 @@ export default function ChallengeDetailPage() {
                         Leave blank to use backend default (<span className="font-medium">10</span>). Disabled after winners are confirmed.
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Currently showing top <span className="font-medium">{maxWinnersEffective}</span> winners.
+                        Currently showing top <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> winners.
                       </p>
                     </div>
                     {winnersConfirmedAt ? (
@@ -1426,7 +1449,7 @@ export default function ChallengeDetailPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Leave blank to use backend default (<span className="font-medium">10</span>). Current:{" "}
-                <span className="font-medium">{maxWinnersEffective}</span>
+                <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span>
               </p>
             </div>
             <DialogFooter>
