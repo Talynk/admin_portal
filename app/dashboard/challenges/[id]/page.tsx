@@ -51,6 +51,7 @@ import {
   Play,
   Eye,
   Image as ImageIcon,
+  Rocket,
 } from "lucide-react"
 import {
   DndContext,
@@ -70,11 +71,14 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useChallenge } from "@/hooks/use-challenge"
+import { useAdminWebSocket } from "@/hooks/use-admin-websocket"
+import { useAuth } from "@/components/auth-provider"
 import { useChallengeAggregatedWinners, type AggregatedWinnerRow } from "@/hooks/use-challenge-aggregated-winners"
 import { useChallengeParticipantsRanking, type RankingParticipantRow } from "@/hooks/use-challenge-participants-ranking"
 import { toast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
 import { Input } from "@/components/ui/input"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
@@ -137,10 +141,29 @@ function SortableWinnerUserRow({
   )
 }
 
+function isoToDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function datetimeLocalToIso(local: string): string | null {
+  if (!local?.trim()) return null
+  const d = new Date(local)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
 export default function ChallengeDetailPage() {
   const params = useParams()
   const router = useRouter()
   const challengeId = params.id as string
+  const { user } = useAuth()
+  const wsToken = typeof window !== "undefined" ? localStorage.getItem("talentix_admin_token") : null
+  const realtimeEnabled =
+    typeof window === "undefined" ? true : process.env.NEXT_PUBLIC_ENABLE_REALTIME !== "false"
+
   const [activeTab, setActiveTab] = useState<"overview" | "participants" | "posts" | "analytics" | "winners">("overview")
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
@@ -158,10 +181,26 @@ export default function ChallengeDetailPage() {
     approveChallenge,
     rejectChallenge,
     stopChallenge,
+    startChallengeNow,
+    updateChallengeDates,
     reorderWinners,
     confirmChallengeWinners,
     updateMaxWinners,
   } = useChallenge(challengeId, analyticsDays)
+
+  useAdminWebSocket({
+    adminId: user?.id ?? null,
+    token: wsToken,
+    enabled: realtimeEnabled && !!user?.id && !!wsToken && !!challengeId,
+    onChallengeUpdated: useCallback(
+      (data) => {
+        if (data?.challengeId && data.challengeId === challengeId) {
+          refetch()
+        }
+      },
+      [challengeId, refetch]
+    ),
+  })
 
   const isEndedOrStopped = challenge?.status === "ended" || challenge?.status === "stopped"
   const winnersConfirmedAt = (challenge as any)?.winners_confirmed_at
@@ -184,6 +223,13 @@ export default function ChallengeDetailPage() {
   const [maxWinnersInput, setMaxWinnersInput] = useState("")
   const [maxWinnersSaving, setMaxWinnersSaving] = useState(false)
   const [confirmMaxWinnersInput, setConfirmMaxWinnersInput] = useState("")
+  const [startNowConfirmOpen, setStartNowConfirmOpen] = useState(false)
+  const [startNowLoading, setStartNowLoading] = useState(false)
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
+  const [scheduleStartLocal, setScheduleStartLocal] = useState("")
+  const [scheduleEndLocal, setScheduleEndLocal] = useState("")
+  const [scheduleError, setScheduleError] = useState("")
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false)
 
   const { winners: aggregatedWinners, pagination: aggPagination, loading: aggLoading, setPage: setAggPage, page: aggPage, refetch: refetchAggregated, maxWinners: aggMaxWinners, orderedBy: aggOrderedBy } = useChallengeAggregatedWinners(
     challengeId,
@@ -504,6 +550,76 @@ export default function ChallengeDetailPage() {
     }
   }
 
+  const openScheduleDialog = () => {
+    if (!challenge) return
+    setScheduleStartLocal(isoToDatetimeLocalValue(challenge.start_date))
+    setScheduleEndLocal(isoToDatetimeLocalValue(challenge.end_date))
+    setScheduleError("")
+    setScheduleDialogOpen(true)
+  }
+
+  const executeStartNow = async () => {
+    setStartNowLoading(true)
+    try {
+      const result = await startChallengeNow()
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: result.message || "Challenge is now live.",
+        })
+        refetch()
+        setStartNowConfirmOpen(false)
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Could not start challenge",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" })
+    } finally {
+      setStartNowLoading(false)
+    }
+  }
+
+  const submitScheduleUpdate = async () => {
+    setScheduleError("")
+    const isoStart = datetimeLocalToIso(scheduleStartLocal)
+    const isoEnd = datetimeLocalToIso(scheduleEndLocal)
+    if (!isoStart && !isoEnd) {
+      setScheduleError("Enter at least a start or end date.")
+      return
+    }
+    const startMs = isoStart ? new Date(isoStart).getTime() : null
+    const endMs = isoEnd ? new Date(isoEnd).getTime() : null
+    if (startMs != null && endMs != null && endMs <= startMs) {
+      setScheduleError("End date must be strictly after start date.")
+      return
+    }
+    const payload: { start_date?: string; end_date?: string } = {}
+    if (isoStart) payload.start_date = isoStart
+    if (isoEnd) payload.end_date = isoEnd
+    setScheduleSubmitting(true)
+    try {
+      const result = await updateChallengeDates(payload)
+      if (result.success) {
+        toast({ title: "Schedule updated", description: "Challenge dates were saved." })
+        refetch()
+        setScheduleDialogOpen(false)
+      } else {
+        setScheduleError(result.error || "Failed to update dates")
+      }
+    } finally {
+      setScheduleSubmitting(false)
+    }
+  }
+
+  const scheduleEndInPast =
+    scheduleEndLocal && datetimeLocalToIso(scheduleEndLocal)
+      ? new Date(datetimeLocalToIso(scheduleEndLocal)!).getTime() <= Date.now()
+      : false
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -637,15 +753,45 @@ export default function ChallengeDetailPage() {
                   </Button>
                 </>
               )}
-              {(challenge.status === "active" || challenge.status === "approved") && (
+              {challenge.status === "approved" && (
                 <Button
-                  variant="destructive"
+                  variant="default"
                   size="sm"
-                  onClick={() => handleAction("stop")}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => setStartNowConfirmOpen(true)}
                 >
-                  <StopCircle className="h-4 w-4 mr-2" />
-                  Stop Challenge
+                  <Rocket className="h-4 w-4 mr-2" />
+                  Start now
                 </Button>
+              )}
+              {challenge.status === "active" && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Button variant="outline" size="sm" disabled className="cursor-not-allowed">
+                        <Rocket className="h-4 w-4 mr-2" />
+                        Start now
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Challenge is already live.</TooltipContent>
+                </Tooltip>
+              )}
+              {(challenge.status === "approved" || challenge.status === "active") && (
+                <>
+                  <Button variant="outline" size="sm" onClick={openScheduleDialog}>
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Update schedule
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleAction("stop")}
+                  >
+                    <StopCircle className="h-4 w-4 mr-2" />
+                    Stop Challenge
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -1420,6 +1566,101 @@ export default function ChallengeDetailPage() {
                     {actionType === "reject" && "Reject"}
                     {actionType === "stop" && "Stop"}
                   </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Start now — approved → active immediately; participation until end_date (dates unchanged) */}
+        <Dialog open={startNowConfirmOpen} onOpenChange={setStartNowConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Start challenge now?</DialogTitle>
+              <DialogDescription>
+                This sets the challenge to <strong>active</strong> immediately so it appears in the active feed and can be joined. Scheduled{" "}
+                <code className="text-xs bg-muted px-1 rounded">start_date</code> / <code className="text-xs bg-muted px-1 rounded">end_date</code> are{" "}
+                <strong>not</strong> changed; participation stays open until the end date.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStartNowConfirmOpen(false)} disabled={startNowLoading}>
+                Cancel
+              </Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={executeStartNow} disabled={startNowLoading}>
+                {startNowLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Starting…
+                  </>
+                ) : (
+                  <>
+                    <Rocket className="mr-2 h-4 w-4" />
+                    Start now
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reschedule — PUT /admin/challenges/:id/dates */}
+        <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Update schedule</DialogTitle>
+              <DialogDescription>
+                Change start and/or end (ISO times sent to the API). Allowed while the challenge is <strong>approved</strong> or <strong>active</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="schedule-start">Start</Label>
+                <Input
+                  id="schedule-start"
+                  type="datetime-local"
+                  value={scheduleStartLocal}
+                  onChange={(e) => setScheduleStartLocal(e.target.value)}
+                  disabled={scheduleSubmitting}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schedule-end">End</Label>
+                <Input
+                  id="schedule-end"
+                  type="datetime-local"
+                  value={scheduleEndLocal}
+                  onChange={(e) => setScheduleEndLocal(e.target.value)}
+                  disabled={scheduleSubmitting}
+                />
+              </div>
+              {scheduleEndInPast && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    If the resulting <strong>end</strong> is in the past, the API may set the challenge to <strong>ended</strong> and run end-of-challenge
+                    snapshots and notifications.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {scheduleError && (
+                <p className="text-sm text-destructive" role="alert">
+                  {scheduleError}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setScheduleDialogOpen(false)} disabled={scheduleSubmitting}>
+                Cancel
+              </Button>
+              <Button onClick={submitScheduleUpdate} disabled={scheduleSubmitting}>
+                {scheduleSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save schedule"
                 )}
               </Button>
             </DialogFooter>

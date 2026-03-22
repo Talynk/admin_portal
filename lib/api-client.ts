@@ -576,6 +576,27 @@ class ApiClient {
     })
   }
 
+  /** Approved → active immediately; active is idempotent (200). See ADMIN_CHALLENGE_SCHEDULE_AND_START.md */
+  async startChallengeNow(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}/start-now`, {
+      method: 'PUT',
+    })
+  }
+
+  /** Update start_date and/or end_date (ISO 8601). Allowed for approved | active only. */
+  async updateChallengeDates(
+    challengeId: string,
+    body: { start_date?: string; end_date?: string }
+  ) {
+    const payload: Record<string, string> = {}
+    if (body.start_date != null && body.start_date !== '') payload.start_date = body.start_date
+    if (body.end_date != null && body.end_date !== '') payload.end_date = body.end_date
+    return this.request(`/admin/challenges/${challengeId}/dates`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  }
+
   async reorderChallengeWinners(challengeId: string, orderedChallengePostIds: string[]) {
     return this.request(`/admin/challenges/${challengeId}/winners/reorder`, {
       method: 'PUT',

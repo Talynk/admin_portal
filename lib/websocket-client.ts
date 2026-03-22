@@ -56,6 +56,15 @@ export interface NewReportData {
   timestamp: string
 }
 
+/** Emitted when admin or system updates a challenge (start_now, dates_updated, etc.) */
+export interface ChallengeUpdatedData {
+  challengeId?: string
+  action?: string
+  status?: string
+  start_date?: string
+  end_date?: string
+}
+
 type EventListener = (data: any) => void
 
 export class AdminWebSocket {
@@ -70,11 +79,13 @@ export class AdminWebSocket {
     newUser: EventListener[]
     newPost: EventListener[]
     newReport: EventListener[]
+    challengeUpdated: EventListener[]
   } = {
     dashboardUpdate: [],
     newUser: [],
     newPost: [],
     newReport: [],
+    challengeUpdated: [],
   }
   private isConnecting = false
   private shouldReconnect = true
@@ -119,7 +130,7 @@ export class AdminWebSocket {
 
       this.ws.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data)
+          const message = JSON.parse(event.data) as WebSocketMessage & { type?: string; data?: unknown }
           this.handleMessage(message)
         } catch (error) {
           console.error('[Admin WS] Error parsing message:', error)
@@ -149,7 +160,7 @@ export class AdminWebSocket {
     }
   }
 
-  private handleMessage(message: WebSocketMessage): void {
+  private handleMessage(message: WebSocketMessage & { type?: string; data?: unknown }): void {
     switch (message.type) {
       case 'admin:dashboardUpdate':
         this.listeners.dashboardUpdate.forEach((cb) => cb(message.data))
@@ -163,6 +174,9 @@ export class AdminWebSocket {
       case 'admin:newReport':
         this.listeners.newReport.forEach((cb) => cb(message.data))
         break
+      case 'challenge:updated':
+        this.listeners.challengeUpdated.forEach((cb) => cb(message.data))
+        break
       default:
         console.warn('[Admin WS] Unknown message type:', message.type)
     }
@@ -172,6 +186,7 @@ export class AdminWebSocket {
   on(event: 'newUser', callback: (data: NewUserData) => void): void
   on(event: 'newPost', callback: (data: NewPostData) => void): void
   on(event: 'newReport', callback: (data: NewReportData) => void): void
+  on(event: 'challengeUpdated', callback: (data: ChallengeUpdatedData) => void): void
   on(event: string, callback: EventListener): void {
     if (this.listeners[event as keyof typeof this.listeners]) {
       this.listeners[event as keyof typeof this.listeners].push(callback)
@@ -182,6 +197,7 @@ export class AdminWebSocket {
   off(event: 'newUser', callback: EventListener): void
   off(event: 'newPost', callback: EventListener): void
   off(event: 'newReport', callback: EventListener): void
+  off(event: 'challengeUpdated', callback: EventListener): void
   off(event: string, callback: EventListener): void {
     if (this.listeners[event as keyof typeof this.listeners]) {
       this.listeners[event as keyof typeof this.listeners] = this.listeners[

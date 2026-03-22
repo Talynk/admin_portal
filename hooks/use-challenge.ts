@@ -153,6 +153,11 @@ interface UseChallengeReturn {
   approveChallenge: () => Promise<{ success: boolean; error?: string }>
   rejectChallenge: (reason?: string) => Promise<{ success: boolean; error?: string }>
   stopChallenge: () => Promise<{ success: boolean; error?: string }>
+  startChallengeNow: () => Promise<{ success: boolean; error?: string; message?: string }>
+  updateChallengeDates: (payload: {
+    start_date?: string
+    end_date?: string
+  }) => Promise<{ success: boolean; error?: string }>
   reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string }>
   confirmChallengeWinners: () => Promise<{ success: boolean; error?: string }>
   updateMaxWinners: (max: number | null) => Promise<{ success: boolean; error?: string }>
@@ -258,6 +263,57 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     }
   }, [challengeId, fetchChallenge])
 
+  const startChallengeNow = useCallback(async () => {
+    if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+
+    try {
+      const response = await apiClient.startChallengeNow(challengeId)
+      if (response.success) {
+        await fetchChallenge()
+        const r = response as { message?: string; data?: { message?: string } }
+        const message =
+          r.message ||
+          (r.data && typeof r.data === 'object' && 'message' in r.data
+            ? (r.data as { message?: string }).message
+            : undefined)
+        return { success: true, message }
+      }
+      const err = response as { error?: string; message?: string }
+      return {
+        success: false,
+        error: err.error || err.message || 'Failed to start challenge',
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+    }
+  }, [challengeId, fetchChallenge])
+
+  const updateChallengeDates = useCallback(
+    async (payload: { start_date?: string; end_date?: string }) => {
+      if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+      if (!payload.start_date && !payload.end_date) {
+        return { success: false, error: 'At least one of start_date or end_date is required' }
+      }
+
+      try {
+        const response = await apiClient.updateChallengeDates(challengeId, payload)
+        if (response.success) {
+          await fetchChallenge()
+          await fetchAnalytics()
+          return { success: true }
+        }
+        const err = response as { error?: string; message?: string }
+        return {
+          success: false,
+          error: err.error || err.message || 'Failed to update schedule',
+        }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+      }
+    },
+    [challengeId, fetchChallenge, fetchAnalytics]
+  )
+
   const reorderWinners = useCallback(async (orderedChallengePostIds: string[]) => {
     if (!challengeId) return { success: false, error: 'Challenge ID is required' }
 
@@ -317,6 +373,8 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     approveChallenge,
     rejectChallenge,
     stopChallenge,
+    startChallengeNow,
+    updateChallengeDates,
     reorderWinners,
     confirmChallengeWinners,
     updateMaxWinners,

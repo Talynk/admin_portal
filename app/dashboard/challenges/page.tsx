@@ -42,6 +42,7 @@ import {
   Gift,
   ArrowRight,
   Search,
+  Rocket,
 } from "lucide-react"
 import { useChallenges } from "@/hooks/use-challenges"
 import { useChallengeStats } from "@/hooks/use-challenge-stats"
@@ -73,6 +74,7 @@ export default function ChallengesPage() {
   const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
   const [isActionLoading, setIsActionLoading] = useState(false)
+  const [startNowChallengeId, setStartNowChallengeId] = useState<string | null>(null)
   const [daysFilter, setDaysFilter] = useState(30)
 
   const { stats, growthAnalytics, loading: statsLoading, error: statsError, refetchGrowth } = useChallengeStats(daysFilter)
@@ -139,6 +141,31 @@ export default function ChallengesPage() {
       setSelectedChallenge(null)
       setActionType(null)
       setRejectionReason("")
+    }
+  }
+
+  const handleStartNowFromList = async (challengeId: string) => {
+    setStartNowChallengeId(challengeId)
+    try {
+      const res = await apiClient.startChallengeNow(challengeId)
+      if (res.success) {
+        const msg = (res as { message?: string }).message
+        toast({
+          title: "Challenge is live",
+          description: msg || "Challenge started successfully.",
+        })
+        refetch()
+      } else {
+        toast({
+          title: "Error",
+          description: (res as { error?: string }).error || "Could not start challenge",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" })
+    } finally {
+      setStartNowChallengeId(null)
     }
   }
 
@@ -455,6 +482,25 @@ export default function ChallengesPage() {
                                         Reject
                                       </Button>
                                     </>
+                                  )}
+                                  {challenge.status === "approved" && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                      disabled={startNowChallengeId === challenge.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleStartNowFromList(challenge.id)
+                                      }}
+                                    >
+                                      {startNowChallengeId === challenge.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      ) : (
+                                        <Rocket className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Start now
+                                    </Button>
                                   )}
                                   {(challenge.status === "active" || challenge.status === "approved") && (
                                     <Button

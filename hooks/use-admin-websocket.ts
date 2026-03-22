@@ -1,5 +1,12 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { AdminWebSocket, DashboardUpdateData, NewUserData, NewPostData, NewReportData } from '@/lib/websocket-client'
+import {
+  AdminWebSocket,
+  DashboardUpdateData,
+  NewUserData,
+  NewPostData,
+  NewReportData,
+  type ChallengeUpdatedData,
+} from '@/lib/websocket-client'
 
 interface UseAdminWebSocketOptions {
   adminId: string | null
@@ -9,6 +16,7 @@ interface UseAdminWebSocketOptions {
   onNewUser?: (data: NewUserData) => void
   onNewPost?: (data: NewPostData) => void
   onNewReport?: (data: NewReportData) => void
+  onChallengeUpdated?: (data: ChallengeUpdatedData) => void
 }
 
 export function useAdminWebSocket({
@@ -19,14 +27,27 @@ export function useAdminWebSocket({
   onNewUser,
   onNewPost,
   onNewReport,
+  onChallengeUpdated,
 }: UseAdminWebSocketOptions) {
   const wsRef = useRef<AdminWebSocket | null>(null)
-  const callbacksRef = useRef({ onDashboardUpdate, onNewUser, onNewPost, onNewReport })
+  const callbacksRef = useRef({
+    onDashboardUpdate,
+    onNewUser,
+    onNewPost,
+    onNewReport,
+    onChallengeUpdated,
+  })
 
   // Update callbacks ref when they change
   useEffect(() => {
-    callbacksRef.current = { onDashboardUpdate, onNewUser, onNewPost, onNewReport }
-  }, [onDashboardUpdate, onNewUser, onNewPost, onNewReport])
+    callbacksRef.current = {
+      onDashboardUpdate,
+      onNewUser,
+      onNewPost,
+      onNewReport,
+      onChallengeUpdated,
+    }
+  }, [onDashboardUpdate, onNewUser, onNewPost, onNewReport, onChallengeUpdated])
 
   useEffect(() => {
     if (!enabled || !adminId || !token) {
@@ -60,6 +81,10 @@ export function useAdminWebSocket({
         callbacksRef.current.onNewReport?.(data)
       })
     }
+
+    wsRef.current.on('challengeUpdated', (data) => {
+      callbacksRef.current.onChallengeUpdated?.(data)
+    })
 
     // Connect
     wsRef.current.connect()
