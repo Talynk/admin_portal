@@ -37,6 +37,10 @@ export interface UseChallengeAggregatedWinnersReturn {
   setPage: (p: number) => void
   page: number
   maxWinners: number | null
+  defaultMaxWinners: number | null
+  configuredMaxWinners: number | null
+  participantCount: number | null
+  effectiveMaxWinners: number | null
   orderedBy: string | null
   winnersConfirmedAt: string | null
 }
@@ -50,6 +54,10 @@ export function useChallengeAggregatedWinners(
   const [winners, setWinners] = useState<AggregatedWinnerRow[]>([])
   const [pagination, setPagination] = useState<UseChallengeAggregatedWinnersReturn['pagination']>(null)
   const [maxWinners, setMaxWinners] = useState<number | null>(null)
+  const [defaultMaxWinners, setDefaultMaxWinners] = useState<number | null>(null)
+  const [configuredMaxWinners, setConfiguredMaxWinners] = useState<number | null>(null)
+  const [participantCount, setParticipantCount] = useState<number | null>(null)
+  const [effectiveMaxWinners, setEffectiveMaxWinners] = useState<number | null>(null)
   const [orderedBy, setOrderedBy] = useState<string | null>(null)
   const [winnersConfirmedAt, setWinnersConfirmedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -60,6 +68,10 @@ export function useChallengeAggregatedWinners(
       setWinners([])
       setPagination(null)
       setMaxWinners(null)
+      setDefaultMaxWinners(null)
+      setConfiguredMaxWinners(null)
+      setParticipantCount(null)
+      setEffectiveMaxWinners(null)
       setOrderedBy(null)
       setWinnersConfirmedAt(null)
       return
@@ -84,6 +96,18 @@ export function useChallengeAggregatedWinners(
         setPagination({ page, limit })
       }
       setMaxWinners(typeof data?.max_winners === 'number' ? data.max_winners : data?.max_winners ?? null)
+      setDefaultMaxWinners(
+        typeof data?.default_max_winners === 'number' ? data.default_max_winners : data?.default_max_winners ?? null
+      )
+      setConfiguredMaxWinners(
+        typeof data?.configured_max_winners === 'number' ? data.configured_max_winners : data?.configured_max_winners ?? null
+      )
+      setParticipantCount(
+        typeof data?.participant_count === 'number' ? data.participant_count : data?.participant_count ?? null
+      )
+      setEffectiveMaxWinners(
+        typeof data?.effective_max_winners === 'number' ? data.effective_max_winners : data?.effective_max_winners ?? null
+      )
       setOrderedBy(typeof data?.ordered_by === 'string' ? data.ordered_by : null)
       setWinnersConfirmedAt(typeof data?.winners_confirmed_at === 'string' ? data.winners_confirmed_at : null)
     } catch (e) {
@@ -91,6 +115,10 @@ export function useChallengeAggregatedWinners(
       setWinners([])
       setPagination(null)
       setMaxWinners(null)
+      setDefaultMaxWinners(null)
+      setConfiguredMaxWinners(null)
+      setParticipantCount(null)
+      setEffectiveMaxWinners(null)
       setOrderedBy(null)
       setWinnersConfirmedAt(null)
     } finally {
@@ -111,6 +139,10 @@ export function useChallengeAggregatedWinners(
     setPage,
     page,
     maxWinners,
+    defaultMaxWinners,
+    configuredMaxWinners,
+    participantCount,
+    effectiveMaxWinners,
     orderedBy,
     winnersConfirmedAt,
   }

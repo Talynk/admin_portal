@@ -9,6 +9,12 @@ export interface Challenge {
   start_date: string
   end_date: string
   has_rewards: boolean
+  is_featured?: boolean
+  default_max_winners?: number | null
+  configured_max_winners?: number | null
+  participant_count?: number | null
+  effective_max_winners?: number | null
+  max_winners?: number | null
   createdAt: string
   organizer: {
     id: string

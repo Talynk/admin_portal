@@ -83,6 +83,46 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
 
+type WinnersMetaInput = {
+  effective?: number | null
+  configured?: number | null
+  participantCount?: number | null
+  legacyMax?: number | null
+}
+
+function resolveWinnersMeta(input: WinnersMetaInput) {
+  const configured = input.configured ?? input.legacyMax ?? 10
+  const participantCount = input.participantCount ?? null
+  const fallbackEffective =
+    participantCount != null ? Math.min(configured, participantCount) : configured
+  const effective = input.effective ?? input.legacyMax ?? fallbackEffective
+  return {
+    effective,
+    configured,
+    participantCount,
+  }
+}
+
+function getWinnersErrorMessage(error: string | undefined, code?: string, errorData?: unknown) {
+  const data = (errorData ?? {}) as {
+    participant_count?: number
+    requested_max_winners?: number
+  }
+  const fallback = error || "Winners operation failed."
+  switch (code) {
+    case "MAX_WINNERS_EXCEEDS_PARTICIPANTS":
+      return `Max winners cannot exceed participants (${data.participant_count ?? "unknown"}). Requested: ${data.requested_max_winners ?? "unknown"}.`
+    case "MAX_WINNERS_EXCEEDED":
+      return "The submitted winner ranking exceeds the effective winners cap."
+    case "INCOMPLETE_WINNER_RANKING":
+      return "Winner ranking is incomplete. Please fill all winner slots before confirming."
+    case "NO_ELIGIBLE_WINNERS":
+      return "No eligible winners available for this challenge."
+    default:
+      return fallback
+  }
+}
+
 /** Sortable row for one winner (user). Drag handle + Set rank for manual reorder. */
 function SortableWinnerUserRow({
   row,
@@ -193,7 +233,7 @@ export default function ChallengeDetailPage() {
     token: wsToken,
     enabled: realtimeEnabled && !!user?.id && !!wsToken && !!challengeId,
     onChallengeUpdated: useCallback(
-      (data) => {
+      (data: { challengeId?: string } | null | undefined) => {
         if (data?.challengeId && data.challengeId === challengeId) {
           refetch()
         }
@@ -231,12 +271,46 @@ export default function ChallengeDetailPage() {
   const [scheduleError, setScheduleError] = useState("")
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false)
 
-  const { winners: aggregatedWinners, pagination: aggPagination, loading: aggLoading, setPage: setAggPage, page: aggPage, refetch: refetchAggregated, maxWinners: aggMaxWinners, orderedBy: aggOrderedBy } = useChallengeAggregatedWinners(
+  const {
+    winners: aggregatedWinners,
+    pagination: aggPagination,
+    loading: aggLoading,
+    setPage: setAggPage,
+    page: aggPage,
+    refetch: refetchAggregated,
+    maxWinners: aggMaxWinners,
+    configuredMaxWinners: aggConfiguredMaxWinners,
+    participantCount: aggParticipantCount,
+    effectiveMaxWinners: aggEffectiveMaxWinners,
+    orderedBy: aggOrderedBy,
+  } = useChallengeAggregatedWinners(
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId && isEndedOrStopped }
   )
 
-  const maxWinnersEffective = useMemo(() => (aggMaxWinners ?? 10), [aggMaxWinners])
+  const challengeWinnersMeta = useMemo(
+    () =>
+      resolveWinnersMeta({
+        effective: challenge?.effective_max_winners,
+        configured: challenge?.configured_max_winners,
+        participantCount: challenge?.participant_count ?? challenge?.statistics?.total_participants ?? null,
+        legacyMax: challenge?.max_winners ?? null,
+      }),
+    [challenge]
+  )
+
+  const aggWinnersMeta = useMemo(
+    () =>
+      resolveWinnersMeta({
+        effective: aggEffectiveMaxWinners,
+        configured: aggConfiguredMaxWinners,
+        participantCount: aggParticipantCount,
+        legacyMax: aggMaxWinners,
+      }),
+    [aggEffectiveMaxWinners, aggConfiguredMaxWinners, aggParticipantCount, aggMaxWinners]
+  )
+
+  const maxWinnersEffective = useMemo(() => aggWinnersMeta.effective, [aggWinnersMeta])
 
   useEffect(() => {
     if (aggMaxWinners != null) {
@@ -266,25 +340,78 @@ export default function ChallengeDetailPage() {
         refetchAggregated()
         refetchRanking()
       } else {
-        toast({ title: "Error", description: result.error ?? "Failed to update", variant: "destructive" })
+        toast({
+          title: "Error",
+          description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
+          variant: "destructive",
+        })
       }
     } finally {
       setMaxWinnersSaving(false)
     }
   }
 
-  const { participants: rankingParticipants, loading: rankingLoading, search: rankingSearch, setSearch: setRankingSearch, setPage: setRankingPage, page: rankingPage, pagination: rankingPagination, refetch: refetchRanking, maxWinners: rankingMaxWinners } = useChallengeParticipantsRanking(
+  const {
+    participants: rankingParticipants,
+    loading: rankingLoading,
+    search: rankingSearch,
+    setSearch: setRankingSearch,
+    setPage: setRankingPage,
+    page: rankingPage,
+    pagination: rankingPagination,
+    refetch: refetchRanking,
+    maxWinners: rankingMaxWinners,
+    configuredMaxWinners: rankingConfiguredMaxWinners,
+    participantCount: rankingParticipantCount,
+    effectiveMaxWinners: rankingEffectiveMaxWinners,
+  } = useChallengeParticipantsRanking(
     challengeId,
     { page: 1, limit: 10, enabled: !!challengeId }
   )
 
-  const rankingMaxWinnersEffective = useMemo(() => (rankingMaxWinners ?? maxWinnersEffective), [rankingMaxWinners, maxWinnersEffective])
+  const rankingWinnersMeta = useMemo(
+    () =>
+      resolveWinnersMeta({
+        effective: rankingEffectiveMaxWinners,
+        configured: rankingConfiguredMaxWinners,
+        participantCount: rankingParticipantCount,
+        legacyMax: rankingMaxWinners,
+      }),
+    [rankingEffectiveMaxWinners, rankingConfiguredMaxWinners, rankingParticipantCount, rankingMaxWinners]
+  )
+
+  const rankingMaxWinnersEffective = useMemo(
+    () => rankingWinnersMeta.effective,
+    [rankingWinnersMeta]
+  )
 
   // Winners tab must match the backend `max_winners` returned by the latest winner/ranking responses.
   // Prefer aggregated winners' value, but fall back to participants ranking when aggregated doesn't provide it.
   const maxWinnersEffectiveForWinnersTab = useMemo(
-    () => (aggMaxWinners ?? rankingMaxWinners ?? 10),
-    [aggMaxWinners, rankingMaxWinners]
+    () =>
+      aggWinnersMeta.effective ??
+      rankingWinnersMeta.effective ??
+      challengeWinnersMeta.effective ??
+      10,
+    [aggWinnersMeta, rankingWinnersMeta, challengeWinnersMeta]
+  )
+
+  const configuredMaxWinnersForWinnersTab = useMemo(
+    () =>
+      aggWinnersMeta.configured ??
+      rankingWinnersMeta.configured ??
+      challengeWinnersMeta.configured ??
+      10,
+    [aggWinnersMeta, rankingWinnersMeta, challengeWinnersMeta]
+  )
+
+  const participantCountForWinnersTab = useMemo(
+    () =>
+      aggWinnersMeta.participantCount ??
+      rankingWinnersMeta.participantCount ??
+      challengeWinnersMeta.participantCount ??
+      null,
+    [aggWinnersMeta, rankingWinnersMeta, challengeWinnersMeta]
   )
 
   useEffect(() => {
@@ -467,7 +594,11 @@ export default function ChallengeDetailPage() {
       refetch()
       refetchAggregated()
     } else {
-      toast({ title: "Error", description: result.error || "Failed to reorder winners", variant: "destructive" })
+      toast({
+        title: "Error",
+        description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
+        variant: "destructive",
+      })
     }
   }
 
@@ -496,7 +627,11 @@ export default function ChallengeDetailPage() {
       refetch()
       refetchAggregated()
     } else {
-      toast({ title: "Error", description: result.error || "Failed to set rank", variant: "destructive" })
+      toast({
+        title: "Error",
+        description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
+        variant: "destructive",
+      })
     }
   }
 
@@ -652,7 +787,11 @@ export default function ChallengeDetailPage() {
       if (desiredEffective !== maxWinnersEffectiveForWinnersTab) {
         const up = await updateMaxWinners(desiredValue)
         if (!up.success) {
-          toast({ title: "Error", description: up.error ?? "Failed to update max winners", variant: "destructive" })
+          toast({
+            title: "Error",
+            description: getWinnersErrorMessage(up.error, up.errorCode, up.errorData),
+            variant: "destructive",
+          })
           return
         }
       }
@@ -664,7 +803,11 @@ export default function ChallengeDetailPage() {
         refetchAggregated()
         refetchRanking()
       } else {
-        toast({ title: "Error", description: result.error ?? "Failed to confirm winners", variant: "destructive" })
+        toast({
+          title: "Error",
+          description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
+          variant: "destructive",
+        })
       }
     } finally {
       setConfirmWinnersLoading(false)
@@ -732,6 +875,11 @@ export default function ChallengeDetailPage() {
             </div>
             <div className="flex items-center gap-2">
               {getStatusBadge(challenge.status)}
+              {challenge.is_featured ? (
+                <Badge variant="outline" className="text-amber-700 border-amber-300">
+                  Featured
+                </Badge>
+              ) : null}
               {challenge.status === "pending" && (
                 <>
                   <Button
@@ -871,6 +1019,21 @@ export default function ChallengeDetailPage() {
                           <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{(challenge as any).rewards}</p>
                         )}
                         <p className="text-xs text-muted-foreground">Challenge rewards</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Winners</CardTitle>
+                        <Trophy className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{maxWinnersEffectiveForWinnersTab}</div>
+                        <p className="text-xs text-muted-foreground">
+                          configured {configuredMaxWinnersForWinnersTab}
+                          {participantCountForWinnersTab != null
+                            ? ` · participants ${participantCountForWinnersTab}`
+                            : ""}
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
@@ -1053,7 +1216,8 @@ export default function ChallengeDetailPage() {
                       Participants ranked by total likes (and latest submission for ties). Search by username or display name.
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Top <span className="font-medium">{rankingMaxWinnersEffective}</span> winners
+                      Top <span className="font-medium">{rankingMaxWinnersEffective}</span> winners · configured{" "}
+                      <span className="font-medium">{rankingWinnersMeta.configured}</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2 mb-4">
@@ -1227,7 +1391,13 @@ export default function ChallengeDetailPage() {
                       Winners are users (one row per user), ranked by total likes across their posts. You can reorder based on other criteria (e.g. quality, rules) using drag-and-drop or Set rank, then confirm to notify participants.
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Top <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> winners (cap from backend)
+                      Effective winners: <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> · configured:{" "}
+                      <span className="font-medium">{configuredMaxWinnersForWinnersTab}</span>
+                      {participantCountForWinnersTab != null ? (
+                        <>
+                          {" "}· participants: <span className="font-medium">{participantCountForWinnersTab}</span>
+                        </>
+                      ) : null}
                     </p>
                     {aggOrderedBy && (
                       <p className="text-xs text-muted-foreground">
@@ -1241,6 +1411,7 @@ export default function ChallengeDetailPage() {
                           id="max-winners"
                           type="number"
                           min={1}
+                          max={participantCountForWinnersTab ?? undefined}
                           placeholder="Default: 10"
                           value={maxWinnersInput}
                           onChange={(e) => setMaxWinnersInput(e.target.value)}
@@ -1260,7 +1431,13 @@ export default function ChallengeDetailPage() {
                         Leave blank to use backend default (<span className="font-medium">10</span>). Disabled after winners are confirmed.
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Currently showing top <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> winners.
+                        Effective winners: <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> · configured winners:{" "}
+                        <span className="font-medium">{configuredMaxWinnersForWinnersTab}</span>
+                        {participantCountForWinnersTab != null ? (
+                          <>
+                            {" "}· participants: <span className="font-medium">{participantCountForWinnersTab}</span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                     {winnersConfirmedAt ? (
@@ -1682,6 +1859,7 @@ export default function ChallengeDetailPage() {
                 id="confirm-max-winners"
                 type="number"
                 min={1}
+                max={participantCountForWinnersTab ?? undefined}
                 placeholder="Default: 10"
                 value={confirmMaxWinnersInput}
                 onChange={(e) => setConfirmMaxWinnersInput(e.target.value)}
@@ -1690,7 +1868,13 @@ export default function ChallengeDetailPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Leave blank to use backend default (<span className="font-medium">10</span>). Current:{" "}
-                <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span>
+                <span className="font-medium">{maxWinnersEffectiveForWinnersTab}</span> effective ·{" "}
+                <span className="font-medium">{configuredMaxWinnersForWinnersTab}</span> configured
+                {participantCountForWinnersTab != null ? (
+                  <>
+                    {" "}· <span className="font-medium">{participantCountForWinnersTab}</span> participants
+                  </>
+                ) : null}
               </p>
             </div>
             <DialogFooter>

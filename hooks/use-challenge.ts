@@ -25,6 +25,12 @@ export interface ChallengeDetail {
   rejection_reason?: string | null
   winners_confirmed_at?: string | null
   winners_confirmed_by?: { id: string; username: string } | null
+  default_max_winners?: number | null
+  configured_max_winners?: number | null
+  participant_count?: number | null
+  effective_max_winners?: number | null
+  max_winners?: number | null
+  is_featured?: boolean
   organizer: {
     id: string
     username: string
@@ -158,9 +164,9 @@ interface UseChallengeReturn {
     start_date?: string
     end_date?: string
   }) => Promise<{ success: boolean; error?: string }>
-  reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string }>
-  confirmChallengeWinners: () => Promise<{ success: boolean; error?: string }>
-  updateMaxWinners: (max: number | null) => Promise<{ success: boolean; error?: string }>
+  reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string; errorCode?: string; errorData?: unknown }>
+  confirmChallengeWinners: () => Promise<{ success: boolean; error?: string; errorCode?: string; errorData?: unknown }>
+  updateMaxWinners: (max: number | null) => Promise<{ success: boolean; error?: string; errorCode?: string; errorData?: unknown }>
 }
 
 export function useChallenge(challengeId: string, analyticsDays: number = 30): UseChallengeReturn {
@@ -323,7 +329,12 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
         await fetchChallenge()
         return { success: true }
       }
-      return { success: false, error: response.error || 'Failed to reorder winners' }
+      return {
+        success: false,
+        error: response.error || 'Failed to reorder winners',
+        errorCode: (response as { code?: string }).code,
+        errorData: (response as { data?: unknown }).data,
+      }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
     }
@@ -338,7 +349,12 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
         await fetchChallenge()
         return { success: true }
       }
-      return { success: false, error: response.error || 'Failed to confirm winners' }
+      return {
+        success: false,
+        error: response.error || 'Failed to confirm winners',
+        errorCode: (response as { code?: string }).code,
+        errorData: (response as { data?: unknown }).data,
+      }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
     }
@@ -353,7 +369,12 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
         await fetchChallenge()
         return { success: true }
       }
-      return { success: false, error: response.error || 'Failed to update max winners' }
+      return {
+        success: false,
+        error: response.error || 'Failed to update max winners',
+        errorCode: (response as { code?: string }).code,
+        errorData: (response as { data?: unknown }).data,
+      }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
     }

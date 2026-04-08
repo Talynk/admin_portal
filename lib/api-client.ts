@@ -11,6 +11,8 @@ interface ApiError {
   success: false
   error: string
   message?: string
+  code?: string
+  data?: unknown
 }
 
 class ApiClient {
@@ -142,6 +144,8 @@ class ApiClient {
             success: false,
             error: data.error || data.message || 'Access forbidden. Your token may have expired or you may not have permission to perform this action. Please try logging in again.',
             message: data.message,
+            code: data.code,
+            data: data.data,
           }
         }
         
@@ -149,6 +153,8 @@ class ApiClient {
           success: false,
           error: data.error || data.message || `HTTP ${response.status}`,
           message: data.message,
+          code: data.code,
+          data: data.data,
         }
       }
 

@@ -53,6 +53,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl } from "@/lib/file-utils"
 import { apiClient } from "@/lib/api-client"
 
+function resolveChallengeWinnersCounts(challenge: any) {
+  const configured = challenge?.configured_max_winners ?? challenge?.max_winners ?? 10
+  const participantCount = challenge?.participant_count ?? challenge?._count?.participants ?? null
+  const effective =
+    challenge?.effective_max_winners ??
+    challenge?.max_winners ??
+    (participantCount != null ? Math.min(configured, participantCount) : configured)
+  return { effective, configured }
+}
+
 export default function ChallengesPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "active" | "rejected" | "ended">("all")
@@ -395,7 +405,14 @@ export default function ChallengesPage() {
                             >
                               <TableCell>
                                 <div>
-                                  <p className="font-medium">{challenge.name}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium">{challenge.name}</p>
+                                    {challenge.is_featured ? (
+                                      <Badge variant="outline" className="text-amber-700 border-amber-300">
+                                        Featured
+                                      </Badge>
+                                    ) : null}
+                                  </div>
                                   <p className="text-sm text-muted-foreground line-clamp-2">
                                     {challenge.description}
                                   </p>
@@ -433,6 +450,14 @@ export default function ChallengesPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="text-sm">
+                                  {(() => {
+                                    const winnerCounts = resolveChallengeWinnersCounts(challenge)
+                                    return (
+                                      <p className="text-muted-foreground">
+                                        winners {winnerCounts.effective} (cfg {winnerCounts.configured})
+                                      </p>
+                                    )
+                                  })()}
                                   <p>{challenge._count.participants} participants</p>
                                   <p className="text-muted-foreground">{challenge._count.posts} posts</p>
                                 </div>
