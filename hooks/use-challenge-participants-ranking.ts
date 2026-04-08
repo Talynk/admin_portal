@@ -31,10 +31,6 @@ export interface UseChallengeParticipantsRankingReturn {
   search: string
   page: number
   maxWinners: number | null
-  defaultMaxWinners: number | null
-  configuredMaxWinners: number | null
-  participantCount: number | null
-  effectiveMaxWinners: number | null
 }
 
 export function useChallengeParticipantsRanking(
@@ -47,10 +43,6 @@ export function useChallengeParticipantsRanking(
   const [participants, setParticipants] = useState<RankingParticipantRow[]>([])
   const [pagination, setPagination] = useState<UseChallengeParticipantsRankingReturn['pagination']>(null)
   const [maxWinners, setMaxWinners] = useState<number | null>(null)
-  const [defaultMaxWinners, setDefaultMaxWinners] = useState<number | null>(null)
-  const [configuredMaxWinners, setConfiguredMaxWinners] = useState<number | null>(null)
-  const [participantCount, setParticipantCount] = useState<number | null>(null)
-  const [effectiveMaxWinners, setEffectiveMaxWinners] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,10 +51,6 @@ export function useChallengeParticipantsRanking(
       setParticipants([])
       setPagination(null)
       setMaxWinners(null)
-      setDefaultMaxWinners(null)
-      setConfiguredMaxWinners(null)
-      setParticipantCount(null)
-      setEffectiveMaxWinners(null)
       return
     }
     setLoading(true)
@@ -79,18 +67,6 @@ export function useChallengeParticipantsRanking(
       const list = Array.isArray(raw) ? raw : raw?.rows ?? []
       setParticipants(list)
       setMaxWinners(typeof data?.max_winners === 'number' ? data.max_winners : data?.max_winners ?? null)
-      setDefaultMaxWinners(
-        typeof data?.default_max_winners === 'number' ? data.default_max_winners : data?.default_max_winners ?? null
-      )
-      setConfiguredMaxWinners(
-        typeof data?.configured_max_winners === 'number' ? data.configured_max_winners : data?.configured_max_winners ?? null
-      )
-      setParticipantCount(
-        typeof data?.participant_count === 'number' ? data.participant_count : data?.participant_count ?? null
-      )
-      setEffectiveMaxWinners(
-        typeof data?.effective_max_winners === 'number' ? data.effective_max_winners : data?.effective_max_winners ?? null
-      )
       const pag = data?.pagination ?? (res as any)?.pagination
       if (pag) {
         setPagination({
@@ -107,10 +83,6 @@ export function useChallengeParticipantsRanking(
       setParticipants([])
       setPagination(null)
       setMaxWinners(null)
-      setDefaultMaxWinners(null)
-      setConfiguredMaxWinners(null)
-      setParticipantCount(null)
-      setEffectiveMaxWinners(null)
     } finally {
       setLoading(false)
     }
@@ -142,9 +114,5 @@ export function useChallengeParticipantsRanking(
     search,
     page,
     maxWinners,
-    defaultMaxWinners,
-    configuredMaxWinners,
-    participantCount,
-    effectiveMaxWinners,
   }
 }

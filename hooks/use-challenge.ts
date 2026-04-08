@@ -25,11 +25,13 @@ export interface ChallengeDetail {
   rejection_reason?: string | null
   winners_confirmed_at?: string | null
   winners_confirmed_by?: { id: string; username: string } | null
+  // Primary FE winners field (final backend value after cap/default rules)
+  max_winners?: number | null
+  // Legacy compatibility fields (non-primary for FE display logic)
   default_max_winners?: number | null
   configured_max_winners?: number | null
   participant_count?: number | null
   effective_max_winners?: number | null
-  max_winners?: number | null
   is_featured?: boolean
   organizer: {
     id: string

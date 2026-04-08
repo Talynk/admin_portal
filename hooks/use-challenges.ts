@@ -10,11 +10,13 @@ export interface Challenge {
   end_date: string
   has_rewards: boolean
   is_featured?: boolean
+  // Primary FE winners field (final backend value after cap/default rules)
+  max_winners?: number | null
+  // Legacy compatibility fields (non-primary for FE display logic)
   default_max_winners?: number | null
   configured_max_winners?: number | null
   participant_count?: number | null
   effective_max_winners?: number | null
-  max_winners?: number | null
   createdAt: string
   organizer: {
     id: string

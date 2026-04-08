@@ -53,14 +53,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl } from "@/lib/file-utils"
 import { apiClient } from "@/lib/api-client"
 
-function resolveChallengeWinnersCounts(challenge: any) {
-  const configured = challenge?.configured_max_winners ?? challenge?.max_winners ?? 10
-  const participantCount = challenge?.participant_count ?? challenge?._count?.participants ?? null
-  const effective =
-    challenge?.effective_max_winners ??
-    challenge?.max_winners ??
-    (participantCount != null ? Math.min(configured, participantCount) : configured)
-  return { effective, configured }
+function resolveChallengeMaxWinners(challenge: any) {
+  return challenge?.max_winners ?? 10
 }
 
 export default function ChallengesPage() {
@@ -451,10 +445,10 @@ export default function ChallengesPage() {
                               <TableCell>
                                 <div className="text-sm">
                                   {(() => {
-                                    const winnerCounts = resolveChallengeWinnersCounts(challenge)
+                                    const maxWinners = resolveChallengeMaxWinners(challenge)
                                     return (
                                       <p className="text-muted-foreground">
-                                        winners {winnerCounts.effective} (cfg {winnerCounts.configured})
+                                        Winners: {maxWinners}
                                       </p>
                                     )
                                   })()}
