@@ -871,9 +871,7 @@ export default function ChallengeDetailPage() {
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="participants">Participants ({challenge.statistics.total_participants})</TabsTrigger>
                   <TabsTrigger value="posts">Posts ({challenge.posts.length})</TabsTrigger>
-                  {(challenge.status === "ended" || challenge.status === "stopped") && (
-                    <TabsTrigger value="winners">Winners</TabsTrigger>
-                  )}
+                  <TabsTrigger value="winners">Winners</TabsTrigger>
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
 
@@ -1294,10 +1292,10 @@ export default function ChallengeDetailPage() {
                   </div>
                 </TabsContent>
 
-                {(challenge.status === "ended" || challenge.status === "stopped") && (
-                  <TabsContent value="winners" className="mt-6 space-y-6">
+                <TabsContent value="winners" className="mt-6 space-y-6">
                     <p className="text-sm text-muted-foreground">
-                      Winners are users (one row per user), ranked by total likes across their posts. You can reorder based on other criteria (e.g. quality, rules) using drag-and-drop or Set rank, then confirm to notify participants.
+                      Set the challenge winners count with the canonical backend field (<code className="text-xs bg-muted px-1 rounded">max_winners</code>).
+                      Ranking, reordering, and confirmation are available once the challenge is ended or stopped.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Max winners: <span className="font-medium">{maxWinnersForWinnersTab}</span>
@@ -1323,13 +1321,13 @@ export default function ChallengeDetailPage() {
                           placeholder="Default: 10"
                           value={maxWinnersInput}
                           onChange={(e) => setMaxWinnersInput(e.target.value)}
-                          disabled={!!winnersConfirmedAt}
+                          disabled={maxWinnersSaving}
                           className="w-32"
                         />
                         <Button
                           size="sm"
                           onClick={handleSaveMaxWinners}
-                          disabled={!!winnersConfirmedAt || maxWinnersSaving}
+                          disabled={maxWinnersSaving}
                         >
                           {maxWinnersSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                           Save
@@ -1367,9 +1365,14 @@ export default function ChallengeDetailPage() {
                       </div>
                     ) : (
                       <>
-                        {!winnersConfirmedAt && (
+                        {!winnersConfirmedAt && isEndedOrStopped && (
                           <p className="text-sm text-muted-foreground">
                             Drag rows or use &quot;Set rank&quot; to set the official winner order. Then click &quot;Confirm winners&quot; to notify all participants.
+                          </p>
+                        )}
+                        {!isEndedOrStopped && (
+                          <p className="text-sm text-muted-foreground">
+                            Challenge must be ended or stopped before winner ranking and confirmation can be managed.
                           </p>
                         )}
                         {winnersReordering && (
@@ -1378,7 +1381,7 @@ export default function ChallengeDetailPage() {
                             Saving order…
                           </div>
                         )}
-                        {!winnersConfirmedAt && winnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && isEndedOrStopped && winnersForDisplay.length > 0 && (
                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWinnersDragEnd}>
                             <div className="rounded-md border">
                               <Table>
@@ -1470,7 +1473,7 @@ export default function ChallengeDetailPage() {
                             {isEndedOrStopped ? "No winners assigned yet." : "No winners yet."}
                           </p>
                         ) : null}
-                        {!winnersConfirmedAt && winnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && isEndedOrStopped && winnersForDisplay.length > 0 && (
                           <Button className="mt-4" onClick={() => setConfirmWinnersDialogOpen(true)}>
                             <CheckCircle2 className="h-4 w-4 mr-2" />
                             Confirm winners
@@ -1492,7 +1495,6 @@ export default function ChallengeDetailPage() {
                       </>
                     )}
                   </TabsContent>
-                )}
 
                 <TabsContent value="analytics" className="mt-6">
                   {analytics ? (
