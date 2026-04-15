@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Shield, Bell, Key, Save, CheckCircle } from "lucide-react"
+import { usePostReportThreshold } from "@/hooks/use-post-report-threshold"
+import { toast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -46,6 +48,18 @@ export default function SettingsPage() {
   })
 
   const [saved, setSaved] = useState(false)
+  const [thresholdTouched, setThresholdTouched] = useState(false)
+  const {
+    thresholdInput,
+    initialThreshold,
+    loading: thresholdLoading,
+    saving: thresholdSaving,
+    error: thresholdApiError,
+    setThresholdInput,
+    validate: validateThreshold,
+    save: saveThreshold,
+    reset: resetThreshold,
+  } = usePostReportThreshold()
 
   const handleSave = () => {
     // In a real app, this would save to the backend
@@ -62,6 +76,39 @@ export default function SettingsPage() {
         [key]: value,
       },
     }))
+  }
+
+  const thresholdValidationError = thresholdTouched ? validateThreshold(thresholdInput) : null
+  const thresholdErrorMessage = thresholdValidationError ?? thresholdApiError
+  const isThresholdDirty = thresholdInput.trim() !== String(initialThreshold)
+
+  const handleThresholdSave = async () => {
+    setThresholdTouched(true)
+    const validationError = validateThreshold(thresholdInput)
+    if (validationError) {
+      return
+    }
+
+    const result = await saveThreshold()
+    if (result.success) {
+      setThresholdTouched(false)
+      toast({
+        title: "Threshold updated",
+        description: `Auto-suspend threshold is now ${result.threshold}.`,
+      })
+      return
+    }
+
+    toast({
+      title: "Unable to save threshold",
+      description: result.error ?? "Please try again.",
+      variant: "destructive",
+    })
+  }
+
+  const handleThresholdReset = () => {
+    resetThreshold()
+    setThresholdTouched(false)
   }
 
   return (
@@ -234,6 +281,51 @@ export default function SettingsPage() {
                         onCheckedChange={(checked) => updateSetting("moderation", "spamDetection", checked)}
                       />
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Post Moderation</CardTitle>
+                  <CardDescription>A post is auto-suspended after this many reports.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="postReportThreshold">Auto-suspend threshold (reports)</Label>
+                    <Input
+                      id="postReportThreshold"
+                      type="number"
+                      min={1}
+                      value={thresholdInput}
+                      disabled={thresholdLoading || thresholdSaving}
+                      onChange={(e) => {
+                        setThresholdTouched(true)
+                        setThresholdInput(e.target.value)
+                      }}
+                      className="md:w-1/2"
+                    />
+                    {thresholdErrorMessage && (
+                      <p className="text-sm text-destructive">{thresholdErrorMessage}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleThresholdSave}
+                      disabled={thresholdLoading || thresholdSaving || !isThresholdDirty}
+                    >
+                      {thresholdSaving ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleThresholdReset}
+                      disabled={thresholdLoading || thresholdSaving || !isThresholdDirty}
+                    >
+                      Reset
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

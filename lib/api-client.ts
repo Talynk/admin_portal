@@ -15,6 +15,10 @@ interface ApiError {
   data?: unknown
 }
 
+interface PostReportThresholdPayload {
+  post_report_suspend_threshold: number
+}
+
 class ApiClient {
   private baseURL: string
   private token: string | null = null
@@ -1546,6 +1550,69 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(settings),
     })
+  }
+
+  async getPostReportThreshold() {
+    const response = await this.request<
+      PostReportThresholdPayload | { data?: PostReportThresholdPayload }
+    >('/admin/settings/post-report-threshold')
+
+    if (!response.success) {
+      return response
+    }
+
+    const responseData = response.data as
+      | PostReportThresholdPayload
+      | { data?: PostReportThresholdPayload }
+      | undefined
+
+    const payload =
+      responseData && 'data' in responseData && responseData.data
+        ? responseData.data
+        : (responseData as PostReportThresholdPayload | undefined)
+
+    return {
+      success: true as const,
+      data: {
+        post_report_suspend_threshold:
+          payload?.post_report_suspend_threshold ?? 5,
+      },
+      message: response.message,
+    }
+  }
+
+  async updatePostReportThreshold(value: number) {
+    const response = await this.request<
+      PostReportThresholdPayload | { data?: PostReportThresholdPayload }
+    >('/admin/settings/post-report-threshold', {
+      method: 'PUT',
+      body: JSON.stringify({
+        post_report_suspend_threshold: value,
+      }),
+    })
+
+    if (!response.success) {
+      return response
+    }
+
+    const responseData = response.data as
+      | PostReportThresholdPayload
+      | { data?: PostReportThresholdPayload }
+      | undefined
+
+    const payload =
+      responseData && 'data' in responseData && responseData.data
+        ? responseData.data
+        : (responseData as PostReportThresholdPayload | undefined)
+
+    return {
+      success: true as const,
+      data: {
+        post_report_suspend_threshold:
+          payload?.post_report_suspend_threshold ?? value,
+      },
+      message: response.message,
+    }
   }
 
   // Countries
