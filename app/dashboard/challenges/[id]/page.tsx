@@ -82,6 +82,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
+import { AdminUserContactLines, type AdminContactUserFields } from "@/components/admin-user-contact-lines"
 
 function getWinnersErrorMessage(error: string | undefined, code?: string, errorData?: unknown) {
   const data = (errorData ?? {}) as {
@@ -136,6 +137,7 @@ function SortableWinnerUserRow({
             {row.user.display_name && (
               <p className="text-sm text-muted-foreground">{row.user.display_name}</p>
             )}
+            <AdminUserContactLines user={row.user} className="mt-1.5 max-w-[220px]" />
           </div>
         </div>
       </TableCell>
@@ -231,7 +233,11 @@ export default function ChallengeDetailPage() {
   const [participantPostsDialog, setParticipantPostsDialog] = useState<RankingParticipantRow | null>(null)
   const [participantPostsData, setParticipantPostsData] = useState<any[] | null>(null)
   const [participantPostsLoading, setParticipantPostsLoading] = useState(false)
-  const [viewPostsForUser, setViewPostsForUser] = useState<{ userId: string; username: string } | null>(null)
+  const [viewPostsForUser, setViewPostsForUser] = useState<{
+    userId: string
+    username: string
+    contacts?: AdminContactUserFields
+  } | null>(null)
   const [viewPostsForUserData, setViewPostsForUserData] = useState<any[] | null>(null)
   const [viewPostsForUserLoading, setViewPostsForUserLoading] = useState(false)
   const [playingPostId, setPlayingPostId] = useState<string | null>(null)
@@ -383,6 +389,8 @@ export default function ChallengeDetailPage() {
     : viewPostsForUser
       ? `@${viewPostsForUser.username}`
       : ""
+  const userPostsViewContacts: AdminContactUserFields | null =
+    participantPostsDialog?.user ?? viewPostsForUser?.contacts ?? null
   const userPostsViewLoading = participantPostsLoading || viewPostsForUserLoading
   const userPostsViewPosts = useMemo(() => {
     let raw: any[] = []
@@ -1111,6 +1119,7 @@ export default function ChallengeDetailPage() {
                                 {challenge.organizer.display_name}
                               </p>
                             )}
+                            <AdminUserContactLines user={challenge.organizer} className="mt-1.5 max-w-[280px]" />
                           </div>
                         </div>
                       </div>
@@ -1121,7 +1130,7 @@ export default function ChallengeDetailPage() {
                 <TabsContent value="participants" className="mt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <p className="text-sm text-muted-foreground">
-                      Participants ranked by total likes (and latest submission for ties). Search by username or display name.
+                      Participants ranked by total likes (and latest submission for ties). Search by username, display name, email, or phone.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Top <span className="font-medium">{rankingMaxWinnersForParticipantsTab}</span> winners
@@ -1129,7 +1138,7 @@ export default function ChallengeDetailPage() {
                   </div>
                   <div className="flex items-center gap-2 mb-4">
                     <Input
-                      placeholder="Search by username or display name..."
+                      placeholder="Search by username, display name, email, or phone..."
                       value={rankingSearch}
                       onChange={(e) => setRankingSearch(e.target.value)}
                       className="max-w-sm"
@@ -1181,6 +1190,7 @@ export default function ChallengeDetailPage() {
                                         {row.user.display_name && (
                                           <p className="text-xs text-muted-foreground">{row.user.display_name}</p>
                                         )}
+                                        <AdminUserContactLines user={row.user} className="mt-1 max-w-[240px]" />
                                       </div>
                                     </div>
                                   </TableCell>
@@ -1256,6 +1266,7 @@ export default function ChallengeDetailPage() {
                               setViewPostsForUser({
                                 userId: challengePost.user_id ?? challengePost.post.user.id,
                                 username: challengePost.post.user.username,
+                                contacts: challengePost.post.user,
                               })
                             }
                           >
@@ -1274,6 +1285,7 @@ export default function ChallengeDetailPage() {
                                       {challengePost.post.user.display_name}
                                     </p>
                                   )}
+                                  <AdminUserContactLines user={challengePost.post.user} className="mt-1 max-w-[240px]" />
                                 </div>
                               </div>
                             </TableCell>
@@ -1405,7 +1417,13 @@ export default function ChallengeDetailPage() {
                                         key={row.user.id}
                                         row={row}
                                         rank={index + 1}
-                                        onViewPosts={() => setViewPostsForUser({ userId: row.user.id, username: row.user.username })}
+                                        onViewPosts={() =>
+                                          setViewPostsForUser({
+                                            userId: row.user.id,
+                                            username: row.user.username,
+                                            contacts: row.user,
+                                          })
+                                        }
                                         onSetRank={() => { setSetRankDialogUser(row); setSetRankValue(String(index + 1)); }}
                                       />
                                     ))}
@@ -1434,7 +1452,13 @@ export default function ChallengeDetailPage() {
                                   <TableRow
                                     key={row.user.id}
                                     className="cursor-pointer hover:bg-muted/50"
-                                    onClick={() => setViewPostsForUser({ userId: row.user.id, username: row.user.username })}
+                                    onClick={() =>
+                                      setViewPostsForUser({
+                                        userId: row.user.id,
+                                        username: row.user.username,
+                                        contacts: row.user,
+                                      })
+                                    }
                                   >
                                     <TableCell className="font-bold text-primary">{index + 1}</TableCell>
                                     <TableCell>
@@ -1448,6 +1472,7 @@ export default function ChallengeDetailPage() {
                                           {row.user.display_name && (
                                             <p className="text-xs text-muted-foreground">{row.user.display_name}</p>
                                           )}
+                                          <AdminUserContactLines user={row.user} className="mt-1 max-w-[240px]" />
                                         </div>
                                       </div>
                                     </TableCell>
@@ -1458,7 +1483,18 @@ export default function ChallengeDetailPage() {
                                       {row.latest_submission_at ? new Date(row.latest_submission_at).toLocaleString() : "—"}
                                     </TableCell>
                                     <TableCell>
-                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setViewPostsForUser({ userId: row.user.id, username: row.user.username }); }}>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setViewPostsForUser({
+                                            userId: row.user.id,
+                                            username: row.user.username,
+                                            contacts: row.user,
+                                          })
+                                        }}
+                                      >
                                         View posts
                                       </Button>
                                     </TableCell>
@@ -1574,6 +1610,7 @@ export default function ChallengeDetailPage() {
                                         {contributor.display_name}
                                       </p>
                                     )}
+                                    <AdminUserContactLines user={contributor} className="mt-1 max-w-[260px]" />
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -1805,6 +1842,12 @@ export default function ChallengeDetailPage() {
               <p className="text-muted-foreground mt-1">
                 {userPostsViewTitle && <>{userPostsViewTitle} · click a card to play or view</>}
               </p>
+              {userPostsViewContacts ? (
+                <div className="mt-3 rounded-md border bg-muted/30 p-3 max-w-lg">
+                  <p className="text-xs font-medium text-foreground mb-1">Contact</p>
+                  <AdminUserContactLines user={userPostsViewContacts} className="text-sm" />
+                </div>
+              ) : null}
             </div>
             {userPostsViewLoading ? (
               <div className="flex items-center gap-2 py-16 text-muted-foreground">
@@ -1911,6 +1954,12 @@ export default function ChallengeDetailPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              {setRankDialogUser ? (
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs font-medium text-foreground mb-1">Contact</p>
+                  <AdminUserContactLines user={setRankDialogUser.user} />
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="rank-input">Rank</Label>
                 <Input

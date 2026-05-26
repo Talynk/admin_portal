@@ -72,6 +72,7 @@ import { useCountries } from "@/hooks/use-countries";
 import { useUserStats } from "@/hooks/use-user-stats";
 import { toast } from "@/hooks/use-toast";
 import { getProfilePictureUrl } from "@/lib/file-utils";
+import { AdminUserContactLines } from "@/components/admin-user-contact-lines";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -793,7 +794,7 @@ export default function UsersPage() {
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search by username, email, ID, or name..."
+                      placeholder="Search by username, email, phone, ID, or name..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10 hover:border-blue-300 focus:border-blue-500 transition-colors"
@@ -942,9 +943,7 @@ export default function UsersPage() {
                                     {user.bio}
                                   </p>
                                 )}
-                                <p className="text-xs text-muted-foreground">
-                                  {user.email}
-                                </p>
+                                <AdminUserContactLines user={user} className="mt-1" />
                                 <p className="text-xs text-muted-foreground">
                                   ID: {user.id}
                                 </p>

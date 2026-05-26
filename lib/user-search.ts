@@ -11,7 +11,7 @@ export interface SearchableUser {
   username?: string
   display_name?: string
   fullName?: string
-  email?: string
+  email?: string | null
   bio?: string
   phone1?: string | null
   phone2?: string | null

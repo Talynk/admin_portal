@@ -52,6 +52,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl } from "@/lib/file-utils"
 import { apiClient } from "@/lib/api-client"
+import { AdminUserContactLines } from "@/components/admin-user-contact-lines"
 
 function resolveChallengeMaxWinners(challenge: any) {
   return challenge?.max_winners ?? 10
@@ -427,6 +428,7 @@ export default function ChallengesPage() {
                                         {challenge.organizer.display_name}
                                       </p>
                                     )}
+                                    <AdminUserContactLines user={challenge.organizer} className="mt-1 max-w-[220px]" />
                                   </div>
                                 </div>
                               </TableCell>

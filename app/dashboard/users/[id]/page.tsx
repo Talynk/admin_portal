@@ -59,6 +59,7 @@ import { useCountries } from "@/hooks/use-countries";
 import { apiClient } from "@/lib/api-client";
 import { getProfilePictureUrl } from "@/lib/file-utils";
 import { toast } from "@/hooks/use-toast";
+import { AdminUserContactLines } from "@/components/admin-user-contact-lines";
 import {
   Dialog,
   DialogContent,
@@ -274,12 +275,7 @@ export default function UserProfilePage() {
                     {getStatusBadge(user.status)}
                   </div>
                   {(user.fullName ?? user.display_name) && <p className="text-muted-foreground">{user.fullName ?? user.display_name}</p>}
-                  {user.email && (
-                    <p className="text-sm flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      {user.email}
-                    </p>
-                  )}
+                  <AdminUserContactLines user={user} className="text-sm mt-1" />
                   {user.bio && <p className="text-sm text-muted-foreground">{user.bio}</p>}
                   {(user.country ?? (user.country_id && getCountryById(user.country_id))) && (
                     <p className="text-sm text-muted-foreground">

@@ -8,6 +8,9 @@ export interface AggregatedWinnerUser {
   profile_picture?: string
   follower_count?: number
   posts_count?: number
+  email?: string | null
+  phone1?: string | null
+  phone2?: string | null
 }
 
 export interface AggregatedWinnerPostSummary {

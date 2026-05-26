@@ -39,6 +39,8 @@ export interface ChallengeDetail {
     display_name?: string
     email: string
     profile_picture?: string
+    phone1?: string | null
+    phone2?: string | null
   }
   approver?: {
     id: string
@@ -58,6 +60,9 @@ export interface ChallengeDetail {
       profile_picture?: string
       posts_count: number
       follower_count: number
+      email?: string | null
+      phone1?: string | null
+      phone2?: string | null
     }
   }>
   posts: Array<{
@@ -78,6 +83,9 @@ export interface ChallengeDetail {
         username: string
         display_name?: string
         profile_picture?: string
+        email?: string | null
+        phone1?: string | null
+        phone2?: string | null
       }
     }
   }>
@@ -113,6 +121,8 @@ export interface ChallengeAnalytics {
       display_name?: string
       email: string
       profile_picture?: string
+      phone1?: string | null
+      phone2?: string | null
     }
     approver?: {
       id: string
@@ -144,6 +154,9 @@ export interface ChallengeAnalytics {
       profile_picture?: string
       post_count: number
       joined_at: string
+      email?: string | null
+      phone1?: string | null
+      phone2?: string | null
     }>
     participants_with_posts: number
     participants_without_posts: number

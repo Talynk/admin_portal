@@ -24,6 +24,8 @@ export interface Challenge {
     display_name?: string
     email: string
     profile_picture?: string
+    phone1?: string | null
+    phone2?: string | null
   }
   approver?: {
     id: string
