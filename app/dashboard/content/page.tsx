@@ -90,6 +90,7 @@ import { toast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api-client";
 import { getFileUrl, getThumbnailUrl, getDownloadFilename, getBestDownloadUrl, downloadMediaFile } from "@/lib/file-utils";
 import type { AdminSearchPost } from "@/lib/types/admin";
+import { VideoPipelineContentBanner } from "@/components/video-pipeline-content-banner";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -653,6 +654,8 @@ export default function ContentPage() {
               </p>
             </div>
           </div>
+
+          <VideoPipelineContentBanner />
 
           {/* Error Display */}
           {error && (

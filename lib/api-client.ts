@@ -742,11 +742,48 @@ class ApiClient {
     return this.request(`/admin/posts/all${queryString ? `?${queryString}` : ''}`)
   }
 
-  async getPostsProcessing(params?: { limit?: number }) {
+  async getPostsProcessing(params?: { limit?: number; status?: string }) {
     const queryParams = new URLSearchParams()
     if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
     const queryString = queryParams.toString()
     return this.request(`/admin/posts/processing${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getVideoPipelineStats() {
+    return this.request('/admin/posts/processing/stats')
+  }
+
+  async recoverAllVideoProcessing(body: { dryRun?: boolean; limit?: number } = { dryRun: true }) {
+    return this.request('/admin/posts/processing/recover-all', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }
+
+  async reconcileVideoProcessingFromCdn(body: { dryRun?: boolean; limit?: number } = { dryRun: true }) {
+    return this.request('/admin/posts/processing/reconcile-from-cdn', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }
+
+  async requeueStuckVideoProcessing(body: { dryRun?: boolean; limit?: number } = { dryRun: true }) {
+    return this.request('/admin/posts/processing/requeue-stuck', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }
+
+  async failStaleVideoUploads(body: {
+    dryRun?: boolean
+    olderThanMinutes?: number
+    limit?: number
+  } = { dryRun: true }) {
+    return this.request('/admin/posts/upload-stale/fail', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
   }
 
   async getPostsAnalytics(params?: {
