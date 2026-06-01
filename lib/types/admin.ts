@@ -1,5 +1,7 @@
 // Admin Portal Types
 
+import type { VideoPipelineStats } from './video-pipeline'
+
 export interface DashboardStats {
   period: string
   stats: {
@@ -54,6 +56,7 @@ export interface ContentManagementStats {
   pendingReviews: number
   flaggedContents: number
   featuredContents: number
+  videoPipeline?: VideoPipelineStats
 }
 
 export interface PostAnalytics {
