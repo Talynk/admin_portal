@@ -13,6 +13,7 @@ import { useAdminWebSocket } from "@/hooks/use-admin-websocket"
 import { useAuth } from "@/components/auth-provider"
 import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
 import { toast } from "@/hooks/use-toast"
+import { VideoPipelineHealthWidget } from "@/components/video-pipeline-health-widget"
 
 function formatTimeAgo(dateInput: string | Date | null | undefined): string {
   if (!dateInput) return "—"
@@ -281,6 +282,8 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          <VideoPipelineHealthWidget />
 
           {/* Recent Activity */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

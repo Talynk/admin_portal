@@ -76,6 +76,7 @@ import { usePostReports } from "@/hooks/use-post-reports"
 import { apiClient } from "@/lib/api-client"
 import type { TimeFrame } from "@/lib/types/admin"
 import { getFileUrl, getFileType, getDownloadFilename, getBestDownloadUrl, downloadMediaFile, getProfilePictureUrl } from "@/lib/file-utils"
+import { PostVideoProcessingCard } from "@/components/post-video-processing-card"
 import { toast } from "@/hooks/use-toast"
 
 function getContentType(post: any): "video" | "image" {
@@ -528,21 +529,10 @@ export default function PostDetailPage() {
                           <strong>Category:</strong> <span className="text-muted-foreground">{category}</span>
                         </div>
                       )}
-                      {(post as any).processing_status != null && (
-                        <div className="pt-2 border-t">
-                          <h4 className="font-medium mb-2">Processing</h4>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={(post as any).processing_status === "completed" ? "default" : "secondary"}>
-                              {(post as any).processing_status}
-                            </Badge>
-                            {(post as any).processing_error && (
-                              <p className="text-sm text-destructive">{(post as any).processing_error}</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
+
+                  <PostVideoProcessingCard post={post} />
 
                   {/* Likers (from admin post by ID) */}
                   {Array.isArray((post as any).likers) && (post as any).likers.length > 0 && (

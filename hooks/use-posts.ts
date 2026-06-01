@@ -15,6 +15,12 @@ export interface Post {
   mediaUrl?: string
   type?: 'video' | 'image'
   fileType?: 'video' | 'image'
+  processing_status?: 'uploading' | 'pending' | 'processing' | 'completed' | 'failed' | null
+  processing_error?: string | null
+  video_url?: string | null
+  hls_url?: string | null
+  has_source_video?: boolean
+  recoverable?: boolean
   status: 'active' | 'draft' | 'suspended'
   duration?: string
   views: number

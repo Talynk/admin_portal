@@ -54,7 +54,7 @@ const navigation = [
   { name: "Activity Logs", href: "/dashboard/activity", icon: Activity },
   { name: "Support", href: "/dashboard/support", icon: LifeBuoy },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
-  { name: "System", href: "/dashboard/system", icon: Server },
+  { name: "Video Processing", href: "/dashboard/system", icon: Server },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
