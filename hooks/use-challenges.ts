@@ -1,15 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
+import type { ModerationMode } from '@/lib/types/challenge'
 
 export interface Challenge {
   id: string
   name: string
   description: string
-  status: 'pending' | 'approved' | 'active' | 'rejected' | 'ended'
+  status: 'pending' | 'approved' | 'active' | 'rejected' | 'ended' | 'stopped'
   start_date: string
   end_date: string
   has_rewards: boolean
   is_featured?: boolean
+  moderation_mode?: ModerationMode
+  requires_document?: boolean
+  document_name?: string | null
+  document_description?: string | null
   // Primary FE winners field (final backend value after cap/default rules)
   max_winners?: number | null
   // Legacy compatibility fields (non-primary for FE display logic)
@@ -42,7 +47,7 @@ interface UseChallengesParams {
   page?: number
   limit?: number
   search?: string
-  status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended'
+  status?: 'pending' | 'approved' | 'active' | 'rejected' | 'ended' | 'stopped'
 }
 
 interface UseChallengesReturn {

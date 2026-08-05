@@ -660,6 +660,89 @@ class ApiClient {
     return this.request(`/challenges/${challengeId}/participants/${userId}/posts`)
   }
 
+  async updateChallengeModerationMode(challengeId: string, moderation_mode: 'open' | 'moderated') {
+    return this.request(`/admin/challenges/${challengeId}/moderation-mode`, {
+      method: 'PUT',
+      body: JSON.stringify({ moderation_mode }),
+    })
+  }
+
+  async restoreChallenge(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}/restore`, {
+      method: 'PUT',
+    })
+  }
+
+  async getChallengePendingPosts(
+    challengeId: string,
+    params?: { page?: number; limit?: number }
+  ) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/admin/challenges/${challengeId}/pending-posts${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async getAdminPendingPosts(params?: {
+    page?: number
+    limit?: number
+    challenge_id?: string
+    challenge_only?: boolean
+    moderation_mode?: 'open' | 'moderated'
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.challenge_id) queryParams.append('challenge_id', params.challenge_id)
+    if (params?.challenge_only) queryParams.append('challenge_only', 'true')
+    if (params?.moderation_mode) queryParams.append('moderation_mode', params.moderation_mode)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/posts/pending${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getAdminPendingDocuments(params?: { page?: number; limit?: number }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/admin/challenges/pending-documents${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async getChallengePendingDocuments(
+    challengeId: string,
+    params?: { page?: number; limit?: number }
+  ) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/admin/challenges/${challengeId}/pending-documents${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async approveParticipantDocument(challengeId: string, userId: string) {
+    return this.request(
+      `/admin/challenges/${challengeId}/participants/${userId}/document/approve`,
+      { method: 'PUT' }
+    )
+  }
+
+  async rejectParticipantDocument(challengeId: string, userId: string, reason?: string) {
+    return this.request(
+      `/admin/challenges/${challengeId}/participants/${userId}/document/reject`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(reason ? { reason } : {}),
+      }
+    )
+  }
+
   // Ads Management Endpoints
   async createAdUploadSession(title?: string, description?: string, mimeType?: string) {
     const body: Record<string, unknown> = {
@@ -1223,13 +1306,78 @@ class ApiClient {
   async getApproverPendingPosts(params?: {
     page?: number
     limit?: number
+    challenge_id?: string
+    challenge_only?: boolean
+    moderation_mode?: 'open' | 'moderated'
   }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.challenge_id) queryParams.append('challenge_id', params.challenge_id)
+    if (params?.challenge_only) queryParams.append('challenge_only', 'true')
+    if (params?.moderation_mode) queryParams.append('moderation_mode', params.moderation_mode)
 
     const queryString = queryParams.toString()
     return this.request(`/approver/posts/pending${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async getApproverChallengePendingPosts(params?: {
+    page?: number
+    limit?: number
+    challenge_id?: string
+  }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.challenge_id) queryParams.append('challenge_id', params.challenge_id)
+    const queryString = queryParams.toString()
+    return this.request(
+      `/approver/challenges/pending-posts${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async getApproverPendingDocuments(params?: { page?: number; limit?: number }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/approver/challenges/pending-documents${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async getApproverChallengePendingDocuments(
+    challengeId: string,
+    params?: { page?: number; limit?: number }
+  ) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(
+      `/approver/challenges/${challengeId}/pending-documents${queryString ? `?${queryString}` : ''}`
+    )
+  }
+
+  async approveApproverParticipantDocument(challengeId: string, userId: string) {
+    return this.request(
+      `/approver/challenges/${challengeId}/participants/${userId}/document/approve`,
+      { method: 'PUT' }
+    )
+  }
+
+  async rejectApproverParticipantDocument(
+    challengeId: string,
+    userId: string,
+    reason?: string
+  ) {
+    return this.request(
+      `/approver/challenges/${challengeId}/participants/${userId}/document/reject`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(reason ? { reason } : {}),
+      }
+    )
   }
 
   async getApproverApprovedPosts(params?: {

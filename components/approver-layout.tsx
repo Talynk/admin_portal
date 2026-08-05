@@ -17,17 +17,14 @@ import {
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import {
   LayoutDashboard,
-  Video,
-  CheckCircle,
-  Flag,
   Ban,
   Bell,
   User,
   LogOut,
   Menu,
-  Search,
   Shield,
   FileText,
+  Trophy,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -37,6 +34,8 @@ import { ThemeToggle } from "./theme-toggle"
 const navigation = [
   { name: "Dashboard", href: "/approver/dashboard", icon: LayoutDashboard },
   { name: "Suspended Posts", href: "/approver/posts/suspended", icon: Ban },
+  { name: "Challenge Posts", href: "/approver/challenges/posts", icon: Trophy },
+  { name: "Challenge Documents", href: "/approver/challenges/documents", icon: FileText },
   { name: "Notifications", href: "/approver/notifications", icon: Bell },
   { name: "Profile", href: "/approver/profile", icon: User },
 ]
@@ -59,7 +58,8 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
 
       <nav className="flex-1 px-4 py-4 space-y-2">
         {navigation.map((item) => {
-          const isActive = pathname === item.href
+          const isActive =
+            pathname === item.href || (item.href !== "/approver/dashboard" && pathname.startsWith(item.href))
           return (
             <Link
               key={item.name}

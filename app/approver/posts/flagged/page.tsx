@@ -31,6 +31,8 @@ import {
   Ban,
 } from "lucide-react"
 import { getFileUrl } from "@/lib/file-utils"
+import { ChallengeContextBadge } from "@/components/challenge-context-badge"
+import type { ChallengeContext } from "@/lib/types/challenge"
 
 interface Post {
   id: string
@@ -42,6 +44,7 @@ interface Post {
   type?: string
   is_frozen: boolean
   report_count?: number
+  challenge_context?: ChallengeContext | null
   user: {
     username: string
   }
@@ -279,6 +282,11 @@ export default function FlaggedPostsPage() {
                   <MediaIconCard post={post} />
                   <CardContent className="p-4">
                     <h3 className="font-semibold mb-2 line-clamp-2">{post.title}</h3>
+                    {post.challenge_context ? (
+                      <div className="mb-2">
+                        <ChallengeContextBadge context={post.challenge_context} />
+                      </div>
+                    ) : null}
                     <p className="text-xs text-muted-foreground mb-4">
                       @{post.user.username}
                     </p>

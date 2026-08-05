@@ -52,6 +52,8 @@ import {
   Eye,
   Image as ImageIcon,
   Rocket,
+  RotateCcw,
+  FileCheck,
 } from "lucide-react"
 import {
   DndContext,
@@ -83,6 +85,10 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
 import { AdminUserContactLines, type AdminContactUserFields } from "@/components/admin-user-contact-lines"
+import { ChallengeModerationBadge } from "@/components/challenge-moderation-badge"
+import { ChallengeDocumentsQueue } from "@/components/challenge-documents-queue"
+import { ChallengePendingPostsQueue } from "@/components/challenge-pending-posts-queue"
+import type { ModerationMode } from "@/lib/types/challenge"
 
 function getWinnersErrorMessage(error: string | undefined, code?: string, errorData?: unknown) {
   const data = (errorData ?? {}) as {
@@ -186,7 +192,9 @@ export default function ChallengeDetailPage() {
   const realtimeEnabled =
     typeof window === "undefined" ? true : process.env.NEXT_PUBLIC_ENABLE_REALTIME !== "false"
 
-  const [activeTab, setActiveTab] = useState<"overview" | "participants" | "posts" | "analytics" | "winners">("overview")
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "participants" | "posts" | "pending-posts" | "documents" | "analytics" | "winners"
+  >("overview")
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
@@ -208,6 +216,8 @@ export default function ChallengeDetailPage() {
     reorderWinners,
     confirmChallengeWinners,
     updateMaxWinners,
+    updateModerationMode,
+    restoreChallenge,
   } = useChallenge(challengeId, analyticsDays)
 
   useAdminWebSocket({
@@ -256,6 +266,15 @@ export default function ChallengeDetailPage() {
   const [scheduleEndLocal, setScheduleEndLocal] = useState("")
   const [scheduleError, setScheduleError] = useState("")
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false)
+  const [moderationModeDraft, setModerationModeDraft] = useState<ModerationMode>("moderated")
+  const [moderationSaving, setModerationSaving] = useState(false)
+  const [restoreLoading, setRestoreLoading] = useState(false)
+
+  useEffect(() => {
+    if (challenge?.moderation_mode) {
+      setModerationModeDraft(challenge.moderation_mode)
+    }
+  }, [challenge?.moderation_mode])
 
   const {
     winners: aggregatedWinners,
@@ -605,6 +624,41 @@ export default function ChallengeDetailPage() {
     }
   }
 
+  const handleSaveModerationMode = async () => {
+    setModerationSaving(true)
+    try {
+      const result = await updateModerationMode(moderationModeDraft)
+      if (result.success) {
+        toast({ title: "Moderation mode updated" })
+      } else {
+        toast({
+          title: "Update failed",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setModerationSaving(false)
+    }
+  }
+
+  const handleRestoreChallenge = async () => {
+    setRestoreLoading(true)
+    try {
+      const result = await restoreChallenge()
+      if (result.success) {
+        toast({ title: "Challenge restored" })
+        await refetch()
+      } else {
+        toast({ title: "Restore failed", description: result.error, variant: "destructive" })
+      }
+    } finally {
+      setRestoreLoading(false)
+    }
+  }
+
+  const openCannotSetOpen = challenge?.requires_document === true
+
   const openScheduleDialog = () => {
     if (!challenge) return
     setScheduleStartLocal(isoToDatetimeLocalValue(challenge.start_date))
@@ -795,6 +849,12 @@ export default function ChallengeDetailPage() {
             </div>
             <div className="flex items-center gap-2">
               {getStatusBadge(challenge.status)}
+              {challenge.moderation_mode ? (
+                <ChallengeModerationBadge mode={challenge.moderation_mode} />
+              ) : null}
+              {challenge.requires_document ? (
+                <Badge variant="outline">Docs required</Badge>
+              ) : null}
               {challenge.is_featured ? (
                 <Badge variant="outline" className="text-amber-700 border-amber-300">
                   Featured
@@ -861,6 +921,21 @@ export default function ChallengeDetailPage() {
                   </Button>
                 </>
               )}
+              {challenge.status === "stopped" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={restoreLoading}
+                  onClick={() => void handleRestoreChallenge()}
+                >
+                  {restoreLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                  )}
+                  Restore
+                </Button>
+              )}
             </div>
           </div>
 
@@ -879,6 +954,12 @@ export default function ChallengeDetailPage() {
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="participants">Participants ({challenge.statistics.total_participants})</TabsTrigger>
                   <TabsTrigger value="posts">Posts ({challenge.posts.length})</TabsTrigger>
+                  {challenge.moderation_mode === "moderated" ? (
+                    <TabsTrigger value="pending-posts">Pending posts</TabsTrigger>
+                  ) : null}
+                  {challenge.requires_document ? (
+                    <TabsTrigger value="documents">Documents</TabsTrigger>
+                  ) : null}
                   <TabsTrigger value="winners">Winners</TabsTrigger>
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
@@ -953,6 +1034,80 @@ export default function ChallengeDetailPage() {
                       </CardContent>
                     </Card>
                   </div>
+                  {/* Moderation & documents */}
+                  <Card className="mb-6 border bg-muted/20">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileCheck className="h-4 w-4" />
+                        Moderation & documents
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Current mode:</span>
+                        <ChallengeModerationBadge mode={challenge.moderation_mode} />
+                        {challenge.requires_document ? (
+                          <Badge variant="outline">Document required</Badge>
+                        ) : null}
+                      </div>
+                      {challenge.requires_document ? (
+                        <div className="rounded-md border bg-background p-3 space-y-1 text-sm">
+                          <p className="font-medium">{challenge.document_name || "Required document"}</p>
+                          {challenge.document_description ? (
+                            <p className="text-muted-foreground">{challenge.document_description}</p>
+                          ) : null}
+                          <p className="text-xs text-muted-foreground">
+                            Document-required challenges must stay moderated. Open mode is not available.
+                          </p>
+                        </div>
+                      ) : null}
+                      {(challenge.activeParticipants != null ||
+                        challenge.approvedParticipants != null ||
+                        challenge.joinedOnlyParticipants != null) && (
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div className="rounded-md border p-2">
+                            <p className="text-muted-foreground text-xs">Active</p>
+                            <p className="font-semibold">{challenge.activeParticipants ?? "—"}</p>
+                          </div>
+                          <div className="rounded-md border p-2">
+                            <p className="text-muted-foreground text-xs">Approved</p>
+                            <p className="font-semibold">{challenge.approvedParticipants ?? "—"}</p>
+                          </div>
+                          <div className="rounded-md border p-2">
+                            <p className="text-muted-foreground text-xs">Joined only</p>
+                            <p className="font-semibold">{challenge.joinedOnlyParticipants ?? "—"}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-end gap-2 pt-1">
+                        <div className="space-y-1">
+                          <Label htmlFor="moderation-mode">Moderation mode</Label>
+                          <Select
+                            value={moderationModeDraft}
+                            onValueChange={(v) => setModerationModeDraft(v as ModerationMode)}
+                          >
+                            <SelectTrigger id="moderation-mode" className="w-[180px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="open" disabled={openCannotSetOpen}>
+                                Open
+                              </SelectItem>
+                              <SelectItem value="moderated">Moderated</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => void handleSaveModerationMode()}
+                          disabled={moderationSaving || moderationModeDraft === challenge.moderation_mode}
+                        >
+                          {moderationSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                          Save mode
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                   {/* Challenge Info */}
                   <div className="grid gap-4 md:grid-cols-2 mb-6">
                     <Card>
@@ -1302,6 +1457,26 @@ export default function ChallengeDetailPage() {
                       </TableBody>
                     </Table>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="pending-posts" className="mt-6">
+                  <ChallengePendingPostsQueue
+                    portal="admin"
+                    challengeId={challengeId}
+                    source="challenge-queue"
+                  />
+                </TabsContent>
+
+                <TabsContent value="documents" className="mt-6">
+                  {challenge.requires_document ? (
+                    <ChallengeDocumentsQueue portal="admin" challengeId={challengeId} />
+                  ) : (
+                    <div className="text-center py-16 text-muted-foreground">
+                      <FileCheck className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">No document requirement</p>
+                      <p className="text-sm">This challenge does not require participant documents.</p>
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="winners" className="mt-6 space-y-6">

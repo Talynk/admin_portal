@@ -90,7 +90,9 @@ import { toast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api-client";
 import { getFileUrl, getThumbnailUrl, getDownloadFilename, getBestDownloadUrl, downloadMediaFile } from "@/lib/file-utils";
 import type { AdminSearchPost } from "@/lib/types/admin";
+import type { ChallengeContext } from "@/lib/types/challenge";
 import { VideoPipelineContentBanner } from "@/components/video-pipeline-content-banner";
+import { ChallengeContextBadge } from "@/components/challenge-context-badge";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -1047,6 +1049,14 @@ export default function ContentPage() {
                                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                                   {video.description}
                                 </p>
+                                {(video as AdminSearchPost & { challenge_context?: ChallengeContext }).challenge_context ? (
+                                  <div className="mb-2">
+                                    <ChallengeContextBadge
+                                      context={(video as AdminSearchPost & { challenge_context?: ChallengeContext }).challenge_context}
+                                      linkToAdminChallenge
+                                    />
+                                  </div>
+                                ) : null}
                               </div>
                               <div className="flex flex-wrap gap-1">
                                 <Button
@@ -1290,6 +1300,14 @@ export default function ContentPage() {
                                     <p className="text-xs text-muted-foreground">
                                       {video.duration}
                                     </p>
+                                    {(video as AdminSearchPost & { challenge_context?: ChallengeContext }).challenge_context ? (
+                                      <div className="mt-1">
+                                        <ChallengeContextBadge
+                                          context={(video as AdminSearchPost & { challenge_context?: ChallengeContext }).challenge_context}
+                                          linkToAdminChallenge
+                                        />
+                                      </div>
+                                    ) : null}
                                   </div>
                                 </div>
                               </TableCell>

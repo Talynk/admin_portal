@@ -53,6 +53,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getProfilePictureUrl } from "@/lib/file-utils"
 import { apiClient } from "@/lib/api-client"
 import { AdminUserContactLines } from "@/components/admin-user-contact-lines"
+import { ChallengeModerationBadge } from "@/components/challenge-moderation-badge"
+import { ChallengeDocumentsQueue } from "@/components/challenge-documents-queue"
+import { ChallengePendingPostsQueue } from "@/components/challenge-pending-posts-queue"
+import { RotateCcw } from "lucide-react"
 
 function resolveChallengeMaxWinners(challenge: any) {
   return challenge?.max_winners ?? 10
@@ -60,7 +64,9 @@ function resolveChallengeMaxWinners(challenge: any) {
 
 export default function ChallengesPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "active" | "rejected" | "ended">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "active" | "rejected" | "ended" | "stopped">("all")
+  const [pageSection, setPageSection] = useState<"challenges" | "documents" | "pending-posts">("challenges")
+  const [restoreLoadingId, setRestoreLoadingId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -171,6 +177,23 @@ export default function ChallengesPage() {
       toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" })
     } finally {
       setStartNowChallengeId(null)
+    }
+  }
+
+  const handleRestore = async (challengeId: string) => {
+    setRestoreLoadingId(challengeId)
+    try {
+      const res = await apiClient.restoreChallenge(challengeId)
+      if (res.success) {
+        toast({ title: "Challenge restored", description: "Status updated from schedule." })
+        await refetch()
+      } else {
+        toast({ title: "Restore failed", description: res.error, variant: "destructive" })
+      }
+    } catch {
+      toast({ title: "Restore failed", variant: "destructive" })
+    } finally {
+      setRestoreLoadingId(null)
     }
   }
 
@@ -335,6 +358,48 @@ export default function ChallengesPage() {
             </Card>
           )}
 
+          {/* Main sections */}
+          <Tabs value={pageSection} onValueChange={(v) => setPageSection(v as typeof pageSection)}>
+            <TabsList>
+              <TabsTrigger value="challenges">Challenges</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
+              <TabsTrigger value="pending-posts">Pending posts</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="documents" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pending participant documents</CardTitle>
+                  <CardDescription>
+                    Review required documents before participants can submit challenge posts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChallengeDocumentsQueue portal="admin" />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="pending-posts" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pending challenge posts</CardTitle>
+                  <CardDescription>
+                    Draft submissions on moderated challenges awaiting approval
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChallengePendingPostsQueue
+                    portal="admin"
+                    source="global-pending"
+                    showFilters
+                    linkChallengeToAdmin
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="challenges" className="mt-4">
           {/* Challenges List */}
           <Card>
             <CardHeader>
@@ -346,13 +411,14 @@ export default function ChallengesPage() {
                 setActiveTab(value as any)
                 setPage(1)
               }}>
-                <TabsList className="grid w-full grid-cols-6">
+                <TabsList className="grid w-full grid-cols-7">
                   <TabsTrigger value="all">All</TabsTrigger>
                   <TabsTrigger value="pending">Pending</TabsTrigger>
                   <TabsTrigger value="approved">Approved</TabsTrigger>
                   <TabsTrigger value="active">Active</TabsTrigger>
                   <TabsTrigger value="rejected">Rejected</TabsTrigger>
                   <TabsTrigger value="ended">Ended</TabsTrigger>
+                  <TabsTrigger value="stopped">Stopped</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value={activeTab} className="mt-4">
@@ -385,6 +451,7 @@ export default function ChallengesPage() {
                             <TableHead>Challenge</TableHead>
                             <TableHead>Organizer</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Moderation</TableHead>
                             <TableHead>Dates</TableHead>
                             <TableHead>Stats</TableHead>
                             <TableHead>Rewards</TableHead>
@@ -433,6 +500,14 @@ export default function ChallengesPage() {
                                 </div>
                               </TableCell>
                               <TableCell>{getStatusBadge(challenge.status)}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-col gap-1">
+                                  <ChallengeModerationBadge mode={challenge.moderation_mode} />
+                                  {challenge.requires_document ? (
+                                    <Badge variant="outline" className="w-fit text-xs">Docs required</Badge>
+                                  ) : null}
+                                </div>
+                              </TableCell>
                               <TableCell>
                                 <div className="text-sm">
                                   <p className="flex items-center gap-1">
@@ -534,6 +609,25 @@ export default function ChallengesPage() {
                                       Stop
                                     </Button>
                                   )}
+                                  {challenge.status === "stopped" && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      disabled={restoreLoadingId === challenge.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        void handleRestore(challenge.id)
+                                      }}
+                                    >
+                                      {restoreLoadingId === challenge.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                                      )}
+                                      Restore
+                                    </Button>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -573,6 +667,8 @@ export default function ChallengesPage() {
               </Tabs>
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Action Dialog */}

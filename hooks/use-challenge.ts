@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
+import type { ModerationMode } from '@/lib/types/challenge'
+import { getChallengeApiErrorMessage } from '@/lib/challenge-api-errors'
 
 export interface ChallengeDetail {
   id: string
@@ -10,6 +12,13 @@ export interface ChallengeDetail {
   end_date: string
   has_rewards: boolean
   rewards?: string
+  moderation_mode?: ModerationMode
+  requires_document?: boolean
+  document_name?: string | null
+  document_description?: string | null
+  activeParticipants?: number
+  approvedParticipants?: number
+  joinedOnlyParticipants?: number
   createdAt?: string
   updatedAt?: string
   organizer_id?: string
@@ -182,6 +191,8 @@ interface UseChallengeReturn {
   reorderWinners: (orderedChallengePostIds: string[]) => Promise<{ success: boolean; error?: string; errorCode?: string; errorData?: unknown }>
   confirmChallengeWinners: () => Promise<{ success: boolean; error?: string; errorCode?: string; errorData?: unknown }>
   updateMaxWinners: (max: number | null) => Promise<{ success: boolean; error?: string; errorCode?: string; errorData?: unknown }>
+  updateModerationMode: (mode: ModerationMode) => Promise<{ success: boolean; error?: string }>
+  restoreChallenge: () => Promise<{ success: boolean; error?: string }>
 }
 
 export function useChallenge(challengeId: string, analyticsDays: number = 30): UseChallengeReturn {
@@ -395,6 +406,40 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     }
   }, [challengeId, fetchChallenge])
 
+  const updateModerationMode = useCallback(
+    async (mode: ModerationMode) => {
+      if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+      try {
+        const response = await apiClient.updateChallengeModerationMode(challengeId, mode)
+        if (response.success) {
+          await fetchChallenge()
+          return { success: true }
+        }
+        return {
+          success: false,
+          error: getChallengeApiErrorMessage(response as never, 'Failed to update moderation mode'),
+        }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+      }
+    },
+    [challengeId, fetchChallenge]
+  )
+
+  const restoreChallenge = useCallback(async () => {
+    if (!challengeId) return { success: false, error: 'Challenge ID is required' }
+    try {
+      const response = await apiClient.restoreChallenge(challengeId)
+      if (response.success) {
+        await fetchChallenge()
+        return { success: true }
+      }
+      return { success: false, error: response.error || 'Failed to restore challenge' }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An unexpected error occurred' }
+    }
+  }, [challengeId, fetchChallenge])
+
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
@@ -414,6 +459,8 @@ export function useChallenge(challengeId: string, analyticsDays: number = 30): U
     reorderWinners,
     confirmChallengeWinners,
     updateMaxWinners,
+    updateModerationMode,
+    restoreChallenge,
   }
 }
 

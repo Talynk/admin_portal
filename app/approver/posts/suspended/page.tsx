@@ -22,6 +22,8 @@ import {
   XCircle,
 } from "lucide-react"
 import { getFileUrl } from "@/lib/file-utils"
+import { ChallengeContextBadge } from "@/components/challenge-context-badge"
+import type { ChallengeContext } from "@/lib/types/challenge"
 import {
   Dialog,
   DialogContent,
@@ -42,6 +44,7 @@ interface Post {
   suspended_at?: string
   suspend_reason?: string
   report_count?: number
+  challenge_context?: ChallengeContext | null
   user: {
     username: string
     email: string
@@ -288,6 +291,11 @@ export default function SuspendedPostsPage() {
                         Suspended
                       </Badge>
                     </div>
+                    {post.challenge_context ? (
+                      <div className="mb-2">
+                        <ChallengeContextBadge context={post.challenge_context} />
+                      </div>
+                    ) : null}
                     {post.suspend_reason && (
                       <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                         Reason: {post.suspend_reason}

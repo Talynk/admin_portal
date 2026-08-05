@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge"
 import { useApproverAuth } from "@/components/approver-auth-provider"
 import { apiClient } from "@/lib/api-client"
 import { useRouter } from "next/navigation"
-import { 
-  FileText, 
-  CheckCircle, 
-  AlertTriangle, 
+import {
+  FileText,
+  CheckCircle,
+  AlertTriangle,
   Loader2,
   Eye,
-  Flag,
-  Ban
+  Ban,
+  Trophy,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -79,7 +79,7 @@ export default function ApproverDashboardPage() {
           )}
 
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Suspended Posts</CardTitle>
@@ -123,6 +123,42 @@ export default function ApproverDashboardPage() {
                 <p className="text-xs text-muted-foreground">All time reviewed</p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Challenge Posts</CardTitle>
+                <Trophy className="h-4 w-4 text-amber-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.challengePendingCount || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">Moderated drafts awaiting review</p>
+                <Link href="/approver/challenges/posts">
+                  <Button variant="link" className="p-0 h-auto mt-2 text-xs">
+                    Review Now →
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Challenge Reviewed</CardTitle>
+                <CheckCircle className="h-4 w-4 text-indigo-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.challengeReviewedCount || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">Challenge posts reviewed</p>
+                <Link href="/approver/challenges/documents">
+                  <Button variant="link" className="p-0 h-auto mt-2 text-xs">
+                    Documents queue →
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Quick Actions */}
@@ -140,6 +176,39 @@ export default function ApproverDashboardPage() {
                 <Button variant="outline" className="w-full mt-4">
                   <Eye className="w-4 h-4 mr-2" />
                   Review Suspended
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/approver/challenges/posts')}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-amber-600" />
+                  Challenge Posts
+                </CardTitle>
+                <CardDescription>Approve or reject moderated challenge draft submissions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{stats?.challengePendingCount || 0}</p>
+                <Button variant="outline" className="w-full mt-4">
+                  <Eye className="w-4 h-4 mr-2" />
+                  Review Challenge Posts
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/approver/challenges/documents')}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-indigo-600" />
+                  Challenge Documents
+                </CardTitle>
+                <CardDescription>Review required participant documents before posting</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" className="w-full mt-4">
+                  <Eye className="w-4 h-4 mr-2" />
+                  Open Documents Queue
                 </Button>
               </CardContent>
             </Card>
