@@ -24,7 +24,10 @@ export function ChallengeContextBadge({
     >
       <Trophy className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
       <span className="font-medium truncate max-w-[160px]">{context.challenge_name}</span>
-      <ChallengeModerationBadge mode={context.moderation_mode} />
+      <ChallengeModerationBadge
+        mode={context.moderation_mode}
+        requiresDocument={context.requires_document}
+      />
     </span>
   )
 

@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { FileText, ExternalLink, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { FileText, Eye, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { DocumentPreviewDialog } from '@/components/document-preview-dialog'
 import type { PendingDocumentItem } from '@/lib/types/challenge'
 import { ChallengeDocumentStatusBadge } from '@/components/challenge-document-status-badge'
 import { ChallengeModerationBadge } from '@/components/challenge-moderation-badge'
@@ -34,6 +35,7 @@ export function ChallengeDocumentReviewCard({
   actionLoading?: boolean
 }) {
   const [rejectOpen, setRejectOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -42,7 +44,7 @@ export function ChallengeDocumentReviewCard({
       onRefresh?.()
       return
     }
-    window.open(item.downloadUrl, '_blank', 'noopener,noreferrer')
+    setPreviewOpen(true)
   }
 
   const handleApprove = async () => {
@@ -88,14 +90,12 @@ export function ChallengeDocumentReviewCard({
           {item.challenge?.document_description ? (
             <p className="text-muted-foreground">{item.challenge.document_description}</p>
           ) : null}
-          <div className="flex flex-wrap gap-2">
-            {item.challenge?.moderation_mode ? (
-              <ChallengeModerationBadge mode={item.challenge.moderation_mode} />
-            ) : null}
-            {item.challenge?.requires_document ? (
-              <Badge variant="outline">Docs required</Badge>
-            ) : null}
-          </div>
+          {item.challenge?.moderation_mode ? (
+            <ChallengeModerationBadge
+              mode={item.challenge.moderation_mode}
+              requiresDocument={item.challenge.requires_document}
+            />
+          ) : null}
           {item.user ? (
             <div>
               <p className="font-medium">@{item.user.username}</p>
@@ -119,9 +119,9 @@ export function ChallengeDocumentReviewCard({
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={handleOpenFile} disabled={!item.downloadUrl}>
-              <ExternalLink className="h-4 w-4 mr-1" />
-              Open file
+            <Button variant="outline" size="sm" onClick={handleOpenFile}>
+              <Eye className="h-4 w-4 mr-1" />
+              {item.downloadUrl ? 'Review document' : 'Refresh link'}
             </Button>
             <Button
               size="sm"
@@ -144,6 +144,17 @@ export function ChallengeDocumentReviewCard({
           </div>
         </CardContent>
       </Card>
+
+      <DocumentPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        url={item.downloadUrl}
+        fileName={item.document_original_name ?? docLabel}
+        mimeType={item.document_mime}
+        expiresIn={item.expiresIn}
+        onRefreshUrl={onRefresh}
+        description={`Submitted for ${challengeName}`}
+      />
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>

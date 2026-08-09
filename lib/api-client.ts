@@ -935,17 +935,27 @@ class ApiClient {
     })
   }
 
+  // PUT /admin/approve takes the post id in the body as `id`, and requires
+  // `rejectionReason` whenever the target status is a rejection.
   async approvePost(postId: string, reason?: string) {
     return this.request('/admin/approve', {
       method: 'PUT',
-      body: JSON.stringify({ postId, status: 'active', adminNotes: reason }),
+      body: JSON.stringify({
+        id: postId,
+        status: 'approved',
+        ...(reason ? { rejectionReason: reason } : {}),
+      }),
     })
   }
 
   async rejectPost(postId: string, reason: string) {
     return this.request('/admin/approve', {
       method: 'PUT',
-      body: JSON.stringify({ postId, status: 'suspended', adminNotes: reason }),
+      body: JSON.stringify({
+        id: postId,
+        status: 'rejected',
+        rejectionReason: reason,
+      }),
     })
   }
 
@@ -1203,6 +1213,16 @@ class ApiClient {
     return this.request('/admin/approvers', {
       method: 'POST',
       body: JSON.stringify({ email }),
+    })
+  }
+
+  /**
+   * Rotates the invite token and emails a fresh link. Works while the current
+   * invitation is still valid; the previously mailed link stops working.
+   */
+  async resendApproverInvite(approverId: string) {
+    return this.request(`/admin/approvers/${approverId}/resend-invite`, {
+      method: 'POST',
     })
   }
 

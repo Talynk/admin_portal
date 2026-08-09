@@ -520,19 +520,54 @@ export interface SupportEmailStats {
   byCategory: Record<string, number>
 }
 
+export type ApproverStatus = 'active' | 'inactive' | 'pending' | 'suspended'
+
+/** `accepted` = onboarding done, `none` = no usable token (legacy or cleared). */
+export type ApproverInviteState = 'accepted' | 'pending' | 'expired' | 'none'
+
+export interface ApproverInvite {
+  state: ApproverInviteState
+  sentAt: string | null
+  expiresAt: string | null
+  acceptedAt: string | null
+  canResend: boolean
+}
+
 export interface Approver {
   id: string
   username: string
   email: string
-  status: 'active' | 'inactive'
+  status: ApproverStatus
   joinedDate: string
   lastActive: string | null
+  invite?: ApproverInvite | null
   totalApprovedPosts: number
   totalPosts: number
   performance: {
     approvalRate: number
     averageResponseTime: number
   }
+}
+
+/** Shared shape of the invite and resend-invite responses. */
+export interface ApproverInvitationResult {
+  approver?: {
+    id: string
+    email: string
+    status: string
+    createdAt?: string
+    onboarding_invited_at?: string | null
+    onboarding_token_expires_at?: string | null
+  }
+  /** Absent when the backend runs with APPROVER_INVITE_RETURN_LINK=false. */
+  onboardingLink?: string
+  expiresAt?: string
+  expiresInHours?: number
+  /** Present on the 409 conflict when an invite is still valid. */
+  invitePending?: boolean
+  exists?: boolean
+  field?: string
+  retryAfterSeconds?: number
 }
 
 export interface ApproversResponse {

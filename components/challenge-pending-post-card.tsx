@@ -14,10 +14,13 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { CheckCircle, XCircle, Loader2, Video, Image as ImageIcon } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, FileText } from 'lucide-react'
+import { ChallengeDocumentStatusBadge } from '@/components/challenge-document-status-badge'
+import { DocumentPreviewDialog } from '@/components/document-preview-dialog'
 import type { ChallengePendingPost } from '@/lib/types/challenge'
 import { ChallengeContextBadge } from '@/components/challenge-context-badge'
-import { getFileUrl, getThumbnailUrl } from '@/lib/file-utils'
+import { PostMediaThumbnail } from '@/components/media/post-media-thumbnail'
+import { PostMediaDialog } from '@/components/media/post-media-dialog'
 
 export function ChallengePendingPostCard({
   post,
@@ -36,11 +39,10 @@ export function ChallengePendingPostCard({
   const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
+  const [documentOpen, setDocumentOpen] = useState(false)
 
-  const thumb =
-    getFileUrl(post.thumbnail_url) ||
-    (post.video_url ? getThumbnailUrl(post.video_url) : null)
-  const isVideo = post.type === 'video' || !!post.video_url
+  const participantDocument = post.participant_document
 
   const openAction = (type: 'approve' | 'reject') => {
     setActionType(type)
@@ -69,14 +71,13 @@ export function ChallengePendingPostCard({
     <>
       <Card className="overflow-hidden border bg-card hover:shadow-sm transition-shadow">
         <div className="flex flex-col sm:flex-row">
-          <div className="relative w-full sm:w-40 h-32 sm:h-auto shrink-0 bg-muted flex items-center justify-center">
-            {thumb ? (
-              <img src={thumb} alt="" className="w-full h-full object-cover" />
-            ) : isVideo ? (
-              <Video className="h-10 w-10 text-muted-foreground" />
-            ) : (
-              <ImageIcon className="h-10 w-10 text-muted-foreground" />
-            )}
+          <div className="w-full shrink-0 sm:w-48">
+            <PostMediaThumbnail
+              source={post}
+              title={post.title || post.caption}
+              className="rounded-none"
+              onPlay={() => setMediaOpen(true)}
+            />
           </div>
           <CardContent className="flex-1 p-4 space-y-2">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -99,6 +100,39 @@ export function ChallengePendingPostCard({
                 {post.description || post.caption}
               </p>
             ) : null}
+            {participantDocument ? (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-sm font-medium">
+                      {participantDocument.document_original_name ||
+                        participantDocument.document_name ||
+                        'Participant document'}
+                    </span>
+                  </div>
+                  <ChallengeDocumentStatusBadge
+                    status={participantDocument.document_status}
+                  />
+                </div>
+                {participantDocument.document_rejection_reason ? (
+                  <p className="text-xs text-muted-foreground">
+                    Rejected: {participantDocument.document_rejection_reason}
+                  </p>
+                ) : null}
+                {participantDocument.downloadUrl ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDocumentOpen(true)}
+                    disabled={busy}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Review document
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               {post.createdAt || post.uploadDate
                 ? new Date(post.createdAt || post.uploadDate!).toLocaleString()
@@ -117,6 +151,31 @@ export function ChallengePendingPostCard({
           </CardContent>
         </div>
       </Card>
+
+      <PostMediaDialog
+        source={post}
+        open={mediaOpen}
+        onOpenChange={setMediaOpen}
+        title={post.title || post.caption}
+        description={post.description || post.caption}
+      />
+
+      {participantDocument ? (
+        <DocumentPreviewDialog
+          open={documentOpen}
+          onOpenChange={setDocumentOpen}
+          url={participantDocument.downloadUrl}
+          fileName={
+            participantDocument.document_original_name ??
+            participantDocument.document_name
+          }
+          mimeType={participantDocument.document_mime}
+          expiresIn={participantDocument.expiresIn}
+          description={
+            post.user ? `Submitted by @${post.user.username}` : 'Participant document'
+          }
+        />
+      ) : null}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

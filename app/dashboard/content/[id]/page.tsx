@@ -76,6 +76,8 @@ import { usePostReports } from "@/hooks/use-post-reports"
 import { apiClient } from "@/lib/api-client"
 import type { TimeFrame } from "@/lib/types/admin"
 import { getFileUrl, getFileType, getDownloadFilename, getBestDownloadUrl, downloadMediaFile, getProfilePictureUrl } from "@/lib/file-utils"
+import { PostMediaPlayer } from "@/components/media/post-media-player"
+import { MediaProcessingNotice } from "@/components/media/media-processing-notice"
 import { PostVideoProcessingCard } from "@/components/post-video-processing-card"
 import { toast } from "@/hooks/use-toast"
 
@@ -145,8 +147,22 @@ export default function PostDetailPage() {
     setActionDialogOpen(true)
   }
 
+  // PUT /admin/approve requires rejectionReason for rejections; suspend sends
+  // the same text on to the owner's notification.
+  const requiresReason = actionType === "reject" || actionType === "suspend"
+
   const executeAction = async () => {
     if (!post || !actionType) return
+
+    if (requiresReason && !actionReason.trim()) {
+      toast({
+        title: "Reason required",
+        description: "Enter a reason — it is sent to the post owner.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsActionLoading(true)
     try {
       let result: { success?: boolean; error?: string } | undefined
@@ -439,33 +455,9 @@ export default function PostDetailPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-                        {mediaUrl ? (
-                          contentType === "video" ? (
-                            <video
-                              src={mediaUrl}
-                              controls
-                              className="w-full h-full object-contain"
-                              poster={undefined}
-                            >
-                              Your browser does not support the video tag.
-                            </video>
-                          ) : (
-                            <img
-                              src={mediaUrl}
-                              alt={post.title || "Post"}
-                              className="w-full h-full object-contain"
-                              onError={(e) => {
-                                if (e.currentTarget.src !== "/placeholder.svg") e.currentTarget.src = "/placeholder.svg"
-                              }}
-                            />
-                          )
-                        ) : (
-                          <div className="text-white/70 text-center">
-                            {contentType === "video" ? <Video className="w-16 h-16 mx-auto mb-2 opacity-50" /> : <ImageIcon className="w-16 h-16 mx-auto mb-2 opacity-50" />}
-                            <p className="text-sm">No media</p>
-                          </div>
-                        )}
+                      <div className="space-y-3">
+                        <PostMediaPlayer source={post as any} title={post.title} />
+                        <MediaProcessingNotice source={post as any} />
                       </div>
                       <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-4">
                         <span className="flex items-center gap-1">
@@ -890,14 +882,24 @@ export default function PostDetailPage() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="reason">
-                  {actionType === "delete" ? "Reason for audit (optional)" : "Reason (optional)"}
+                  {requiresReason
+                    ? "Reason (required, included in notification to owner)"
+                    : actionType === "delete"
+                      ? "Reason for audit (optional)"
+                      : "Reason (optional)"}
                 </Label>
                 <Textarea
                   id="reason"
                   placeholder={actionType === "delete" ? "Logged in audit log..." : "Reason..."}
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
+                  aria-invalid={requiresReason && !actionReason.trim()}
                 />
+                {requiresReason && !actionReason.trim() ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    The API rejects this action without a reason.
+                  </p>
+                ) : null}
               </div>
             </div>
             <DialogFooter>
@@ -907,7 +909,7 @@ export default function PostDetailPage() {
               <Button
                 variant={actionType === "delete" ? "destructive" : "default"}
                 onClick={executeAction}
-                disabled={isActionLoading}
+                disabled={isActionLoading || (requiresReason && !actionReason.trim())}
               >
                 {isActionLoading ? (
                   <>

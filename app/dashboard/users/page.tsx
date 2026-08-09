@@ -65,6 +65,7 @@ import {
   UserCheck,
   FileText,
   Megaphone,
+  Trash2,
 } from "lucide-react";
 import { useUsers } from "@/hooks/use-users";
 import { apiClient } from "@/lib/api-client";
@@ -1000,84 +1001,68 @@ export default function UsersPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex flex-wrap items-center justify-end gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(`/dashboard/users/${user.id}`, "_blank");
-                                }}
-                              >
-                                <Eye className="h-3.5 w-3.5 mr-1" />
-                                View
-                              </Button>
-                              {user.status === "suspended" ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
                                 <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
-                                  onClick={() => handleUserAction(user, "unsuspend")}
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  aria-label={`Actions for @${user.username}`}
                                 >
-                                  <UserCheck className="h-3.5 w-3.5 mr-1" />
-                                  Unsuspend
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                              ) : (user.status === "active" || user.status === "frozen") ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
-                                  onClick={() => handleUserAction(user, "suspend")}
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => window.open(`/dashboard/users/${user.id}`, "_blank")}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View profile
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    if (user.email) window.location.href = `mailto:${user.email}`;
+                                    else toast({ title: "No email", description: "This user has no email on file.", variant: "destructive" });
+                                  }}
                                 >
-                                  <Ban className="h-3.5 w-3.5 mr-1" />
-                                  Suspend
-                                </Button>
-                              ) : null}
-                              {user.status === "frozen" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
-                                  onClick={() => handleUserAction(user, "activate")}
-                                >
-                                  <Shield className="h-3.5 w-3.5 mr-1" />
-                                  Reactivate
-                                </Button>
-                              )}
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={() => handleUserAction(user, "delete")}
-                              >
-                                <Ban className="h-3.5 w-3.5 mr-1" />
-                                Delete
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => window.open(`/dashboard/users/${user.id}`, "_blank")}>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View profile
-                                  </DropdownMenuItem>
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  Send message
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {user.status === "suspended" ? (
                                   <DropdownMenuItem
-                                    className="hover:bg-blue-50"
-                                    onClick={() => {
-                                      if (user.email) window.location.href = `mailto:${user.email}`;
-                                      else toast({ title: "No email", description: "This user has no email on file.", variant: "destructive" });
-                                    }}
+                                    className="text-green-600"
+                                    onClick={() => handleUserAction(user, "unsuspend")}
                                   >
-                                    <Mail className="mr-2 h-4 w-4" />
-                                    Send message
+                                    <UserCheck className="mr-2 h-4 w-4" />
+                                    Unsuspend
                                   </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
+                                ) : (user.status === "active" || user.status === "frozen") ? (
+                                  <DropdownMenuItem
+                                    className="text-orange-600"
+                                    onClick={() => handleUserAction(user, "suspend")}
+                                  >
+                                    <Ban className="mr-2 h-4 w-4" />
+                                    Suspend
+                                  </DropdownMenuItem>
+                                ) : null}
+                                {user.status === "frozen" && (
+                                  <DropdownMenuItem
+                                    className="text-green-600"
+                                    onClick={() => handleUserAction(user, "activate")}
+                                  >
+                                    <Shield className="mr-2 h-4 w-4" />
+                                    Reactivate
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleUserAction(user, "delete")}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}

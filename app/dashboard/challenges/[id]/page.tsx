@@ -54,7 +54,16 @@ import {
   Rocket,
   RotateCcw,
   FileCheck,
+  MoreHorizontal,
+  ArrowUpDown,
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   DndContext,
   closestCenter,
@@ -83,7 +92,8 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getProfilePictureUrl, getFileUrl, getThumbnailUrl } from "@/lib/file-utils"
+import { getProfilePictureUrl } from "@/lib/file-utils"
+import { ReviewMediaCard } from "@/components/media/review-media-card"
 import { AdminUserContactLines, type AdminContactUserFields } from "@/components/admin-user-contact-lines"
 import { ChallengeModerationBadge } from "@/components/challenge-moderation-badge"
 import { ChallengeDocumentsQueue } from "@/components/challenge-documents-queue"
@@ -153,18 +163,32 @@ function SortableWinnerUserRow({
       <TableCell className="text-muted-foreground text-sm">
         {row.latest_submission_at ? new Date(row.latest_submission_at).toLocaleString() : "—"}
       </TableCell>
-      <TableCell>
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onViewPosts(); }}>
-          View posts
-        </Button>
+      <TableCell className="w-16 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              aria-label={`Actions for @${row.user.username}`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={onViewPosts}>
+              <Eye className="mr-2 h-4 w-4" />
+              View posts
+            </DropdownMenuItem>
+            {onSetRank ? (
+              <DropdownMenuItem onClick={onSetRank}>
+                <ArrowUpDown className="mr-2 h-4 w-4" />
+                Set rank
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </TableCell>
-      {onSetRank && (
-        <TableCell className="w-24">
-          <Button variant="outline" size="sm" onClick={onSetRank}>
-            Set rank
-          </Button>
-        </TableCell>
-      )}
     </tr>
   )
 }
@@ -417,12 +441,13 @@ export default function ChallengeDetailPage() {
     else if (viewPostsForUser && viewPostsForUserData) raw = viewPostsForUserData
     return raw.map((item: any) => {
       const post = item.post ?? item
-      const mediaUrl = post.video_url ?? post.hls_url ?? post.thumbnail_url ?? item.video_url
-      const thumbUrl = post.thumbnail_url ?? post.thumbnail ?? (mediaUrl ? getThumbnailUrl(mediaUrl) : null)
       return {
+        // Keep the raw playback fields so the shared player can pick HLS,
+        // poster and processing state straight from the API payload.
+        ...post,
         id: item.id ?? post.id ?? item.challenge_post_id,
-        video_url: mediaUrl,
-        thumbnail_url: thumbUrl,
+        video_url: post.video_url ?? item.video_url,
+        thumbnail_url: post.thumbnail_url ?? post.thumbnail,
         title: post.title ?? post.caption ?? "Post",
         submitted_at: item.submitted_at ?? post.submitted_at,
         likes_at_challenge_end: item.likes_at_challenge_end ?? post.likes_at_challenge_end,
@@ -436,24 +461,6 @@ export default function ChallengeDetailPage() {
     setViewPostsForUser(null)
     setPlayingPostId(null)
   }, [])
-
-  const getContentType = useCallback((p: { video_url?: string; thumbnail_url?: string }) => {
-    const url = p.video_url ?? p.thumbnail_url ?? ""
-    if (!url) return "video"
-    if (url.includes(".m3u8") || url.match(/\.(mp4|mov|webm|avi)$/i)) return "video"
-    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return "image"
-    return "video"
-  }, [])
-  const getPreviewUrl = useCallback((p: { video_url?: string; thumbnail_url?: string }) => {
-    const contentType = getContentType(p)
-    const mediaUrl = p.video_url ?? null
-    const resolved = getFileUrl(mediaUrl)
-    if (contentType === "video") {
-      const thumb = p.thumbnail_url ?? (mediaUrl ? getThumbnailUrl(mediaUrl) : null)
-      return getFileUrl(thumb) || resolved
-    }
-    return resolved
-  }, [getContentType])
 
   const orderedWinnersForDisplay = useMemo(() => {
     if (!aggregatedWinners.length) return []
@@ -850,10 +857,10 @@ export default function ChallengeDetailPage() {
             <div className="flex items-center gap-2">
               {getStatusBadge(challenge.status)}
               {challenge.moderation_mode ? (
-                <ChallengeModerationBadge mode={challenge.moderation_mode} />
-              ) : null}
-              {challenge.requires_document ? (
-                <Badge variant="outline">Docs required</Badge>
+                <ChallengeModerationBadge
+                  mode={challenge.moderation_mode}
+                  requiresDocument={challenge.requires_document}
+                />
               ) : null}
               {challenge.is_featured ? (
                 <Badge variant="outline" className="text-amber-700 border-amber-300">
@@ -915,9 +922,10 @@ export default function ChallengeDetailPage() {
                     variant="destructive"
                     size="sm"
                     onClick={() => handleAction("stop")}
+                    title="Closes participation. The challenge is kept and can be restored."
                   >
                     <StopCircle className="h-4 w-4 mr-2" />
-                    Stop Challenge
+                    Stop challenge
                   </Button>
                 </>
               )}
@@ -927,13 +935,14 @@ export default function ChallengeDetailPage() {
                   size="sm"
                   disabled={restoreLoading}
                   onClick={() => void handleRestoreChallenge()}
+                  title="Reopens the challenge in its previous state."
                 >
                   {restoreLoading ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <RotateCcw className="h-4 w-4 mr-2" />
                   )}
-                  Restore
+                  Restore challenge
                 </Button>
               )}
             </div>
@@ -1045,10 +1054,10 @@ export default function ChallengeDetailPage() {
                     <CardContent className="space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm text-muted-foreground">Current mode:</span>
-                        <ChallengeModerationBadge mode={challenge.moderation_mode} />
-                        {challenge.requires_document ? (
-                          <Badge variant="outline">Document required</Badge>
-                        ) : null}
+                        <ChallengeModerationBadge
+                          mode={challenge.moderation_mode}
+                          requiresDocument={challenge.requires_document}
+                        />
                       </div>
                       {challenge.requires_document ? (
                         <div className="rounded-md border bg-background p-3 space-y-1 text-sm">
@@ -1581,8 +1590,7 @@ export default function ChallengeDetailPage() {
                                     <TableHead>Total likes</TableHead>
                                     <TableHead>Best rank</TableHead>
                                     <TableHead>Latest submission</TableHead>
-                                    <TableHead className="w-24">View</TableHead>
-                                    <TableHead className="w-24">Actions</TableHead>
+                                    <TableHead className="w-16 text-right">Actions</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1824,19 +1832,22 @@ export default function ChallengeDetailPage() {
               <DialogDescription>
                 {actionType === "approve" && `Are you sure you want to approve "${challenge.name}"?`}
                 {actionType === "reject" && `Are you sure you want to reject "${challenge.name}"?`}
-                {actionType === "stop" && `Are you sure you want to stop "${challenge.name}"? This will end the challenge.`}
+                {actionType === "stop" && `Stop "${challenge.name}"? Participation closes immediately, but the challenge and its posts are kept and can be restored.`}
               </DialogDescription>
             </DialogHeader>
             {actionType === "reject" && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="reason">Rejection Reason (optional)</Label>
+                  <Label htmlFor="reason">Rejection reason (recommended)</Label>
                   <Textarea
                     id="reason"
                     placeholder="Enter reason for rejection..."
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    The reason is shown to the creator on the rejected challenge.
+                  </p>
                 </div>
               </div>
             )}
@@ -2034,73 +2045,12 @@ export default function ChallengeDetailPage() {
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {userPostsViewPosts.map((p: any) => {
-                  const contentType = getContentType(p)
-                  const fileUrl = getFileUrl(p.video_url)
-                  const previewUrl = getPreviewUrl(p)
-                  const isPlaying = playingPostId === p.id
                   return (
                     <Card
                       key={p.id}
-                      className="overflow-hidden hover:shadow-lg transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+                      className="overflow-hidden hover:shadow-lg transition-all duration-200"
                     >
-                      <div className="relative w-full aspect-video min-h-[240px] bg-muted/50 overflow-hidden rounded-t-lg flex items-center justify-center group">
-                        {isPlaying && fileUrl ? (
-                          <>
-                            {contentType === "video" ? (
-                              <video
-                                src={fileUrl}
-                                controls
-                                autoPlay
-                                className="w-full h-full object-contain bg-black min-h-[240px]"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            ) : (
-                              <img
-                                src={fileUrl}
-                                alt={p.title || "Media"}
-                                className="w-full h-full object-contain bg-black min-h-[240px]"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            )}
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="absolute top-3 right-3 bg-black/70 hover:bg-black/90 text-white z-10 h-9 w-9 p-0"
-                              onClick={() => setPlayingPostId(null)}
-                            >
-                              <XCircle className="h-5 w-5" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            {previewUrl ? (
-                              <img
-                                src={previewUrl}
-                                alt={p.title || "Preview"}
-                                className="w-full h-full object-cover min-h-[240px]"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="flex flex-col items-center gap-2 text-muted-foreground min-h-[240px] justify-center">
-                                {contentType === "video" ? <Video className="w-12 h-12 opacity-60" /> : <ImageIcon className="w-12 h-12 opacity-60" />}
-                                <span className="text-sm">No preview</span>
-                              </div>
-                            )}
-                            {fileUrl && (
-                              <button
-                                type="button"
-                                className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-pointer"
-                                onClick={() => setPlayingPostId(isPlaying ? null : p.id)}
-                                aria-label="Play"
-                              >
-                                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-4">
-                                  <Play className="w-10 h-10 text-white" />
-                                </span>
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      <ReviewMediaCard source={p} title={p.title} />
                       <CardContent className="p-4">
                         <h3 className="font-semibold text-sm line-clamp-2 mb-2">{p.title}</h3>
                         <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">

@@ -18,26 +18,22 @@ import {
 } from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "@/hooks/use-toast"
-import { 
+import {
   Flag,
   Loader2,
   Video,
-  Image as ImageIcon,
-  Eye,
-  Play,
-  Ban,
   AlertTriangle,
 } from "lucide-react"
-import { getFileUrl } from "@/lib/file-utils"
+import type { LegacyMediaFields, PostPlaybackFields } from "@/lib/types/media"
+import { ReviewMediaCard } from "@/components/media/review-media-card"
+import { PostMediaDialog } from "@/components/media/post-media-dialog"
 
-interface Post {
+interface Post extends PostPlaybackFields, LegacyMediaFields {
   id: string
   title: string
   description?: string
-  video_url?: string
   file_url?: string
   status: string
-  type?: string
   views: number
   createdAt: string
   user: {
@@ -57,7 +53,6 @@ export default function ActivePostsPage() {
   const [isFlagLoading, setIsFlagLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [playingVideo, setPlayingVideo] = useState<string | null>(null)
 
   useEffect(() => {
     loadPosts()
@@ -134,105 +129,6 @@ export default function ActivePostsPage() {
     }
   }
 
-  const getContentType = (post: Post) => {
-    if (post.type === 'video' || post.video_url?.match(/\.(mp4|mov|avi|webm)$/i)) {
-      return 'video'
-    }
-    return 'image'
-  }
-
-  const MediaIconCard = ({ post }: { post: Post }) => {
-    const contentType = getContentType(post)
-    const ContentIcon = contentType === 'video' ? Video : ImageIcon
-    const mediaUrl = post.video_url || post.file_url
-    const fileUrl = mediaUrl ? getFileUrl(mediaUrl) : null
-    const isPlaying = playingVideo === post.id
-
-    const handlePlayClick = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (isPlaying) {
-        setPlayingVideo(null)
-      } else {
-        setPlayingVideo(post.id)
-      }
-    }
-
-    const handleCloseMedia = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      setPlayingVideo(null)
-    }
-
-    return (
-      <div className="relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 overflow-hidden rounded-t-lg flex items-center justify-center group">
-        {isPlaying && fileUrl ? (
-          <>
-            {contentType === 'video' ? (
-              <video
-                src={fileUrl}
-                controls
-                autoPlay
-                className="w-full h-full object-contain bg-black"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <img
-                src={fileUrl}
-                alt={post.title}
-                className="w-full h-full object-contain bg-black"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute top-2 right-2 bg-black/70 dark:bg-black/80 hover:bg-black/90 dark:hover:bg-black text-white shadow-lg z-10 border border-white/20"
-              onClick={handleCloseMedia}
-            >
-              <Ban className="w-4 h-4" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <div className="flex flex-col items-center justify-center gap-3">
-              <div className="bg-white/90 dark:bg-gray-800/90 rounded-full p-6 shadow-lg">
-                <ContentIcon className="w-12 h-12 text-gray-600 dark:text-gray-300" />
-              </div>
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                {contentType === 'video' ? 'Video' : 'Image'}
-              </div>
-            </div>
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105 backdrop-blur-sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedPost(post)
-                  setVideoDialogOpen(true)
-                }}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Details
-              </Button>
-              {fileUrl && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-xl border border-gray-300 dark:border-gray-600 font-medium transition-all hover:scale-105 backdrop-blur-sm"
-                  onClick={handlePlayClick}
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  {contentType === 'video' ? 'Play' : 'View'}
-                </Button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    )
-  }
-
   return (
     <ApproverProtectedRoute>
       <ApproverLayout>
@@ -270,7 +166,14 @@ export default function ActivePostsPage() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {posts.map((post) => (
                 <Card key={post.id} className="overflow-hidden">
-                  <MediaIconCard post={post} />
+                  <ReviewMediaCard
+                    source={post}
+                    title={post.title}
+                    onDetails={() => {
+                      setSelectedPost(post)
+                      setVideoDialogOpen(true)
+                    }}
+                  />
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold line-clamp-1">{post.title}</h3>
@@ -378,44 +281,13 @@ export default function ActivePostsPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Video/Image Preview Dialog */}
-          <Dialog open={videoDialogOpen} onOpenChange={setVideoDialogOpen}>
-            <DialogContent className="max-w-4xl">
-              <DialogHeader>
-                <DialogTitle>{selectedPost?.title}</DialogTitle>
-                <DialogDescription>
-                  {selectedPost?.description || 'No description available'}
-                </DialogDescription>
-              </DialogHeader>
-              {selectedPost && (
-                <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                  {(() => {
-                    const contentType = getContentType(selectedPost)
-                    const mediaUrl = selectedPost.video_url || selectedPost.file_url
-                    const fileUrl = mediaUrl ? getFileUrl(mediaUrl) : null
-                    
-                    if (!fileUrl) {
-                      return (
-                        <div className="w-full h-full flex items-center justify-center">
-                          {contentType === 'video' ? (
-                            <Video className="w-16 h-16 text-gray-400" />
-                          ) : (
-                            <ImageIcon className="w-16 h-16 text-gray-400" />
-                          )}
-                        </div>
-                      )
-                    }
-
-                    return contentType === 'video' ? (
-                      <video src={fileUrl} controls className="w-full h-full object-contain" />
-                    ) : (
-                      <img src={fileUrl} alt={selectedPost.title} className="w-full h-full object-contain" />
-                    )
-                  })()}
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
+          <PostMediaDialog
+            source={selectedPost}
+            open={videoDialogOpen}
+            onOpenChange={setVideoDialogOpen}
+            title={selectedPost?.title}
+            description={selectedPost?.description}
+          />
         </div>
       </ApproverLayout>
     </ApproverProtectedRoute>

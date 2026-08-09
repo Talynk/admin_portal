@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
-import { Approver, ApproversResponse } from '@/lib/types/admin'
+import { Approver, ApproverInvitationResult, ApproversResponse } from '@/lib/types/admin'
 
 interface UseApproversParams {
   page?: number
@@ -49,9 +49,41 @@ export function useApprovers(params: UseApproversParams = {}) {
       const response = await apiClient.createApproverInvitation(email)
       if (response.success) {
         await fetchApprovers() // Refresh the list
-        return { success: true, data: response.data, message: response.message }
-      } else {
-        return { success: false, error: response.error, message: response.message }
+        return {
+          success: true,
+          data: response.data as ApproverInvitationResult | undefined,
+          message: response.message,
+        }
+      }
+      // A 409 carries data.invitePending / data.exists so the caller can offer
+      // the right recovery action instead of a dead-end error.
+      return {
+        success: false,
+        error: response.error,
+        message: response.message,
+        data: (response as { data?: unknown }).data as ApproverInvitationResult | undefined,
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
+  const resendApproverInvite = async (approverId: string) => {
+    try {
+      const response = await apiClient.resendApproverInvite(approverId)
+      if (response.success) {
+        await fetchApprovers()
+        return {
+          success: true,
+          data: response.data as ApproverInvitationResult | undefined,
+          message: response.message,
+        }
+      }
+      return {
+        success: false,
+        error: response.error,
+        message: response.message,
+        data: (response as { data?: unknown }).data as ApproverInvitationResult | undefined,
       }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
@@ -167,6 +199,7 @@ export function useApprovers(params: UseApproversParams = {}) {
     refetch: fetchApprovers,
     createApprover,
     createApproverInvitation,
+    resendApproverInvite,
     updateApprover,
     activateApprover,
     suspendApprover,

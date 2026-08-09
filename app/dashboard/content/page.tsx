@@ -82,13 +82,18 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api-client";
-import { getFileUrl, getThumbnailUrl, getDownloadFilename, getBestDownloadUrl, downloadMediaFile } from "@/lib/file-utils";
+import { getDownloadFilename, getBestDownloadUrl, downloadMediaFile } from "@/lib/file-utils";
+import { PostMediaPlayer } from "@/components/media/post-media-player";
+import { MediaProcessingNotice } from "@/components/media/media-processing-notice";
+import { PostMediaThumbnail } from "@/components/media/post-media-thumbnail";
+import { ReviewMediaCard } from "@/components/media/review-media-card";
 import type { AdminSearchPost } from "@/lib/types/admin";
 import type { ChallengeContext } from "@/lib/types/challenge";
 import { VideoPipelineContentBanner } from "@/components/video-pipeline-content-banner";
@@ -114,7 +119,6 @@ export default function ContentPage() {
   const [actionReason, setActionReason] = useState("");
   const [actionExpiresAt, setActionExpiresAt] = useState("");
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [timeRange, setTimeRange] = useState("all");
@@ -330,8 +334,21 @@ export default function ContentPage() {
     setActionDialogOpen(true);
   };
 
+  // PUT /admin/approve returns 400 without rejectionReason when the target
+  // status is a rejection, so block the request client-side instead.
+  const requiresReason = actionType === "reject" || actionType === "suspend";
+
   const executeAction = async () => {
     if (!selectedVideo || !actionType) return;
+
+    if (requiresReason && !actionReason.trim()) {
+      toast({
+        title: "Reason required",
+        description: "Enter a reason — it is sent to the post owner.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsActionLoading(true);
     try {
@@ -474,168 +491,14 @@ export default function ContentPage() {
     return "video";
   };
 
-  const getContentIcon = (post: any) => {
-    const contentType = getContentType(post);
-    return contentType === "video" ? Video : ImageIcon;
-  };
-
-  // Preview URL for card: thumbnail for video, full URL for image
-  const getPreviewUrl = (p: any) => {
-    const mediaUrl = p.video_url || p.fullUrl || null;
-    const resolved = getFileUrl(mediaUrl);
-    const contentType = getContentType(p);
-    if (contentType === "video") {
-      const thumb = p.thumbnail_url || p.thumbnail || (mediaUrl ? getThumbnailUrl(mediaUrl) : null);
-      return getFileUrl(thumb) || resolved;
-    }
-    return resolved;
-  };
-
-  // Media card with real preview and inline play
-  const MediaIconCard = ({ post }: { post: any }) => {
-    const contentType = getContentType(post);
-    const ContentIcon = contentType === "video" ? Video : ImageIcon;
-    const mediaUrl = post.video_url || post.fullUrl || null;
-    const fileUrl = getFileUrl(mediaUrl);
-    const previewUrl = getPreviewUrl(post);
-    const isPlaying = playingVideo === post.id;
-
-    const handlePlayClick = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isPlaying) {
-        setPlayingVideo(null);
-      } else {
-        setPlayingVideo(post.id);
-      }
-    };
-
-    const handleCloseMedia = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setPlayingVideo(null);
-    };
-
-    return (
-      <div className="relative w-full aspect-video bg-muted/50 overflow-hidden rounded-t-lg flex items-center justify-center group">
-        {isPlaying && fileUrl ? (
-          /* Inline play: video with controls or image full view */
-          <>
-            {contentType === "video" ? (
-              <video
-                src={fileUrl || undefined}
-                controls
-                autoPlay
-                className="w-full h-full object-contain bg-black"
-                onClick={(e) => e.stopPropagation()}
-                onError={() => {}}
-              >
-                Your browser does not support the video tag.
-              </video>
-            ) : (
-              <img
-                src={fileUrl || "/placeholder.svg"}
-                alt={post.title || post.caption || "Image"}
-                className="w-full h-full object-contain bg-black"
-                onClick={(e) => e.stopPropagation()}
-                onError={(e) => {
-                  if (e.currentTarget.src !== "/placeholder.svg") {
-                    e.currentTarget.src = "/placeholder.svg";
-                  }
-                }}
-              />
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white shadow-lg z-10 border border-white/20"
-              onClick={handleCloseMedia}
-            >
-              <Ban className="w-4 h-4" />
-            </Button>
-            {contentType === "video" && post.duration && (
-              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                {post.duration}
-              </div>
-            )}
-          </>
-        ) : (
-          /* Preview state: show thumbnail/image, click to play */
-          <>
-            {previewUrl ? (
-              <img
-                src={previewUrl}
-                alt={post.title || post.caption || contentType === "video" ? "Video preview" : "Image"}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  if (e.currentTarget.src !== "/placeholder.svg") {
-                    e.currentTarget.src = "/placeholder.svg";
-                  }
-                }}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                <ContentIcon className="w-10 h-10 opacity-60" />
-                <span className="text-xs font-medium uppercase">No preview</span>
-              </div>
-            )}
-            {/* Click overlay: click preview to play */}
-            {fileUrl && (
-              <button
-                type="button"
-                className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors cursor-pointer"
-                onClick={handlePlayClick}
-                aria-label={contentType === "video" ? "Play" : "View"}
-              >
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-3">
-                  <Play className="w-8 h-8 text-white" />
-                </span>
-              </button>
-            )}
-            {/* Action buttons overlay - above click-to-play so buttons are clickable */}
-            <div className="absolute inset-0 z-10 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none flex items-end justify-center gap-2 pb-2">
-              <span className="pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 text-xs bg-white/95 hover:bg-white text-gray-900 shadow-lg border-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openVideoPreview(post);
-                  }}
-                >
-                  <Eye className="w-3.5 h-3.5 mr-1" />
-                  Details
-                </Button>
-                {fileUrl && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 text-xs bg-white/95 hover:bg-white text-gray-900 shadow-lg border-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePlayClick(e);
-                    }}
-                  >
-                    <Play className="w-3.5 h-3.5 mr-1" />
-                    {contentType === "video" ? "Play" : "View"}
-                  </Button>
-                )}
-              </span>
-            </div>
-            {contentType === "video" && post.duration && (
-              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
-                {post.duration}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
-
-  const getContentPreview = (post: any) => {
-    return <MediaIconCard post={post} />;
-  };
+  const getContentPreview = (post: any) => (
+    <ReviewMediaCard
+      source={post}
+      title={post.title || post.caption}
+      duration={post.duration}
+      onDetails={() => openVideoPreview(post)}
+    />
+  );
 
   const openVideoPreview = (video: any) => {
     setSelectedVideo(video);
@@ -1255,33 +1118,18 @@ export default function ContentPage() {
                               <TableCell>
                                 <div className="flex items-center gap-3">
                                   <div
-                                    className="relative w-20 h-14 rounded overflow-hidden bg-muted flex-shrink-0 cursor-pointer"
+                                    className="relative flex-shrink-0 cursor-pointer"
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       openVideoPreview(video)
                                     }}
                                   >
-                                    <img
-                                      src={getPreviewUrl(video) || "/placeholder.svg"}
-                                      alt={video.title || video.caption || (getContentType(video) === "video" ? "Video" : "Image")}
-                                      className="w-full h-full object-cover"
-                                      loading="lazy"
-                                      onError={(e) => {
-                                        if (e.currentTarget.src !== "/placeholder.svg") {
-                                          e.currentTarget.src = "/placeholder.svg";
-                                        }
-                                      }}
+                                    <PostMediaThumbnail
+                                      source={video}
+                                      title={video.title || video.caption}
+                                      compact
+                                      onPlay={() => openVideoPreview(video)}
                                     />
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <Play className="w-5 h-5 text-white drop-shadow" />
-                                    </div>
-                                    <div className="absolute top-1 left-1">
-                                      {getContentIcon(video) === Video ? (
-                                        <Video className="w-3 h-3 text-white bg-black/50 rounded" />
-                                      ) : (
-                                        <ImageIcon className="w-3 h-3 text-white bg-black/50 rounded" />
-                                      )}
-                                    </div>
                                     {(video as any).is_featured && (
                                       <div className="absolute top-1 right-1">
                                         <Badge className="bg-yellow-500 text-white text-xs px-1 py-0">
@@ -1365,109 +1213,79 @@ export default function ContentPage() {
                                 </div>
                               </TableCell>
                               <TableCell onClick={(e) => e.stopPropagation()}>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-xs"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openVideoPreview(video)
-                                    }}
-                                  >
-                                    <Eye className="h-3.5 w-3.5 mr-1" />
-                                    View
-                                  </Button>
-                                  {video.status === "draft" && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-8 w-8 p-0"
+                                      aria-label={`Actions for ${video.title || video.caption || "post"}`}
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => openVideoPreview(video)}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      Preview
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}`, "_blank")}>
+                                      <ExternalLink className="mr-2 h-4 w-4" />
+                                      Full details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleDownload(video)}
+                                      disabled={!getBestDownloadUrl(video) || downloadingId === video.id}
+                                    >
+                                      <Download className="mr-2 h-4 w-4" />
+                                      {downloadingId === video.id ? "Downloading..." : "Download"}
+                                    </DropdownMenuItem>
+                                    {video.aiModeration && (
+                                      <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}?tab=ai-moderation`, "_blank")}>
+                                        <Brain className="mr-2 h-4 w-4" />
+                                        AI analysis
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    {video.status === "draft" && (
+                                      <DropdownMenuItem
+                                        className="text-green-600"
                                         onClick={() => handleVideoAction(video, "approve")}
                                       >
-                                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                        <CheckCircle className="mr-2 h-4 w-4" />
                                         Approve
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
-                                        onClick={() => handleVideoAction(video, "reject")}
-                                      >
-                                        <Ban className="h-3.5 w-3.5 mr-1" />
-                                        Suspend
-                                      </Button>
-                                    </>
-                                  )}
-                                  {video.status === "active" && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
-                                      onClick={() => handleVideoAction(video, "suspend")}
-                                    >
-                                      <Ban className="h-3.5 w-3.5 mr-1" />
-                                      Suspend
-                                    </Button>
-                                  )}
-                                  {(video as any).is_featured || (video as any).featured ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => handleVideoAction(video, "unfeature")}
-                                    >
-                                      <StarOff className="h-3.5 w-3.5 mr-1" />
-                                      Unfeature
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => handleVideoAction(video, "feature")}
-                                    >
-                                      <Star className="h-3.5 w-3.5 mr-1" />
-                                      Feature
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    className="h-8 text-xs"
-                                    onClick={() => handleVideoAction(video, "delete")}
-                                  >
-                                    <Ban className="h-3.5 w-3.5 mr-1" />
-                                    Delete
-                                  </Button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}`, "_blank")}>
-                                        <ExternalLink className="mr-2 h-4 w-4" />
-                                        Full Details
                                       </DropdownMenuItem>
+                                    )}
+                                    {(video.status === "draft" || video.status === "active") && (
                                       <DropdownMenuItem
-                                        onClick={() => handleDownload(video)}
-                                        disabled={!getBestDownloadUrl(video) || downloadingId === video.id}
+                                        className="text-orange-600"
+                                        onClick={() => handleVideoAction(video, video.status === "draft" ? "reject" : "suspend")}
                                       >
-                                        <Download className="mr-2 h-4 w-4" />
-                                        {downloadingId === video.id ? "Downloading..." : "Download"}
+                                        <Ban className="mr-2 h-4 w-4" />
+                                        Suspend
                                       </DropdownMenuItem>
-                                      {video.aiModeration && (
-                                        <DropdownMenuItem onClick={() => window.open(`/dashboard/content/${video.id}?tab=ai-moderation`, "_blank")}>
-                                        <Brain className="mr-2 h-4 w-4" />
-                                        AI Analysis
+                                    )}
+                                    {(video as any).is_featured || (video as any).featured ? (
+                                      <DropdownMenuItem onClick={() => handleVideoAction(video, "unfeature")}>
+                                        <StarOff className="mr-2 h-4 w-4" />
+                                        Remove from featured
                                       </DropdownMenuItem>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
+                                    ) : (
+                                      <DropdownMenuItem onClick={() => handleVideoAction(video, "feature")}>
+                                        <Star className="mr-2 h-4 w-4" />
+                                        Add to featured
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() => handleVideoAction(video, "delete")}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1545,8 +1363,8 @@ export default function ContentPage() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="reason">
-                  {actionType === "reject" || actionType === "suspend"
-                    ? "Reason (optional, included in notification to owner)"
+                  {requiresReason
+                    ? "Reason (required, included in notification to owner)"
                     : "Reason (optional)"}
                 </Label>
                 <Textarea
@@ -1554,7 +1372,13 @@ export default function ContentPage() {
                   placeholder="Enter reason for this action..."
                   value={actionReason}
                   onChange={(e) => setActionReason(e.target.value)}
+                  aria-invalid={requiresReason && !actionReason.trim()}
                 />
+                {requiresReason && !actionReason.trim() ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    The API rejects this action without a reason.
+                  </p>
+                ) : null}
               </div>
               {actionType === "feature" && (
                 <div>
@@ -1586,7 +1410,7 @@ export default function ContentPage() {
               <Button
                 variant={actionType === "delete" ? "destructive" : "default"}
                 onClick={executeAction}
-                disabled={isActionLoading}
+                disabled={isActionLoading || (requiresReason && !actionReason.trim())}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 {isActionLoading ? (
@@ -1619,40 +1443,12 @@ export default function ContentPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="aspect-video bg-black rounded-lg flex items-center justify-center overflow-hidden">
-                {selectedVideo && getContentType(selectedVideo) === "video" ? (
-                  <video
-                    src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl) || undefined}
-                    controls
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      console.error('Video load error:', e)
-                    }}
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                ) : selectedVideo && getContentType(selectedVideo) === "image" ? (
-                  <img
-                    src={getFileUrl((selectedVideo as any).video_url || (selectedVideo as any).fullUrl) || '/placeholder.svg'}
-                    alt={selectedVideo.title}
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      e.currentTarget.src = '/placeholder.svg'
-                    }}
-                  />
-                ) : (
-                  <div className="text-white text-center">
-                    <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-sm opacity-75">Text Post</p>
-                    <p className="text-xs opacity-50">
-                      No media content
-                    </p>
-                  </div>
-                )}
-              </div>
+              <PostMediaPlayer
+                source={selectedVideo}
+                title={selectedVideo?.title || selectedVideo?.caption}
+                autoPlay
+              />
+              <MediaProcessingNotice source={selectedVideo} />
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p>

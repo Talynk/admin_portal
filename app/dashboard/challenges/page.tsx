@@ -43,7 +43,17 @@ import {
   ArrowRight,
   Search,
   Rocket,
+  MoreHorizontal,
+  RotateCcw,
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useChallenges } from "@/hooks/use-challenges"
 import { useChallengeStats } from "@/hooks/use-challenge-stats"
 import { toast } from "@/hooks/use-toast"
@@ -56,7 +66,6 @@ import { AdminUserContactLines } from "@/components/admin-user-contact-lines"
 import { ChallengeModerationBadge } from "@/components/challenge-moderation-badge"
 import { ChallengeDocumentsQueue } from "@/components/challenge-documents-queue"
 import { ChallengePendingPostsQueue } from "@/components/challenge-pending-posts-queue"
-import { RotateCcw } from "lucide-react"
 
 function resolveChallengeMaxWinners(challenge: any) {
   return challenge?.max_winners ?? 10
@@ -501,12 +510,10 @@ export default function ChallengesPage() {
                               </TableCell>
                               <TableCell>{getStatusBadge(challenge.status)}</TableCell>
                               <TableCell>
-                                <div className="flex flex-col gap-1">
-                                  <ChallengeModerationBadge mode={challenge.moderation_mode} />
-                                  {challenge.requires_document ? (
-                                    <Badge variant="outline" className="w-fit text-xs">Docs required</Badge>
-                                  ) : null}
-                                </div>
+                                <ChallengeModerationBadge
+                                  mode={challenge.moderation_mode}
+                                  requiresDocument={challenge.requires_document}
+                                />
                               </TableCell>
                               <TableCell>
                                 <div className="text-sm">
@@ -544,91 +551,83 @@ export default function ChallengesPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex flex-wrap items-center justify-end gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-xs"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      router.push(`/dashboard/challenges/${challenge.id}`)
-                                    }}
-                                  >
-                                    <Eye className="h-3.5 w-3.5 mr-1" />
-                                    View details
-                                  </Button>
-                                  {challenge.status === "pending" && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-xs text-green-600 border-green-200 hover:bg-green-50"
-                                        onClick={() => handleAction(challenge, "approve")}
-                                      >
-                                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                        Approve
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                        onClick={() => handleAction(challenge, "reject")}
-                                      >
-                                        <XCircle className="h-3.5 w-3.5 mr-1" />
-                                        Reject
-                                      </Button>
-                                    </>
-                                  )}
-                                  {challenge.status === "approved" && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
                                     <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                                      disabled={startNowChallengeId === challenge.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleStartNowFromList(challenge.id)
-                                      }}
+                                      variant="ghost"
+                                      className="h-8 w-8 p-0"
+                                      aria-label={`Actions for ${challenge.name}`}
                                     >
-                                      {startNowChallengeId === challenge.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                      {startNowChallengeId === challenge.id ||
+                                      restoreLoadingId === challenge.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : (
-                                        <Rocket className="h-3.5 w-3.5 mr-1" />
+                                        <MoreHorizontal className="h-4 w-4" />
                                       )}
-                                      Start now
                                     </Button>
-                                  )}
-                                  {(challenge.status === "active" || challenge.status === "approved") && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
-                                      onClick={() => handleAction(challenge, "stop")}
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem
+                                      onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
                                     >
-                                      <StopCircle className="h-3.5 w-3.5 mr-1" />
-                                      Stop
-                                    </Button>
-                                  )}
-                                  {challenge.status === "stopped" && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      disabled={restoreLoadingId === challenge.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        void handleRestore(challenge.id)
-                                      }}
-                                    >
-                                      {restoreLoadingId === challenge.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                                      ) : (
-                                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                                      )}
-                                      Restore
-                                    </Button>
-                                  )}
-                                </div>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View details
+                                    </DropdownMenuItem>
+                                    {challenge.status === "pending" && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-green-600"
+                                          onClick={() => handleAction(challenge, "approve")}
+                                        >
+                                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                                          Approve
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="text-red-600"
+                                          onClick={() => handleAction(challenge, "reject")}
+                                        >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                    {challenge.status === "approved" && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          disabled={startNowChallengeId === challenge.id}
+                                          onClick={() => handleStartNowFromList(challenge.id)}
+                                        >
+                                          <Rocket className="mr-2 h-4 w-4" />
+                                          Start now
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                    {(challenge.status === "active" || challenge.status === "approved") && (
+                                      <DropdownMenuItem
+                                        className="text-orange-600"
+                                        onClick={() => handleAction(challenge, "stop")}
+                                      >
+                                        <StopCircle className="mr-2 h-4 w-4" />
+                                        Stop challenge
+                                      </DropdownMenuItem>
+                                    )}
+                                    {challenge.status === "stopped" && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          disabled={restoreLoadingId === challenge.id}
+                                          onClick={() => void handleRestore(challenge.id)}
+                                        >
+                                          <RotateCcw className="mr-2 h-4 w-4" />
+                                          Restore challenge
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -686,19 +685,22 @@ export default function ChallengesPage() {
                 {actionType === "reject" &&
                   `Are you sure you want to reject "${selectedChallenge?.name}"?`}
                 {actionType === "stop" &&
-                  `Are you sure you want to stop "${selectedChallenge?.name}"? This will end the challenge.`}
+                  `Stop "${selectedChallenge?.name}"? Participation closes immediately, but the challenge and its posts are kept and can be restored.`}
               </DialogDescription>
             </DialogHeader>
             {actionType === "reject" && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="reason">Rejection Reason (optional)</Label>
+                  <Label htmlFor="reason">Rejection reason (recommended)</Label>
                   <Textarea
                     id="reason"
                     placeholder="Enter reason for rejection..."
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    The reason is shown to the creator on the rejected challenge.
+                  </p>
                 </div>
               </div>
             )}

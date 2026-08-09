@@ -53,7 +53,16 @@ import {
   Play,
   Image as ImageIcon,
   BarChart3,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 import { getFileUrl, getThumbnailUrl } from "@/lib/file-utils";
@@ -574,7 +583,7 @@ export default function AdsPage() {
                     <TableBody>
                       {filteredAds.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                             No ads yet. Create one to get started.
                           </TableCell>
                         </TableRow>
@@ -631,15 +640,36 @@ export default function AdsPage() {
                               </TableCell>
                               <TableCell>{ad.admin?.username ?? "—"}</TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" onClick={() => openViewMedia(ad)} aria-label="View media">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => openEdit(ad)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => confirmDelete(ad)}>
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-8 w-8 p-0"
+                                      aria-label={`Actions for ${ad.title || "ad"}`}
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuItem onClick={() => openViewMedia(ad)}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View media
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openEdit(ad)}>
+                                      <Pencil className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={() => confirmDelete(ad)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           );

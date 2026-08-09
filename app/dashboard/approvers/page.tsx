@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -35,6 +35,8 @@ import {
   ExternalLink,
   AlertCircle,
   Loader2,
+  Send,
+  Copy,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -48,7 +50,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useApprovers } from "@/hooks/use-approvers"
 import { useDashboard } from "@/hooks/use-dashboard"
 import { toast } from "@/hooks/use-toast"
-import { Approver } from "@/lib/types/admin"
+import { Approver, ApproverInvitationResult } from "@/lib/types/admin"
+import { ApproverInviteStatus } from "@/components/approver-invite-status"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function ApproversPage() {
   const router = useRouter()
@@ -59,10 +63,31 @@ export default function ApproversPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isActionLoading, setIsActionLoading] = useState(false)
+  const [resendTarget, setResendTarget] = useState<Approver | null>(null)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendResult, setResendResult] = useState<ApproverInvitationResult | null>(null)
+  // Per-approver 60s cooldown enforced by the API, mirrored so the button can
+  // count down instead of failing with a 429.
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
+  const [now, setNow] = useState(() => Date.now())
+  const [invitePendingHint, setInvitePendingHint] = useState<string | null>(null)
 
   const [newApprover, setNewApprover] = useState({
     email: "",
   })
+
+  const hasCooldowns = Object.keys(cooldowns).length > 0
+  useEffect(() => {
+    if (!hasCooldowns) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [hasCooldowns])
+
+  const getCooldownSeconds = (approverId: string) => {
+    const until = cooldowns[approverId]
+    if (!until) return 0
+    return Math.max(0, Math.ceil((until - now) / 1000))
+  }
 
   // Use the API hook
     const {
@@ -73,6 +98,7 @@ export default function ApproversPage() {
     totalPages,
     refetch,
     createApproverInvitation,
+    resendApproverInvite,
     updateApprover,
     activateApprover,
     suspendApprover,
@@ -131,25 +157,36 @@ export default function ApproversPage() {
     }
 
     setIsActionLoading(true)
+    setInvitePendingHint(null)
     try {
       const result = await createApproverInvitation(newApprover.email)
       if (result.success) {
         toast({
-          title: "Success",
-          description: result.message || "Approver invitation sent successfully. Onboarding link has been sent to their email.",
+          title: "Invitation sent",
+          description:
+            result.message ||
+            "Onboarding link emailed. It expires in 48 hours and can only be used once.",
         })
         setAddApproverDialogOpen(false)
         setNewApprover({
           email: "",
         })
-        // Show onboarding link in development if provided
-        if (result.data?.onboardingLink) {
-          console.log('Onboarding link (dev only):', result.data.onboardingLink)
-        }
+      } else if (result.data?.invitePending) {
+        // The API refuses to silently invalidate a link the invitee may be
+        // about to click, so steer the admin to the Resend action instead.
+        setInvitePendingHint(
+          result.message ||
+            result.error ||
+            "This email already has a valid invitation. Use Resend on their row to replace it with a fresh link."
+        )
+      } else if (result.data?.exists) {
+        setInvitePendingHint(
+          result.message || "This email already belongs to an approver account."
+        )
       } else {
         toast({
           title: "Error",
-          description: result.error || result.message || "Failed to create approver invitation",
+          description: result.message || result.error || "Failed to create approver invitation",
           variant: "destructive",
         })
       }
@@ -161,6 +198,64 @@ export default function ApproversPage() {
       })
     } finally {
       setIsActionLoading(false)
+    }
+  }
+
+  const handleResendInvite = async () => {
+    if (!resendTarget) return
+
+    setResendLoading(true)
+    try {
+      const result = await resendApproverInvite(resendTarget.id)
+      if (result.success) {
+        setResendResult(result.data ?? null)
+        setCooldowns((prev) => ({ ...prev, [resendTarget.id]: Date.now() + 60_000 }))
+        setNow(Date.now())
+        toast({
+          title: "Invitation resent",
+          description:
+            result.message ||
+            `A fresh link was emailed to ${resendTarget.email}. The earlier link no longer works.`,
+        })
+        return
+      }
+
+      const retryAfter = result.data?.retryAfterSeconds
+      if (retryAfter) {
+        setCooldowns((prev) => ({
+          ...prev,
+          [resendTarget.id]: Date.now() + retryAfter * 1000,
+        }))
+        setNow(Date.now())
+      }
+      toast({
+        title: "Could not resend",
+        description: result.message || result.error || "Failed to resend the invitation",
+        variant: "destructive",
+      })
+      setResendTarget(null)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+      setResendTarget(null)
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  const copyOnboardingLink = async (link: string) => {
+    try {
+      await navigator.clipboard.writeText(link)
+      toast({ title: "Link copied" })
+    } catch {
+      toast({
+        title: "Copy failed",
+        description: "Select and copy the link manually.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -224,6 +319,13 @@ export default function ApproversPage() {
     } finally {
       setIsActionLoading(false)
     }
+  }
+
+  // Drive the action off the API's `canResend` flag; fall back to status for
+  // rows served by an older payload without the invite block.
+  const canResendInvite = (approver: Approver) => {
+    if (approver.invite) return approver.invite.canResend
+    return approver.status !== "active"
   }
 
   const getStatusBadge = (status: string) => {
@@ -396,6 +498,7 @@ export default function ApproversPage() {
                           <TableRow>
                             <TableHead>Approver</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Invitation</TableHead>
                             <TableHead>Performance</TableHead>
                             <TableHead>Posts</TableHead>
                             <TableHead>Join Date</TableHead>
@@ -427,6 +530,9 @@ export default function ApproversPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>{getStatusBadge(approver.status)}</TableCell>
+                                <TableCell>
+                                  <ApproverInviteStatus invite={approver.invite} />
+                                </TableCell>
                                 <TableCell>
                                   <div className="text-sm">
                                     <p>Rate: {approver.performance?.approvalRate || 0}%</p>
@@ -490,6 +596,22 @@ export default function ApproversPage() {
                                         Edit
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
+                                      {canResendInvite(approver) && (
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setResendResult(null)
+                                            setResendTarget(approver)
+                                          }}
+                                          disabled={
+                                            isActionLoading || getCooldownSeconds(approver.id) > 0
+                                          }
+                                        >
+                                          <Send className="mr-2 h-4 w-4" />
+                                          {getCooldownSeconds(approver.id) > 0
+                                            ? `Resend in ${getCooldownSeconds(approver.id)}s`
+                                            : "Resend invitation"}
+                                        </DropdownMenuItem>
+                                      )}
                                       {approver.status === "pending" && (
                                         <DropdownMenuItem
                                           onClick={() => handleToggleStatus(approver.id, 'activate')}
@@ -609,8 +731,114 @@ export default function ApproversPage() {
           </Tabs>
         </div>
 
+        {/* Resend Invitation Dialog */}
+        <Dialog
+          open={!!resendTarget}
+          onOpenChange={(open) => {
+            if (!open) {
+              setResendTarget(null)
+              setResendResult(null)
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {resendResult ? "Invitation resent" : "Resend invitation"}
+              </DialogTitle>
+              <DialogDescription>
+                {resendResult
+                  ? `A fresh onboarding link was emailed to ${resendTarget?.email}.`
+                  : `Send a new onboarding link to ${resendTarget?.email}.`}
+              </DialogDescription>
+            </DialogHeader>
+
+            {resendResult ? (
+              <div className="space-y-3">
+                {resendResult.expiresInHours ? (
+                  <p className="text-sm text-muted-foreground">
+                    The new link expires in {resendResult.expiresInHours} hours and can only
+                    be used once.
+                  </p>
+                ) : null}
+                {resendResult.onboardingLink ? (
+                  <div className="space-y-2">
+                    <Label>Onboarding link</Label>
+                    <div className="flex items-start gap-2">
+                      <code className="flex-1 rounded-md border bg-muted/40 p-2 text-xs break-all">
+                        {resendResult.onboardingLink}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => copyOnboardingLink(resendResult.onboardingLink!)}
+                        aria-label="Copy onboarding link"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This link is credential-equivalent — only share it with the invitee.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  The link previously emailed will stop working immediately. Avoid resending
+                  while the invitee may be filling in the onboarding form.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <DialogFooter>
+              {resendResult ? (
+                <Button
+                  onClick={() => {
+                    setResendTarget(null)
+                    setResendResult(null)
+                  }}
+                >
+                  Done
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setResendTarget(null)}
+                    disabled={resendLoading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleResendInvite} disabled={resendLoading}>
+                    {resendLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Resend invitation
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Add Approver Dialog */}
-        <Dialog open={addApproverDialogOpen} onOpenChange={setAddApproverDialogOpen}>
+        <Dialog
+          open={addApproverDialogOpen}
+          onOpenChange={(open) => {
+            setAddApproverDialogOpen(open)
+            if (!open) setInvitePendingHint(null)
+          }}
+        >
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Invite New Approver</DialogTitle>
@@ -631,9 +859,16 @@ export default function ApproversPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  An onboarding link will be sent to this email address
+                  An onboarding link will be sent to this email address. It expires in 48
+                  hours and can only be used once.
                 </p>
               </div>
+              {invitePendingHint && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{invitePendingHint}</AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <DialogFooter>

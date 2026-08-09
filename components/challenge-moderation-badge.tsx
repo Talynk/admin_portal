@@ -2,11 +2,17 @@ import { Badge } from '@/components/ui/badge'
 import type { ModerationMode } from '@/lib/types/challenge'
 import { cn } from '@/lib/utils'
 
+/**
+ * A document requirement only exists on moderated challenges, so it reads as
+ * one state rather than two badges the reader has to combine.
+ */
 export function ChallengeModerationBadge({
   mode,
+  requiresDocument,
   className,
 }: {
   mode?: ModerationMode | string | null
+  requiresDocument?: boolean
   className?: string
 }) {
   if (!mode) return <Badge variant="secondary" className={className}>—</Badge>
@@ -30,7 +36,7 @@ export function ChallengeModerationBadge({
         className
       )}
     >
-      Moderated
+      {requiresDocument ? 'Moderated (document required)' : 'Moderated'}
     </Badge>
   )
 }

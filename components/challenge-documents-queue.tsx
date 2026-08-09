@@ -7,7 +7,11 @@ import { useChallengePendingDocuments, type DocumentPortal } from '@/hooks/use-c
 import { ChallengeDocumentReviewCard } from '@/components/challenge-document-review-card'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
-import { getChallengeApiErrorMessage } from '@/lib/challenge-api-errors'
+import {
+  getChallengeApiErrorCode,
+  getChallengeApiErrorMessage,
+  type ChallengeApiErrorResponse,
+} from '@/lib/challenge-api-errors'
 import type { PendingDocumentItem } from '@/lib/types/challenge'
 
 export function ChallengeDocumentsQueue({
@@ -26,6 +30,19 @@ export function ChallengeDocumentsQueue({
     limit: 12,
   })
 
+  // DOCUMENT_NOT_PENDING means another reviewer got there first, so the stale
+  // card has to go even though the request failed.
+  const handleFailure = async (title: string, res: ChallengeApiErrorResponse) => {
+    toast({
+      title,
+      description: getChallengeApiErrorMessage(res),
+      variant: 'destructive',
+    })
+    if (getChallengeApiErrorCode(res) === 'DOCUMENT_NOT_PENDING') {
+      await refetch()
+    }
+  }
+
   const approve = async (item: PendingDocumentItem) => {
     setActionLoading(true)
     try {
@@ -37,11 +54,7 @@ export function ChallengeDocumentsQueue({
         toast({ title: 'Document approved', description: 'Participant can now submit posts.' })
         await refetch()
       } else {
-        toast({
-          title: 'Approve failed',
-          description: getChallengeApiErrorMessage(res as never),
-          variant: 'destructive',
-        })
+        await handleFailure('Approve failed', res)
       }
     } finally {
       setActionLoading(false)
@@ -59,11 +72,7 @@ export function ChallengeDocumentsQueue({
         toast({ title: 'Document rejected', description: reason || 'Participant may resubmit.' })
         await refetch()
       } else {
-        toast({
-          title: 'Reject failed',
-          description: getChallengeApiErrorMessage(res as never),
-          variant: 'destructive',
-        })
+        await handleFailure('Reject failed', res)
       }
     } finally {
       setActionLoading(false)
