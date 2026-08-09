@@ -52,13 +52,16 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    // `skipAuth` is for the endpoints reached before a session exists: login and
+    // approver onboarding, where the emailed token is itself the credential.
+    options: RequestInit & { skipAuth?: boolean } = {}
   ): Promise<ApiResponse<T> | ApiError> {
+    const { skipAuth, ...fetchOptions } = options
     const url = `${this.baseURL}${endpoint}`
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
+      ...(fetchOptions.headers as Record<string, string>),
     }
 
     // Check for approver token for approver routes, otherwise use admin token
@@ -90,26 +93,29 @@ class ApiClient {
       }
     }
 
-    if (!token) {
+    if (!token && !skipAuth) {
       return {
         success: false,
         error: 'No authentication token found. Please log in again.',
       }
     }
 
-    headers.Authorization = `Bearer ${token}`
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
 
     try {
       const response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        // Handle 401 Unauthorized - token expired or invalid
-        if (response.status === 401) {
+        // Handle 401 Unauthorized - token expired or invalid. Never bounce the
+        // pre-session pages, or a failed login would reload itself.
+        if (response.status === 401 && !skipAuth) {
           this.logout()
           if (typeof window !== 'undefined') {
             window.location.href = '/'
@@ -119,7 +125,7 @@ class ApiClient {
         // Handle 403 Forbidden - token might be expired or user doesn't have permission
         if (response.status === 403) {
           // Try refreshing token and retry once
-          if (typeof window !== 'undefined' && !endpoint.startsWith('/approver/')) {
+          if (typeof window !== 'undefined' && !skipAuth && !endpoint.startsWith('/approver/')) {
             const adminToken = localStorage.getItem('talentix_admin_token')
             if (adminToken && adminToken !== this.token) {
               // Token was updated, retry the request
@@ -127,7 +133,7 @@ class ApiClient {
               headers.Authorization = `Bearer ${adminToken}`
               
               const retryResponse = await fetch(url, {
-                ...options,
+                ...fetchOptions,
                 headers,
               })
               
@@ -180,6 +186,7 @@ class ApiClient {
     const response = await this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, role: 'admin' }),
+      skipAuth: true,
     })
 
     if (response.success && response.data) {
@@ -1281,6 +1288,7 @@ class ApiClient {
         password,
         role: 'approver',
       }),
+      skipAuth: true,
     })
 
     if (response.success && response.data) {
@@ -1313,9 +1321,12 @@ class ApiClient {
     last_name: string
     phone_number: string
   }) {
+    // Unauthenticated: the invitee has no session yet, the emailed token is the
+    // credential.
     return this.request('/approver/onboarding/complete', {
       method: 'POST',
       body: JSON.stringify(data),
+      skipAuth: true,
     })
   }
 
