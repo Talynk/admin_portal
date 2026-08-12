@@ -5,9 +5,9 @@ import { ApproverProtectedRoute } from "@/components/approver-protected-route"
 import { ApproverLayout } from "@/components/approver-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { useApproverAuth } from "@/components/approver-auth-provider"
 import { apiClient } from "@/lib/api-client"
+import { normalizePagination } from "@/lib/pagination"
 import { useRouter } from "next/navigation"
 import {
   FileText,
@@ -17,36 +17,53 @@ import {
   Eye,
   Ban,
   Trophy,
+  Video,
 } from "lucide-react"
 import Link from "next/link"
 
 export default function ApproverDashboardPage() {
   const { approver } = useApproverAuth()
   const router = useRouter()
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<{
+    suspendedCount?: number
+    todayCount?: number
+    approvedCount?: number
+    rejectedCount?: number
+    challengePendingCount?: number
+    challengeReviewedCount?: number
+  } | null>(null)
+  const [pendingDocCount, setPendingDocCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    loadStats()
-  }, [])
 
   const loadStats = async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await apiClient.getApproverPortalStats()
-      if (response.success && response.data) {
-        setStats(response.data)
+      const [statsRes, docsRes] = await Promise.all([
+        apiClient.getApproverPortalStats(),
+        apiClient.getApproverPendingDocuments({ page: 1, limit: 1 }),
+      ])
+
+      if (statsRes.success && statsRes.data) {
+        setStats(statsRes.data as typeof stats)
       } else {
-        setError(response.error || 'Failed to load stats')
+        setError(statsRes.error || "Failed to load stats")
       }
-    } catch (err) {
-      setError('An error occurred')
+
+      if (docsRes.success && docsRes.data) {
+        setPendingDocCount(normalizePagination(docsRes.data, 1)?.total ?? null)
+      }
+    } catch {
+      setError("An error occurred")
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    void loadStats()
+  }, [])
 
   return (
     <ApproverProtectedRoute>
@@ -55,10 +72,12 @@ export default function ApproverDashboardPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">
-              Welcome to the Approver Portal. Review suspended posts (flagged by admin/approver or with 5+ reports).
+              Welcome{approver?.first_name ? `, ${approver.first_name}` : ""}. Review content and
+              moderated challenge submissions from the hubs below.
             </p>
           </div>
-          {error && (
+
+          {error ? (
             <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
@@ -66,33 +85,26 @@ export default function ApproverDashboardPage() {
                   <span className="font-medium">Error loading statistics</span>
                 </div>
                 <p className="text-red-600 dark:text-red-300 mt-1">{error}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadStats}
-                  className="mt-2"
-                >
+                <Button variant="outline" size="sm" onClick={() => void loadStats()} className="mt-2">
                   Try Again
                 </Button>
               </CardContent>
             </Card>
-          )}
+          ) : null}
 
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Suspended Posts</CardTitle>
+                <CardTitle className="text-sm font-medium">Suspended</CardTitle>
                 <Ban className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.suspendedCount || 0}
+                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.suspendedCount ?? 0}
                 </div>
-                <p className="text-xs text-muted-foreground">Posts suspended (flagged or reported)</p>
-                <Link href="/approver/posts/suspended">
+                <Link href="/approver/content?tab=suspended">
                   <Button variant="link" className="p-0 h-auto mt-2 text-xs">
-                    Review Now →
+                    Content hub →
                   </Button>
                 </Link>
               </CardContent>
@@ -100,43 +112,20 @@ export default function ApproverDashboardPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Reviewed Today</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.todayCount || 0}
-                </div>
-                <p className="text-xs text-muted-foreground">Posts reviewed today</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Reviewed</CardTitle>
-                <FileText className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : (stats?.approvedCount || 0) + (stats?.rejectedCount || 0)}
-                </div>
-                <p className="text-xs text-muted-foreground">All time reviewed</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Challenge Posts</CardTitle>
+                <CardTitle className="text-sm font-medium">Challenge posts</CardTitle>
                 <Trophy className="h-4 w-4 text-amber-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.challengePendingCount || 0}
+                  {loading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    stats?.challengePendingCount ?? 0
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">Moderated drafts awaiting review</p>
-                <Link href="/approver/challenges/posts">
+                <Link href="/approver/challenges?tab=pending-posts">
                   <Button variant="link" className="p-0 h-auto mt-2 text-xs">
-                    Review Now →
+                    Challenges hub →
                   </Button>
                 </Link>
               </CardContent>
@@ -144,71 +133,82 @@ export default function ApproverDashboardPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Challenge Reviewed</CardTitle>
-                <CheckCircle className="h-4 w-4 text-indigo-600" />
+                <CardTitle className="text-sm font-medium">Pending documents</CardTitle>
+                <FileText className="h-4 w-4 text-indigo-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.challengeReviewedCount || 0}
+                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : pendingDocCount ?? "—"}
                 </div>
-                <p className="text-xs text-muted-foreground">Challenge posts reviewed</p>
-                <Link href="/approver/challenges/documents">
+                <Link href="/approver/challenges?tab=documents">
                   <Button variant="link" className="p-0 h-auto mt-2 text-xs">
-                    Documents queue →
+                    Document queue →
                   </Button>
                 </Link>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Quick Actions */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/approver/posts/suspended')}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Ban className="h-5 w-5 text-red-600" />
-                  Suspended Posts
-                </CardTitle>
-                <CardDescription>Review suspended posts (flagged by admin/approver or with 5+ reports)</CardDescription>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Reviewed today</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{stats?.suspendedCount || 0}</p>
-                <Button variant="outline" className="w-full mt-4">
+                <div className="text-2xl font-bold">
+                  {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats?.todayCount ?? 0}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(stats?.approvedCount ?? 0) + (stats?.rejectedCount ?? 0)} all-time decisions
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => router.push("/approver/content")}
+            >
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="h-5 w-5 text-blue-600" />
+                  Content Review
+                </CardTitle>
+                <CardDescription>
+                  Suspended posts, general pending drafts, and your review history
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold mb-1">{stats?.suspendedCount ?? 0}</p>
+                <p className="text-sm text-muted-foreground mb-4">suspended awaiting review</p>
+                <Button variant="outline" className="w-full">
                   <Eye className="w-4 h-4 mr-2" />
-                  Review Suspended
+                  Open Content Hub
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/approver/challenges/posts')}>
+            <Card
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => router.push("/approver/challenges")}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-amber-600" />
-                  Challenge Posts
+                  Challenge Review
                 </CardTitle>
-                <CardDescription>Approve or reject moderated challenge draft submissions</CardDescription>
+                <CardDescription>
+                  Moderated challenge drafts with participant documents, grouped by challenge
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{stats?.challengePendingCount || 0}</p>
-                <Button variant="outline" className="w-full mt-4">
+                <p className="text-2xl font-bold mb-1">{stats?.challengePendingCount ?? 0}</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {stats?.challengeReviewedCount ?? 0} challenge posts reviewed all-time
+                </p>
+                <Button variant="outline" className="w-full">
                   <Eye className="w-4 h-4 mr-2" />
-                  Review Challenge Posts
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push('/approver/challenges/documents')}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-indigo-600" />
-                  Challenge Documents
-                </CardTitle>
-                <CardDescription>Review required participant documents before posting</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="outline" className="w-full mt-4">
-                  <Eye className="w-4 h-4 mr-2" />
-                  Open Documents Queue
+                  Open Challenges Hub
                 </Button>
               </CardContent>
             </Card>

@@ -13,7 +13,11 @@ import type { ModerationMode, ChallengePendingPost } from '@/lib/types/challenge
 import { ChallengePendingPostCard } from '@/components/challenge-pending-post-card'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
-import { getChallengeApiErrorMessage } from '@/lib/challenge-api-errors'
+import {
+  getChallengeApiErrorMessage,
+  isStaleQueueItemError,
+  type ChallengeApiErrorResponse,
+} from '@/lib/challenge-api-errors'
 
 export function ChallengePendingPostsQueue({
   portal,
@@ -21,26 +25,47 @@ export function ChallengePendingPostsQueue({
   source = 'challenge-queue',
   showFilters = false,
   linkChallengeToAdmin = false,
+  linkChallengeToApprover = false,
+  challengeFilterOptions,
 }: {
   portal: PendingPostsPortal
   challengeId?: string
   source?: PendingPostsSource
   showFilters?: boolean
   linkChallengeToAdmin?: boolean
+  linkChallengeToApprover?: boolean
+  challengeFilterOptions?: { id: string; name: string }[]
 }) {
   const [page, setPage] = useState(1)
   const [moderationMode, setModerationMode] = useState<ModerationMode | 'all'>('all')
+  const [filterChallengeId, setFilterChallengeId] = useState<string>(challengeId ?? 'all')
   const [actionLoading, setActionLoading] = useState(false)
+
+  const effectiveChallengeId =
+    challengeId ?? (filterChallengeId !== 'all' ? filterChallengeId : undefined)
+
+  const showModerationFilter = showFilters && !(portal === 'approver' && source === 'challenge-queue')
 
   const { posts, pagination, loading, error, refetch } = useChallengePendingPosts({
     portal,
     source,
-    challengeId,
+    challengeId: effectiveChallengeId,
     page,
     limit: 12,
-    challenge_only: showFilters ? true : undefined,
-    moderation_mode: moderationMode === 'all' ? undefined : moderationMode,
+    challenge_only: showFilters && !effectiveChallengeId ? true : undefined,
+    moderation_mode: showModerationFilter && moderationMode !== 'all' ? moderationMode : undefined,
   })
+
+  const handleFailure = async (title: string, res: ChallengeApiErrorResponse) => {
+    toast({
+      title,
+      description: getChallengeApiErrorMessage(res),
+      variant: 'destructive',
+    })
+    if (isStaleQueueItemError(res)) {
+      await refetch()
+    }
+  }
 
   const approve = async (post: ChallengePendingPost, notes?: string) => {
     setActionLoading(true)
@@ -53,7 +78,7 @@ export function ChallengePendingPostsQueue({
         toast({ title: 'Post approved' })
         await refetch()
       } else {
-        toast({ title: 'Approve failed', description: getChallengeApiErrorMessage(res as never, res.error), variant: 'destructive' })
+        await handleFailure('Approve failed', res as ChallengeApiErrorResponse)
       }
     } finally {
       setActionLoading(false)
@@ -71,7 +96,7 @@ export function ChallengePendingPostsQueue({
         toast({ title: 'Post rejected' })
         await refetch()
       } else {
-        toast({ title: 'Reject failed', description: getChallengeApiErrorMessage(res as never, res.error), variant: 'destructive' })
+        await handleFailure('Reject failed', res as ChallengeApiErrorResponse)
       }
     } finally {
       setActionLoading(false)
@@ -89,27 +114,55 @@ export function ChallengePendingPostsQueue({
 
   return (
     <div className="space-y-4">
-      {showFilters ? (
+      {(showModerationFilter || (challengeFilterOptions && challengeFilterOptions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Moderation mode:</span>
-          <Select
-            value={moderationMode}
-            onValueChange={(v) => {
-              setModerationMode(v as ModerationMode | 'all')
-              setPage(1)
-            }}
-          >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="moderated">Moderated</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-            </SelectContent>
-          </Select>
+          {challengeFilterOptions && challengeFilterOptions.length > 0 && !challengeId ? (
+            <>
+              <span className="text-sm text-muted-foreground">Challenge:</span>
+              <Select
+                value={filterChallengeId}
+                onValueChange={(v) => {
+                  setFilterChallengeId(v)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="All challenges" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All challenges</SelectItem>
+                  {challengeFilterOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : null}
+          {showModerationFilter ? (
+            <>
+              <span className="text-sm text-muted-foreground">Moderation mode:</span>
+              <Select
+                value={moderationMode}
+                onValueChange={(v) => {
+                  setModerationMode(v as ModerationMode | 'all')
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="moderated">Moderated</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          ) : null}
         </div>
-      ) : null}
+      )}
 
       {error ? (
         <div className="text-center py-8">
@@ -132,7 +185,10 @@ export function ChallengePendingPostsQueue({
               post={post}
               onApprove={approve}
               onReject={reject}
+              portal={portal}
+              onRefresh={refetch}
               linkChallengeToAdmin={linkChallengeToAdmin}
+              linkChallengeToApprover={linkChallengeToApprover}
               actionLoading={actionLoading}
             />
           ))}

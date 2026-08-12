@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useApproverAuth } from "./approver-auth-provider"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,10 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import {
   LayoutDashboard,
-  Ban,
   Bell,
   User,
   LogOut,
@@ -25,17 +24,19 @@ import {
   Shield,
   FileText,
   Trophy,
+  Video,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./theme-toggle"
+import { Toaster } from "@/components/ui/toaster"
+import { apiClient } from "@/lib/api-client"
 
 const navigation = [
   { name: "Dashboard", href: "/approver/dashboard", icon: LayoutDashboard },
-  { name: "Suspended Posts", href: "/approver/posts/suspended", icon: Ban },
-  { name: "Challenge Posts", href: "/approver/challenges/posts", icon: Trophy },
-  { name: "Challenge Documents", href: "/approver/challenges/documents", icon: FileText },
+  { name: "Content", href: "/approver/content", icon: Video },
+  { name: "Challenges", href: "/approver/challenges", icon: Trophy },
   { name: "Notifications", href: "/approver/notifications", icon: Bell },
   { name: "Profile", href: "/approver/profile", icon: User },
 ]
@@ -44,6 +45,15 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
   const { approver, logout } = useApproverAuth()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    void apiClient.getApproverNotifications({ unreadOnly: true, limit: 1 }).then((res) => {
+      if (!res.success || !res.data) return
+      const data = res.data as { unreadCount?: number; total?: number }
+      setUnreadCount(data.unreadCount ?? data.total ?? 0)
+    })
+  }, [pathname])
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
     <div className={cn("flex flex-col h-full", mobile ? "w-full" : "w-64")}>
@@ -59,7 +69,8 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 px-4 py-4 space-y-2">
         {navigation.map((item) => {
           const isActive =
-            pathname === item.href || (item.href !== "/approver/dashboard" && pathname.startsWith(item.href))
+            pathname === item.href ||
+            (item.href !== "/approver/dashboard" && pathname.startsWith(item.href))
           return (
             <Link
               key={item.name}
@@ -88,7 +99,7 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
         <Sidebar />
       </div>
 
-      {/* Mobile Sidebar */}
+      {/* Mobile Sidebar — one controlled Sheet for hamburger + overlay */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="p-0 w-64">
           <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
@@ -98,25 +109,27 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="lg:pl-64">
-        {/* Top Navigation */}
         <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="lg:hidden bg-transparent">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
-              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <Sidebar mobile />
-            </SheetContent>
-          </Sheet>
+          <Button
+            variant="outline"
+            size="icon"
+            className="lg:hidden bg-transparent"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
 
           <div className="flex-1" />
 
-          <Button variant="outline" size="icon" asChild>
-            <Link href="/approver/notifications">
+          <Button variant="outline" size="icon" className="relative" asChild>
+            <Link href="/approver/notifications" aria-label="Notifications">
               <Bell className="h-4 w-4" />
+              {unreadCount > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
             </Link>
           </Button>
 
@@ -149,6 +162,12 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
                   <span>Profile</span>
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/approver/challenges?tab=documents">
+                  <FileText className="mr-2 h-4 w-4" />
+                  <span>Document queue</span>
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />
@@ -158,9 +177,10 @@ export function ApproverLayout({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6">{children}</main>
       </div>
+
+      <Toaster />
     </div>
   )
 }

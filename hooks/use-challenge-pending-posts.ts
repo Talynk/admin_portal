@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
+import { normalizePagination } from '@/lib/pagination'
 import type { ChallengePendingPost, ModerationMode } from '@/lib/types/challenge'
 
 export type PendingPostsPortal = 'admin' | 'approver'
@@ -10,14 +11,6 @@ function unwrapPosts(data: unknown): ChallengePendingPost[] {
   const payload = (raw?.data ?? raw) as Record<string, unknown>
   const list = payload.posts ?? payload.items ?? payload.data
   return Array.isArray(list) ? (list as ChallengePendingPost[]) : []
-}
-
-function unwrapPagination(data: unknown) {
-  const raw = data as Record<string, unknown>
-  const payload = (raw?.data ?? raw) as Record<string, unknown>
-  return (payload.pagination ?? raw?.pagination) as
-    | { page: number; limit: number; total: number; totalPages: number }
-    | undefined
 }
 
 export function useChallengePendingPosts(options: {
@@ -85,8 +78,7 @@ export function useChallengePendingPosts(options: {
       }
       if (response.success && response.data) {
         setPosts(unwrapPosts(response.data))
-        const pag = unwrapPagination(response.data)
-        setPagination(pag ?? null)
+        setPagination(normalizePagination(response.data, limit))
       } else {
         setError(response.error ?? 'Failed to load pending posts')
         setPosts([])

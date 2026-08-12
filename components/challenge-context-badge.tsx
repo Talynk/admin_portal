@@ -7,10 +7,12 @@ import { cn } from '@/lib/utils'
 export function ChallengeContextBadge({
   context,
   linkToAdminChallenge = false,
+  linkToApproverChallenge = false,
   className,
 }: {
   context?: ChallengeContext | null
   linkToAdminChallenge?: boolean
+  linkToApproverChallenge?: boolean
   className?: string
 }) {
   if (!context?.challenge_id) return null
@@ -35,6 +37,18 @@ export function ChallengeContextBadge({
     return (
       <Link
         href={`/dashboard/challenges/${context.challenge_id}`}
+        className="hover:opacity-80 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {inner}
+      </Link>
+    )
+  }
+
+  if (linkToApproverChallenge) {
+    return (
+      <Link
+        href={`/approver/challenges/${context.challenge_id}`}
         className="hover:opacity-80 transition-opacity"
         onClick={(e) => e.stopPropagation()}
       >

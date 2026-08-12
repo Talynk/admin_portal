@@ -22,6 +22,25 @@ export function getChallengeApiErrorCode(
   return response.code ?? readDataField(response, 'code')
 }
 
+/** True when the item was already handled by another reviewer. */
+export function isStaleQueueItemError(response: ChallengeApiErrorResponse): boolean {
+  const code = getChallengeApiErrorCode(response)
+  if (code === 'DOCUMENT_NOT_PENDING') return true
+
+  const msg = (
+    response.message ??
+    readDataField(response, 'message') ??
+    response.error ??
+    ''
+  ).toLowerCase()
+
+  return (
+    msg.includes('already processed') ||
+    msg.includes('already been used') ||
+    msg.includes('not found or already')
+  )
+}
+
 /** Map known challenge API error codes to user-facing messages. */
 export function getChallengeApiErrorMessage(
   response: ChallengeApiErrorResponse,
@@ -38,6 +57,9 @@ export function getChallengeApiErrorMessage(
     case 'DOCUMENT_NOT_REQUIRED':
       return 'This challenge does not require participant documents.'
     default:
+      if (isStaleQueueItemError(response)) {
+        return 'Someone already reviewed this post. The queue has been refreshed.'
+      }
       return msg || fallback
   }
 }

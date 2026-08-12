@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
+import { normalizePagination } from '@/lib/pagination'
 import type { PendingDocumentItem } from '@/lib/types/challenge'
 
 export type DocumentPortal = 'admin' | 'approver'
@@ -9,14 +10,6 @@ function unwrapDocuments(data: unknown): PendingDocumentItem[] {
   const payload = (raw?.data ?? raw) as Record<string, unknown>
   const list = payload.items ?? payload.documents ?? payload.data
   return Array.isArray(list) ? (list as PendingDocumentItem[]) : []
-}
-
-function unwrapPagination(data: unknown) {
-  const raw = data as Record<string, unknown>
-  const payload = (raw?.data ?? raw) as Record<string, unknown>
-  return (payload.pagination ?? raw?.pagination) as
-    | { page: number; limit: number; total: number; totalPages: number }
-    | undefined
 }
 
 export function useChallengePendingDocuments(options: {
@@ -54,8 +47,7 @@ export function useChallengePendingDocuments(options: {
       }
       if (response.success && response.data) {
         setDocuments(unwrapDocuments(response.data))
-        const pag = unwrapPagination(response.data)
-        setPagination(pag ?? null)
+        setPagination(normalizePagination(response.data, limit))
       } else {
         setError(response.error ?? 'Failed to load pending documents')
         setDocuments([])
