@@ -772,10 +772,15 @@ class ApiClient {
     })
   }
 
-  async getAds(params?: { page?: number; limit?: number }) {
+  async getAds(params?: { page?: number; limit?: number; search?: string }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const searchNorm = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : ''
+    if (searchNorm) {
+      queryParams.append('q', searchNorm)
+      queryParams.append('search', searchNorm)
+    }
     const queryString = queryParams.toString()
     return this.request(`/admin/ads${queryString ? `?${queryString}` : ''}`)
   }
@@ -1640,11 +1645,17 @@ class ApiClient {
     page?: number
     limit?: number
     status?: 'pending' | 'approved' | 'rejected'
+    search?: string
   }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.status) queryParams.append('status', params.status)
+    const searchNorm = typeof params?.search === 'string' ? params.search.trim().replace(/\s+/g, ' ') : ''
+    if (searchNorm) {
+      queryParams.append('q', searchNorm)
+      queryParams.append('search', searchNorm)
+    }
 
     const queryString = queryParams.toString()
     return this.request(`/admin/appeals${queryString ? `?${queryString}` : ''}`)
@@ -1829,6 +1840,40 @@ class ApiClient {
       },
       message: response.message,
     }
+  }
+
+  async getAppBanner() {
+    return this.request('/admin/settings/app-banner')
+  }
+
+  async updateAppBanner(payload: {
+    message?: string | null
+    targeting?: {
+      genders?: Array<'male' | 'female'>
+      age_min?: number | null
+      age_max?: number | null
+      country_ids?: number[]
+    }
+  }) {
+    return this.request('/admin/settings/app-banner', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
+  }
+
+  async getBestPerformer() {
+    return this.request('/admin/settings/best-performer')
+  }
+
+  async updateBestPerformer(payload: {
+    postId: string | null
+    label?: string
+    expiresAt?: string | null
+  }) {
+    return this.request('/admin/settings/best-performer', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    })
   }
 
   // Countries

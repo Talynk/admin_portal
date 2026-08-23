@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -15,8 +16,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
-import { Loader2, Ban, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, Ban, CheckCircle, Search, XCircle } from 'lucide-react'
 import { useApproverPosts, type ApproverPostVariant, type ApproverReviewPost } from '@/hooks/use-approver-posts'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { ReviewMediaCard } from '@/components/media/review-media-card'
 import { PostMediaDialog } from '@/components/media/post-media-dialog'
 import { MediaProcessingNotice } from '@/components/media/media-processing-notice'
@@ -37,6 +39,8 @@ export function ApproverPostReviewQueue({
   showChallengeOnlyToggle?: boolean
 }) {
   const [page, setPage] = useState(1)
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput, 400)
   const [challengeOnly, setChallengeOnly] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedPost, setSelectedPost] = useState<ApproverReviewPost | null>(null)
@@ -48,11 +52,17 @@ export function ApproverPostReviewQueue({
   const readOnly = variant === 'approved'
   const usesFlaggedReview = variant === 'suspended' || variant === 'flagged'
 
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
+
   const { posts, pagination, loading, error, refetch } = useApproverPosts({
     variant,
     page,
     limit: 12,
-    challenge_only: showChallengeOnlyToggle && challengeOnly ? true : undefined,
+    search: debouncedSearch,
+    challenge_only:
+      !debouncedSearch.trim() && showChallengeOnlyToggle && challengeOnly ? true : undefined,
   })
 
   const handleFailure = async (title: string, res: ChallengeApiErrorResponse) => {
@@ -121,21 +131,32 @@ export function ApproverPostReviewQueue({
 
   return (
     <div className="space-y-4">
-      {showChallengeOnlyToggle ? (
-        <div className="flex items-center gap-2">
-          <Switch
-            id="challenge-only"
-            checked={challengeOnly}
-            onCheckedChange={(checked) => {
-              setChallengeOnly(checked)
-              setPage(1)
-            }}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search by title or username…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
-          <Label htmlFor="challenge-only" className="text-sm text-muted-foreground">
-            Challenge posts only
-          </Label>
         </div>
-      ) : null}
+        {showChallengeOnlyToggle && !debouncedSearch.trim() ? (
+          <div className="flex items-center gap-2">
+            <Switch
+              id="challenge-only"
+              checked={challengeOnly}
+              onCheckedChange={(checked) => {
+                setChallengeOnly(checked)
+                setPage(1)
+              }}
+            />
+            <Label htmlFor="challenge-only" className="text-sm text-muted-foreground">
+              Challenge posts only
+            </Label>
+          </div>
+        ) : null}
+      </div>
 
       {error ? (
         <div className="text-center py-8">

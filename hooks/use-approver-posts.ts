@@ -34,14 +34,29 @@ function unwrapPosts(data: unknown): ApproverReviewPost[] {
   return Array.isArray(list) ? (list as ApproverReviewPost[]) : []
 }
 
+function variantToSearchStatus(variant: ApproverPostVariant): string {
+  switch (variant) {
+    case 'pending':
+      return 'pending'
+    case 'suspended':
+      return 'suspended'
+    case 'flagged':
+      return 'flagged'
+    case 'approved':
+      return 'approved'
+  }
+}
+
 export function useApproverPosts(options: {
   variant: ApproverPostVariant
   page?: number
   limit?: number
   challenge_only?: boolean
+  search?: string
   enabled?: boolean
 }) {
-  const { variant, page = 1, limit = 12, challenge_only, enabled = true } = options
+  const { variant, page = 1, limit = 12, challenge_only, search = '', enabled = true } = options
+  const q = search.trim()
   const [posts, setPosts] = useState<ApproverReviewPost[]>([])
   const [pagination, setPagination] = useState<{
     page: number
@@ -58,23 +73,33 @@ export function useApproverPosts(options: {
       setLoading(true)
       setError(null)
       let response
-      switch (variant) {
-        case 'pending':
-          response = await apiClient.getApproverPendingPosts({
-            page,
-            limit,
-            challenge_only,
-          })
-          break
-        case 'suspended':
-          response = await apiClient.getApproverSuspendedPosts({ page, limit })
-          break
-        case 'flagged':
-          response = await apiClient.getApproverFlaggedPosts({ page, limit })
-          break
-        case 'approved':
-          response = await apiClient.getApproverApprovedPosts({ page, limit })
-          break
+
+      if (q) {
+        response = await apiClient.searchApproverPosts({
+          q,
+          page,
+          limit,
+          status: variantToSearchStatus(variant),
+        })
+      } else {
+        switch (variant) {
+          case 'pending':
+            response = await apiClient.getApproverPendingPosts({
+              page,
+              limit,
+              challenge_only,
+            })
+            break
+          case 'suspended':
+            response = await apiClient.getApproverSuspendedPosts({ page, limit })
+            break
+          case 'flagged':
+            response = await apiClient.getApproverFlaggedPosts({ page, limit })
+            break
+          case 'approved':
+            response = await apiClient.getApproverApprovedPosts({ page, limit })
+            break
+        }
       }
 
       if (response.success && response.data) {
@@ -90,7 +115,7 @@ export function useApproverPosts(options: {
     } finally {
       setLoading(false)
     }
-  }, [variant, page, limit, challenge_only, enabled])
+  }, [variant, page, limit, challenge_only, q, enabled])
 
   useEffect(() => {
     void fetchPosts()

@@ -66,6 +66,7 @@ import { AdminUserContactLines } from "@/components/admin-user-contact-lines"
 import { ChallengeModerationBadge } from "@/components/challenge-moderation-badge"
 import { ChallengeDocumentsQueue } from "@/components/challenge-documents-queue"
 import { ChallengePendingPostsQueue } from "@/components/challenge-pending-posts-queue"
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell"
 
 function resolveChallengeMaxWinners(challenge: any) {
   return challenge?.max_winners ?? 10
@@ -453,7 +454,7 @@ export default function ChallengesPage() {
                       </p>
                     </div>
                   ) : (
-                    <div className="rounded-md border">
+                    <DataTableShell minWidth="960px">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -475,18 +476,25 @@ export default function ChallengesPage() {
                               onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
                             >
                               <TableCell>
-                                <div>
+                                <div className="min-w-0 max-w-[240px]">
                                   <div className="flex items-center gap-2">
-                                    <p className="font-medium">{challenge.name}</p>
+                                    <TruncateCell className="font-medium" title={challenge.name ?? ""}>
+                                      {challenge.name}
+                                    </TruncateCell>
                                     {challenge.is_featured ? (
-                                      <Badge variant="outline" className="text-amber-700 border-amber-300">
+                                      <Badge variant="outline" className="text-amber-700 border-amber-300 shrink-0">
                                         Featured
                                       </Badge>
                                     ) : null}
                                   </div>
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {challenge.description}
-                                  </p>
+                                  {challenge.description ? (
+                                    <TruncateCell
+                                      className="text-sm text-muted-foreground"
+                                      title={challenge.description}
+                                    >
+                                      {challenge.description}
+                                    </TruncateCell>
+                                  ) : null}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -633,7 +641,7 @@ export default function ChallengesPage() {
                           ))}
                         </TableBody>
                       </Table>
-                    </div>
+                    </DataTableShell>
                   )}
 
                   {/* Pagination */}

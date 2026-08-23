@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ProtectedRoute } from "@/components/protected-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -32,11 +33,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Scale, Loader2 } from "lucide-react"
+import { Scale, Loader2, Search } from "lucide-react"
 import { useAppeals } from "@/hooks/use-appeals"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "@/hooks/use-toast"
 import type { Appeal } from "@/lib/types/admin"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell"
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -61,6 +64,8 @@ function getStatusBadge(statusVal: string) {
 export default function AppealsPage() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState<string>("")
+  const [searchTerm, setSearchTerm] = useState("")
+  const debouncedSearch = useDebouncedValue(searchTerm, 400)
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
   const [selectedAppeal, setSelectedAppeal] = useState<Appeal | null>(null)
   const [adminNotes, setAdminNotes] = useState("")
@@ -70,7 +75,12 @@ export default function AppealsPage() {
     page,
     limit: 20,
     status: status ? (status as "pending" | "approved" | "rejected") : undefined,
+    search: debouncedSearch.trim() || undefined,
   })
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, status])
 
   const openReview = (appeal: Appeal) => {
     setSelectedAppeal(appeal)
@@ -155,9 +165,18 @@ export default function AppealsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Filters</CardTitle>
-              <CardDescription>Filter appeals by status.</CardDescription>
+              <CardDescription>Search and filter appeals by status.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-wrap gap-4">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search appeals…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
               <Select value={status === "" ? "all" : status} onValueChange={(v) => { setStatus(v === "all" ? "" : v); setPage(1); }}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Status" />
@@ -190,7 +209,7 @@ export default function AppealsPage() {
                 <p className="text-muted-foreground text-center py-8">No appeals found.</p>
               ) : (
                 <>
-                  <div className="rounded-md border">
+                  <DataTableShell minWidth="900px">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -219,7 +238,9 @@ export default function AppealsPage() {
                                   className="text-primary hover:underline font-mono text-sm"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  {appeal.post?.id ?? "—"}
+                                  <TruncateCell title={appeal.post?.id ?? ""}>
+                                    {appeal.post?.id ?? "—"}
+                                  </TruncateCell>
                                 </Link>
                                 <span className="text-xs text-muted-foreground">
                                   {appeal.post?.status ?? "—"} · {appeal.post?.report_count ?? 0} reports
@@ -235,8 +256,10 @@ export default function AppealsPage() {
                                 @{appeal.user?.username ?? appeal.user?.email ?? "—"}
                               </Link>
                             </TableCell>
-                            <TableCell className="max-w-[240px] truncate" title={appeal.appeal_reason ?? ""}>
-                              {appeal.appeal_reason ?? "—"}
+                            <TableCell>
+                              <TruncateCell title={appeal.appeal_reason ?? ""}>
+                                {appeal.appeal_reason ?? "—"}
+                              </TruncateCell>
                             </TableCell>
                             <TableCell>{getStatusBadge(appeal.status)}</TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
@@ -250,7 +273,7 @@ export default function AppealsPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                  </DataTableShell>
                   {pagination && (pagination.totalPages ?? 1) > 1 && (
                     <div className="flex items-center justify-between mt-4">
                       <p className="text-sm text-muted-foreground">

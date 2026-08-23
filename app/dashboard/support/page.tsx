@@ -28,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { LifeBuoy, Loader2, Mail, Search } from "lucide-react"
 import { useSupportIssues } from "@/hooks/use-support-issues"
 import { useSupportEmails } from "@/hooks/use-support-emails"
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell"
 import { apiClient } from "@/lib/api-client"
 
 const STATUS_OPTIONS = [
@@ -73,10 +74,12 @@ function formatTimeAgo(dateInput: string | Date | null | undefined) {
 export default function SupportIssuesPage() {
   const router = useRouter()
   const [page, setPage] = useState(1)
+  const [qDraft, setQDraft] = useState("")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("")
   const [category, setCategory] = useState("")
   const [email, setEmail] = useState("")
+  const [emailDraft, setEmailDraft] = useState("")
 
   const [emailTimeBucket, setEmailTimeBucket] = useState<string>("")
   const [emailFilterRead, setEmailFilterRead] = useState<"all" | "unread">("all")
@@ -158,8 +161,9 @@ export default function SupportIssuesPage() {
   }, [selectedEmailId])
 
   const handleSearch = () => {
+    setQ(qDraft.trim())
+    setEmail(emailDraft.trim())
     setPage(1)
-    refetch()
   }
 
   const getStatusBadge = (statusVal: string) => {
@@ -409,8 +413,8 @@ export default function SupportIssuesPage() {
                   <div className="flex gap-2">
                     <Input
                       placeholder="Search..."
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
+                      value={qDraft}
+                      onChange={(e) => setQDraft(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     />
                     <Button variant="secondary" size="icon" onClick={handleSearch} aria-label="Search">
@@ -452,8 +456,9 @@ export default function SupportIssuesPage() {
                   <label className="text-sm font-medium mb-2 block">Email</label>
                   <Input
                     placeholder="Filter by email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={emailDraft}
+                    onChange={(e) => setEmailDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   />
                 </div>
@@ -480,7 +485,7 @@ export default function SupportIssuesPage() {
                 <p className="text-muted-foreground text-center py-8">No support issues found.</p>
               ) : (
                 <>
-                  <div className="rounded-md border">
+                  <DataTableShell minWidth="900px">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -507,12 +512,18 @@ export default function SupportIssuesPage() {
                             <TableCell className="font-medium max-w-[280px]">
                               <Link
                                 href={`/dashboard/support/${issue.id}`}
-                                className="text-primary hover:underline truncate block"
+                                className="text-primary hover:underline block"
                               >
-                                {issue.subject || "No subject"}
+                                <TruncateCell title={issue.subject || "No subject"}>
+                                  {issue.subject || "No subject"}
+                                </TruncateCell>
                               </Link>
                             </TableCell>
-                            <TableCell className="text-sm">{issue.email || "—"}</TableCell>
+                            <TableCell className="text-sm">
+                              <TruncateCell title={issue.email || ""}>
+                                {issue.email || "—"}
+                              </TruncateCell>
+                            </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {issue.category || "—"}
                             </TableCell>
@@ -534,7 +545,7 @@ export default function SupportIssuesPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                  </DataTableShell>
                   {pagination && (pagination.totalPages ?? 1) > 1 && (
                     <div className="flex items-center justify-between mt-4">
                       <p className="text-sm text-muted-foreground">

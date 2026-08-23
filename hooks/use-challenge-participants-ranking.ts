@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { apiClient } from '@/lib/api-client'
-import { normalizeQuery, userMatchesSearch } from '@/lib/user-search'
+import { normalizeQuery } from '@/lib/user-search'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 
 export interface RankingParticipantUser {
   id: string
@@ -43,11 +44,16 @@ export function useChallengeParticipantsRanking(
   const { limit = 10, enabled = true } = options
   const [page, setPage] = useState(options.page ?? 1)
   const [search, setSearch] = useState(options.search ?? '')
+  const debouncedSearch = useDebouncedValue(search, 400)
   const [participants, setParticipants] = useState<RankingParticipantRow[]>([])
   const [pagination, setPagination] = useState<UseChallengeParticipantsRankingReturn['pagination']>(null)
   const [maxWinners, setMaxWinners] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   const fetchRanking = useCallback(async () => {
     if (!challengeId || !enabled) {
@@ -59,7 +65,7 @@ export function useChallengeParticipantsRanking(
     setLoading(true)
     setError(null)
     try {
-      const searchNorm = normalizeQuery(search) ?? undefined
+      const searchNorm = normalizeQuery(debouncedSearch) ?? undefined
       const res = await apiClient.getChallengeParticipantsRanking(challengeId, {
         page,
         limit,
@@ -89,25 +95,18 @@ export function useChallengeParticipantsRanking(
     } finally {
       setLoading(false)
     }
-  }, [challengeId, page, limit, search, enabled])
+  }, [challengeId, page, limit, debouncedSearch, enabled])
 
   useEffect(() => {
-    fetchRanking()
+    void fetchRanking()
   }, [fetchRanking])
 
   const setSearchAndResetPage = useCallback((s: string) => {
     setSearch(s)
-    setPage(1)
   }, [])
 
-  const normalizedSearch = normalizeQuery(search)
-  const displayParticipants = useMemo(() => {
-    if (!normalizedSearch) return participants
-    return participants.filter((row) => userMatchesSearch(row.user, normalizedSearch))
-  }, [participants, normalizedSearch])
-
   return {
-    participants: displayParticipants,
+    participants,
     pagination,
     loading,
     error,

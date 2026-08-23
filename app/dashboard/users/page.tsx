@@ -75,14 +75,17 @@ import { toast } from "@/hooks/use-toast";
 import { getProfilePictureUrl } from "@/lib/file-utils";
 import { AdminUserContactLines } from "@/components/admin-user-contact-lines";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useSearchParams } from "next/navigation";
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
 export default function UsersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [statsPeriod, setStatsPeriod] = useState<"7d" | "30d" | "90d" | "1y">("30d");
   const { stats: userStats, loading: statsLoading, error: statsError } = useUserStats(statsPeriod);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -892,7 +895,7 @@ export default function UsersPage() {
                   </span>
                 </div>
               ) : (
-                <div className="rounded-md border">
+                <DataTableShell minWidth="960px">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -913,8 +916,8 @@ export default function UsersPage() {
                           onClick={() => router.push(`/dashboard/users/${user.id}`)}
                         >
                           <TableCell>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-10 w-10">
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <Avatar className="h-10 w-10 shrink-0">
                                 <AvatarImage
                                   src={getProfilePictureUrl(user.profile_picture)}
                                   onError={(e) => {
@@ -927,27 +930,27 @@ export default function UsersPage() {
                                     "U"}
                                 </AvatarFallback>
                               </Avatar>
-                              <div>
+                              <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium">
+                                  <p className="text-sm font-medium truncate">
                                     @{user.username}
                                   </p>
                                   {user.verified && (
-                                    <Shield className="h-4 w-4 text-blue-500" />
+                                    <Shield className="h-4 w-4 text-blue-500 shrink-0" />
                                   )}
                                 </div>
-                                <p className="text-sm text-muted-foreground">
+                                <TruncateCell className="text-sm text-muted-foreground" title={user.fullName}>
                                   {user.fullName}
-                                </p>
-                                {user.bio && (
-                                  <p className="text-xs text-muted-foreground line-clamp-1">
+                                </TruncateCell>
+                                {user.bio ? (
+                                  <TruncateCell className="text-xs text-muted-foreground" title={user.bio}>
                                     {user.bio}
-                                  </p>
-                                )}
+                                  </TruncateCell>
+                                ) : null}
                                 <AdminUserContactLines user={user} className="mt-1" />
-                                <p className="text-xs text-muted-foreground">
+                                <TruncateCell className="text-xs text-muted-foreground" title={user.id}>
                                   ID: {user.id}
-                                </p>
+                                </TruncateCell>
                                 {user.date_of_birth && (
                                   <p className="text-xs text-muted-foreground">
                                     DOB: {user.date_of_birth}
@@ -1068,7 +1071,7 @@ export default function UsersPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </DataTableShell>
               )}
 
               {totalPages > 1 && !loading && (

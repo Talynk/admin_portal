@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import {
   Search,
   UserPlus,
@@ -61,7 +63,9 @@ export default function ApproversPage() {
   const [viewApproverDialogOpen, setViewApproverDialogOpen] = useState(false)
   const [editApproverDialogOpen, setEditApproverDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const debouncedSearch = useDebouncedValue(searchTerm, 400)
   const [statusFilter, setStatusFilter] = useState("all")
+  const [page, setPage] = useState(1)
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [resendTarget, setResendTarget] = useState<Approver | null>(null)
   const [resendLoading, setResendLoading] = useState(false)
@@ -105,24 +109,18 @@ export default function ApproversPage() {
     deactivateApprover,
     deleteApprover,
   } = useApprovers({
-    search: searchTerm || undefined,
+    page,
+    limit: 20,
+    search: debouncedSearch.trim() || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
   })
 
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, statusFilter])
+
   // Fetch dashboard stats for content ratio
   const { stats: dashboardStats } = useDashboard()
-
-  // Filter approvers (client-side filtering for role/level if needed)
-  const filteredApprovers = approvers.filter((approver) => {
-    const matchesSearch =
-      approver.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      approver.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      approver.id?.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesStatus = statusFilter === "all" || approver.status === statusFilter
-
-    return matchesSearch && matchesStatus
-  })
 
   // Calculate approver-to-content ratio
   const activeApproversCount = approvers.filter((a) => a.status === "active").length
@@ -492,7 +490,7 @@ export default function ApproversPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="rounded-md border">
+                      <DataTableShell empty={approvers.length === 0} emptyMessage="No approvers found matching your criteria." minWidth="960px">
                         <Table>
                           <TableHeader>
                           <TableRow>
@@ -507,7 +505,7 @@ export default function ApproversPage() {
                           </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredApprovers.map((approver) => (
+                            {approvers.map((approver) => (
                               <TableRow
                                 key={approver.id}
                                 className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -523,9 +521,11 @@ export default function ApproversPage() {
                                           .toUpperCase() || "A"}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <div>
-                                      <p className="font-medium">@{approver.username}</p>
-                                      <p className="text-sm text-muted-foreground">{approver.email}</p>
+                                    <div className="min-w-0">
+                                      <p className="font-medium truncate">@{approver.username}</p>
+                                      <TruncateCell className="text-sm text-muted-foreground" title={approver.email}>
+                                        {approver.email}
+                                      </TruncateCell>
                                     </div>
                                   </div>
                                 </TableCell>
@@ -664,14 +664,32 @@ export default function ApproversPage() {
                             ))}
                           </TableBody>
                         </Table>
-                      </div>
+                      </DataTableShell>
 
-                      {filteredApprovers.length === 0 && !loading && (
-                        <div className="text-center py-8">
-                          <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                          <p className="text-muted-foreground">No approvers found matching your criteria.</p>
+                      {totalPages > 1 ? (
+                        <div className="flex items-center justify-between mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={page <= 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {page} of {totalPages}
+                            {total ? ` · ${total} total` : ""}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={page >= totalPages}
+                            onClick={() => setPage((p) => p + 1)}
+                          >
+                            Next
+                          </Button>
                         </div>
-                      )}
+                      ) : null}
                     </>
                   )}
                 </CardContent>

@@ -6,6 +6,7 @@ export interface UseAppealsParams {
   page?: number
   limit?: number
   status?: 'pending' | 'approved' | 'rejected'
+  search?: string
 }
 
 export interface AppealsPagination {
@@ -31,6 +32,7 @@ export function useAppeals(params: UseAppealsParams = {}) {
         page: params.page ?? 1,
         limit: params.limit ?? 20,
         status: params.status,
+        search: params.search,
       })
       if (res.success && res.data) {
         const data = res.data as AppealsResponse | { appeals?: Appeal[]; data?: Appeal[]; pagination?: AppealsPagination }
@@ -67,7 +69,7 @@ export function useAppeals(params: UseAppealsParams = {}) {
     } finally {
       setLoading(false)
     }
-  }, [params.page, params.limit, params.status])
+  }, [params.page, params.limit, params.status, params.search])
 
   useEffect(() => {
     fetchAppeals()

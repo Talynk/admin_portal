@@ -22,7 +22,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  Search,
   Bell,
   Shield,
   BarChart3,
@@ -40,6 +39,7 @@ import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./theme-toggle"
 import { AdminNotificationsProvider, useAdminNotifications } from "@/components/admin-notifications-provider"
 import { NotificationsDrawer } from "@/components/notifications-drawer"
+import { AdminGlobalSearchDialog } from "@/components/admin-global-search-dialog"
 import { Toaster } from "@/components/ui/toaster"
 
 const navigation = [
@@ -152,9 +152,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
             <div className="flex-1" />
 
-            <Button variant="outline" size="icon">
-              <Search className="h-4 w-4" />
-            </Button>
+            <AdminGlobalSearchDialog />
 
             <NotificationBellWithBadge />
 

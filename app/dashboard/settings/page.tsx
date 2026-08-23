@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Shield, Bell, Key, Save, CheckCircle } from "lucide-react"
+import { Settings, Shield, Bell, Key, Save, CheckCircle, Megaphone, Star } from "lucide-react"
 import { usePostReportThreshold } from "@/hooks/use-post-report-threshold"
 import { toast } from "@/hooks/use-toast"
+import { AppBannerSettings } from "@/components/settings/app-banner-settings"
+import { BestPerformerSettings } from "@/components/settings/best-performer-settings"
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
@@ -118,21 +120,35 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-              <p className="text-muted-foreground">Configure platform settings and preferences</p>
+              <p className="text-muted-foreground">
+                App banner, Best Performer, moderation threshold, and platform preferences
+              </p>
             </div>
-            <Button onClick={handleSave} className="flex items-center gap-2">
-              {saved ? <CheckCircle className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              {saved ? "Saved!" : "Save Changes"}
-            </Button>
           </div>
 
-          <Tabs defaultValue="platform" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="platform">Platform</TabsTrigger>
+          <Tabs defaultValue="app-banner" className="space-y-6">
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+              <TabsTrigger value="app-banner" className="gap-1">
+                <Megaphone className="h-3.5 w-3.5" />
+                App banner
+              </TabsTrigger>
+              <TabsTrigger value="best-performer" className="gap-1">
+                <Star className="h-3.5 w-3.5" />
+                Best Performer
+              </TabsTrigger>
               <TabsTrigger value="moderation">Moderation</TabsTrigger>
+              <TabsTrigger value="platform">Platform</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="app-banner" className="space-y-6">
+              <AppBannerSettings />
+            </TabsContent>
+
+            <TabsContent value="best-performer" className="space-y-6">
+              <BestPerformerSettings />
+            </TabsContent>
 
             <TabsContent value="platform" className="space-y-6">
               <Card>
@@ -210,6 +226,11 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
+
+                  <Button onClick={handleSave} className="flex items-center gap-2">
+                    {saved ? <CheckCircle className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                    {saved ? "Saved!" : "Save platform preferences"}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>

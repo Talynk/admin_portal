@@ -86,6 +86,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { usePosts } from "@/hooks/use-posts";
 import { toast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api-client";
@@ -98,11 +99,13 @@ import type { AdminSearchPost } from "@/lib/types/admin";
 import type { ChallengeContext } from "@/lib/types/challenge";
 import { VideoPipelineContentBanner } from "@/components/video-pipeline-content-banner";
 import { ChallengeContextBadge } from "@/components/challenge-context-badge";
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
 export default function ContentPage() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
@@ -121,7 +124,7 @@ export default function ContentPage() {
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
-  const [timeRange, setTimeRange] = useState("all");
+  const [timeRange, setTimeRange] = useState("all"); // reserved UI; filtering is server-side via sort/status
   const [sortBy, setSortBy] = useState("uploadDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -252,33 +255,7 @@ export default function ContentPage() {
         }
       })();
 
-      const matchesTimeRange = (() => {
-        const now = new Date();
-        const videoDate = new Date(
-          video.createdAt || video.uploadDate || new Date()
-        );
-        const daysDiff = Math.floor(
-          (now.getTime() - videoDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        switch (timeRange) {
-          case "today":
-            return daysDiff === 0;
-          case "week":
-            return daysDiff <= 7;
-          case "month":
-            return daysDiff <= 30;
-          case "quarter":
-            return daysDiff <= 90;
-          case "year":
-            return daysDiff <= 365;
-          case "all":
-          default:
-            return true;
-        }
-      })();
-
-      return matchesTab && matchesTimeRange;
+      return matchesTab;
     })
     .sort((a, b) => {
       let aValue: any, bValue: any;
@@ -305,8 +282,8 @@ export default function ContentPage() {
           bValue = b.comments;
           break;
         case "title":
-          aValue = a.title.toLowerCase();
-          bValue = b.title.toLowerCase();
+          aValue = (a.title ?? "").toLowerCase();
+          bValue = (b.title ?? "").toLowerCase();
           break;
         case "username":
           aValue = (a.user?.username || a.username || "").toLowerCase();
@@ -1095,7 +1072,7 @@ export default function ContentPage() {
                     </div>
                   ) : (
                     /* Table View */
-                    <div className="border rounded-lg">
+                    <DataTableShell minWidth="900px">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -1139,12 +1116,15 @@ export default function ContentPage() {
                                     )}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-sm truncate">
-                                      {video.title}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
+                                    <TruncateCell
+                                      className="font-medium text-sm"
+                                      title={video.title ?? ""}
+                                    >
+                                      {video.title ?? ""}
+                                    </TruncateCell>
+                                    <TruncateCell className="text-xs text-muted-foreground" title={video.id}>
                                       ID: {video.id}
-                                    </p>
+                                    </TruncateCell>
                                     <p className="text-xs text-muted-foreground">
                                       {video.duration}
                                     </p>
@@ -1291,7 +1271,7 @@ export default function ContentPage() {
                           ))}
                         </TableBody>
                       </Table>
-                    </div>
+                    </DataTableShell>
                   )}
 
                   {totalPages > 1 && !loading && (

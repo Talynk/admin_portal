@@ -15,13 +15,15 @@ import {
   Download,
   Activity,
   User,
-  Video,
   AlertTriangle,
   CheckCircle,
   XCircle,
   Clock,
+  Video,
 } from "lucide-react"
 import { useActivityLogs } from "@/hooks/use-activity-logs"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell"
 
 type UiSeverity = "high" | "medium" | "low"
 
@@ -45,12 +47,18 @@ const AUDIT_ACTION_TYPE_OPTIONS = [
 ]
 
 export default function ActivityPage() {
-  const { logs, loading, error, refetch, params, setParams } = useActivityLogs({ page: 1, limit: 100 })
+  const { logs, loading, error, refetch, params, setParams, pagination } = useActivityLogs({
+    page: 1,
+    limit: 50,
+  })
   const [searchTerm, setSearchTerm] = useState("")
+  const debouncedSearch = useDebouncedValue(searchTerm, 350)
   const [actionFilter, setActionFilter] = useState("all")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [userFilter, setUserFilter] = useState("all")
   const auditActionType = params.actionType ?? ""
+  const page = params.page ?? 1
+  const totalPages = pagination?.totalPages ?? 1
 
   const deriveSeverity = (statusCode?: number, success?: boolean): UiSeverity => {
     if (statusCode && statusCode >= 500) return "high"
@@ -80,8 +88,9 @@ export default function ActivityPage() {
   }, [logs])
 
   const filteredLogs = normalizedLogs.filter((log) => {
-    const term = searchTerm.toLowerCase()
+    const term = debouncedSearch.toLowerCase()
     const matchesSearch =
+      !term ||
       log.user.toLowerCase().includes(term) ||
       log.action.toLowerCase().includes(term) ||
       log.target.toLowerCase().includes(term) ||
@@ -285,7 +294,7 @@ export default function ActivityPage() {
                 </Select>
               </div>
 
-              <div className="rounded-md border">
+              <DataTableShell minWidth="900px">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -307,35 +316,41 @@ export default function ActivityPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Avatar className="h-6 w-6 shrink-0">
                               <AvatarFallback className="text-xs">
                                 {log.user === "system" ? "SYS" : log.user.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm font-medium">{log.user}</span>
+                            <TruncateCell className="text-sm font-medium" title={log.user}>
+                              {log.user}
+                            </TruncateCell>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
                             {getActionIcon(log.action)}
-                            <span className="text-sm font-medium">
+                            <TruncateCell className="text-sm font-medium" title={log.action}>
                               {log.action.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                            </span>
+                            </TruncateCell>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">
-                          <span className="font-mono text-xs text-muted-foreground">{log.target}</span>
+                          <TruncateCell className="font-mono text-xs text-muted-foreground" title={log.target}>
+                            {log.target}
+                          </TruncateCell>
                         </TableCell>
                         <TableCell>{getSeverityBadge(log.severity)}</TableCell>
                         <TableCell>
-                          <span className="text-xs font-mono text-muted-foreground">{log.ipAddress}</span>
+                          <TruncateCell className="text-xs font-mono text-muted-foreground" title={log.ipAddress}>
+                            {log.ipAddress}
+                          </TruncateCell>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </DataTableShell>
 
               {filteredLogs.length === 0 && !loading && (
                 <div className="text-center py-8">
@@ -354,6 +369,30 @@ export default function ActivityPage() {
                   </Button>
                 </div>
               )}
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-between mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setParams((prev) => ({ ...prev, page: Math.max(1, page - 1) }))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {page} of {totalPages}
+                    {pagination?.totalCount != null ? ` · ${pagination.totalCount} total` : ""}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setParams((prev) => ({ ...prev, page: page + 1 }))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </div>

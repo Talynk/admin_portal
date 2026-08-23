@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { DataTableShell, TruncateCell } from "@/components/data-table-shell";
 import {
   Card,
   CardContent,
@@ -132,6 +134,7 @@ export default function AdsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedAd, setSelectedAd] = useState<AdItem | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [viewMediaOpen, setViewMediaOpen] = useState(false);
   const [viewMediaAd, setViewMediaAd] = useState<AdItem | null>(null);
@@ -158,13 +161,29 @@ export default function AdsPage() {
   const fetchAds = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiClient.getAds({ page, limit: 20 });
+      const searching = !!debouncedSearch.trim();
+      const res = await apiClient.getAds({
+        page: searching ? 1 : page,
+        limit: searching ? 100 : 20,
+        search: debouncedSearch.trim() || undefined,
+      });
       if (res.success && res.data) {
         const data = res.data as any;
-        const list = Array.isArray(data) ? data : data.ads ?? data.data ?? [];
+        let list = Array.isArray(data) ? data : data.ads ?? data.data ?? [];
+        list = Array.isArray(list) ? list : [];
+        // Fallback client filter when API ignores search (common until backend adds q)
+        if (searching) {
+          const term = debouncedSearch.toLowerCase();
+          list = list.filter(
+            (a: AdItem) =>
+              (a.title ?? "").toLowerCase().includes(term) ||
+              (a.description ?? "").toLowerCase().includes(term)
+          );
+        }
         const pagination = (data as any).pagination;
-        setAds(Array.isArray(list) ? list : []);
-        if (pagination?.totalPages) setTotalPages(pagination.totalPages);
+        setAds(list);
+        if (searching) setTotalPages(1);
+        else if (pagination?.totalPages) setTotalPages(pagination.totalPages);
         else if (Array.isArray(data)) setTotalPages(1);
       } else {
         setAds([]);
@@ -175,19 +194,17 @@ export default function AdsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     fetchAds();
   }, [fetchAds]);
 
-  const filteredAds = searchTerm.trim()
-    ? ads.filter(
-        (a) =>
-          (a.title ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (a.description ?? "").toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : ads;
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const filteredAds = ads;
 
   const startCreate = () => {
     setCreateTitle("");
@@ -566,7 +583,7 @@ export default function AdsPage() {
                   )}
                 </div>
               ) : (
-                <div className="rounded-md border">
+                <DataTableShell minWidth="900px">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -620,11 +637,18 @@ export default function AdsPage() {
                                 <Badge variant="outline">{typeLabel}</Badge>
                               </TableCell>
                               <TableCell>
-                                <div>
-                                  <p className="font-medium">{ad.title || "Ad"}</p>
-                                  {ad.description && (
-                                    <p className="text-sm text-muted-foreground line-clamp-1">{ad.description}</p>
-                                  )}
+                                <div className="min-w-0 max-w-[220px]">
+                                  <TruncateCell className="font-medium" title={ad.title || "Ad"}>
+                                    {ad.title || "Ad"}
+                                  </TruncateCell>
+                                  {ad.description ? (
+                                    <TruncateCell
+                                      className="text-sm text-muted-foreground"
+                                      title={ad.description}
+                                    >
+                                      {ad.description}
+                                    </TruncateCell>
+                                  ) : null}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -677,7 +701,7 @@ export default function AdsPage() {
                       )}
                     </TableBody>
                   </Table>
-                </div>
+                </DataTableShell>
               )}
               {totalPages > 1 && (
                 <div className="flex justify-between items-center mt-4">

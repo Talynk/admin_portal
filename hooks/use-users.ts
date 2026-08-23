@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { apiClient, ApiResponse } from '@/lib/api-client'
-import { normalizeQuery, userMatchesSearch } from '@/lib/user-search'
+import { normalizeQuery } from '@/lib/user-search'
 
 interface User {
   id: string
@@ -267,14 +267,8 @@ export function useUsers(params: UseUsersParams = {}) {
     }
   }
 
-  const normalizedSearch = normalizeQuery(params.search)
-  const displayUsers = useMemo(() => {
-    if (!normalizedSearch) return users
-    return users.filter((u) => userMatchesSearch(u, normalizedSearch))
-  }, [users, normalizedSearch])
-
   return {
-    users: displayUsers,
+    users,
     loading,
     error,
     total,
