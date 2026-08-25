@@ -1848,6 +1848,7 @@ class ApiClient {
 
   async updateAppBanner(payload: {
     message?: string | null
+    description?: string | null
     targeting?: {
       genders?: Array<'male' | 'female'>
       age_min?: number | null

@@ -9,11 +9,13 @@ export interface AppBannerTargeting {
 
 export interface AppBannerSettings {
   banner_message: string | null
+  banner_description: string | null
   targeting: AppBannerTargeting
 }
 
 export interface AppBannerUpdatePayload {
   message?: string | null
+  description?: string | null
   targeting?: {
     genders?: BannerGender[]
     age_min?: number | null
@@ -35,6 +37,9 @@ export interface BestPerformerUpdatePayload {
 }
 
 export const DEFAULT_BANNER_MESSAGE = 'Only Talent Related Content Allowed'
+
+export const DEFAULT_BANNER_DESCRIPTION =
+  'Share performances and creative skills — music, dance, comedy, sport, craft, and other talent. Off-topic posts may be removed.'
 
 export const EMPTY_BANNER_TARGETING: AppBannerTargeting = {
   genders: [],

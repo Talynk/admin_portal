@@ -24,6 +24,12 @@ function normalizeBanner(data: unknown): AppBannerSettings {
         : raw.banner_message === null
           ? null
           : null,
+    banner_description:
+      typeof raw.banner_description === 'string'
+        ? raw.banner_description
+        : raw.banner_description === null
+          ? null
+          : null,
     targeting: {
       genders,
       age_min: typeof targetingRaw.age_min === 'number' ? targetingRaw.age_min : null,
@@ -36,6 +42,7 @@ function normalizeBanner(data: unknown): AppBannerSettings {
 export function useAppBanner() {
   const [settings, setSettings] = useState<AppBannerSettings>({
     banner_message: null,
+    banner_description: null,
     targeting: { ...EMPTY_BANNER_TARGETING },
   })
   const [loading, setLoading] = useState(true)
