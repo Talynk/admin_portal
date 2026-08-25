@@ -13,19 +13,20 @@ import { useAppBanner } from '@/hooks/use-app-banner'
 import { useCountries } from '@/hooks/use-countries'
 import { toast } from '@/hooks/use-toast'
 import {
+  DEFAULT_BANNER_DESCRIPTION,
   DEFAULT_BANNER_MESSAGE,
   EMPTY_BANNER_TARGETING,
   type BannerGender,
 } from '@/lib/types/social-feed-settings'
 
-function previewLabel(
-  message: string | null,
+const DESCRIPTION_MAX = 2000
+
+function audienceLabel(
   genders: BannerGender[],
   ageMin: number | null,
   ageMax: number | null,
   countryNames: string[]
 ): string {
-  if (!message?.trim()) return 'Banner is hidden'
   const parts: string[] = []
   if (genders.length) parts.push(genders.join(', '))
   if (ageMin != null || ageMax != null) {
@@ -46,6 +47,7 @@ export function AppBannerSettings() {
   const { countries, loading: countriesLoading } = useCountries()
 
   const [message, setMessage] = useState('')
+  const [description, setDescription] = useState('')
   const [genders, setGenders] = useState<BannerGender[]>([])
   const [ageMin, setAgeMin] = useState('')
   const [ageMax, setAgeMax] = useState('')
@@ -53,6 +55,7 @@ export function AppBannerSettings() {
 
   useEffect(() => {
     setMessage(settings.banner_message ?? '')
+    setDescription(settings.banner_description ?? '')
     setGenders(settings.targeting.genders)
     setAgeMin(settings.targeting.age_min != null ? String(settings.targeting.age_min) : '')
     setAgeMax(settings.targeting.age_max != null ? String(settings.targeting.age_max) : '')
@@ -69,6 +72,8 @@ export function AppBannerSettings() {
 
   const parsedAgeMin = ageMin.trim() === '' ? null : Number(ageMin)
   const parsedAgeMax = ageMax.trim() === '' ? null : Number(ageMax)
+  const titlePreview = message.trim()
+  const descriptionPreview = description.trim()
 
   const toggleGender = (g: BannerGender) => {
     setGenders((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
@@ -97,8 +102,17 @@ export function AppBannerSettings() {
       toast({ title: 'Invalid targeting', description: ageError, variant: 'destructive' })
       return
     }
+    if (description.length > DESCRIPTION_MAX) {
+      toast({
+        title: 'Invalid description',
+        description: `Description must be at most ${DESCRIPTION_MAX} characters.`,
+        variant: 'destructive',
+      })
+      return
+    }
     const result = await save({
       message,
+      description: description.trim() === '' ? '' : description,
       targeting: {
         genders,
         age_min: parsedAgeMin,
@@ -123,8 +137,22 @@ export function AppBannerSettings() {
     }
   }
 
-  const handleRestoreDefault = () => {
+  const handleClearDescription = async () => {
+    const result = await save({ description: null })
+    if (result.success) {
+      setDescription('')
+      toast({ title: 'Description cleared', description: 'Clients will omit the subtitle.' })
+    } else {
+      toast({ title: 'Clear failed', description: result.error, variant: 'destructive' })
+    }
+  }
+
+  const handleRestoreDefaultTitle = () => {
     setMessage(DEFAULT_BANNER_MESSAGE)
+  }
+
+  const handleRestoreDefaultDescription = () => {
+    setDescription(DEFAULT_BANNER_DESCRIPTION)
   }
 
   const handleClearTargeting = async () => {
@@ -169,42 +197,75 @@ export function AppBannerSettings() {
             App banner
           </CardTitle>
           <CardDescription>
-            Global message for all clients. Clear the message to hide it. Targeting uses the same
-            strict rules as ads: viewers missing a set attribute do not see the banner.
+            Title and optional description for clients. Clear the title to hide the whole banner.
+            Targeting uses the same strict rules as ads: viewers missing a set attribute do not see
+            the banner.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="banner-message">Message</Label>
+            <Label htmlFor="banner-title">Title</Label>
             <Textarea
-              id="banner-message"
+              id="banner-title"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder={DEFAULT_BANNER_MESSAGE}
-              rows={3}
+              rows={2}
             />
             <p className="text-xs text-muted-foreground">
-              Empty / whitespace messages are stored as hidden.
+              Empty / whitespace titles are stored as hidden.
             </p>
           </div>
 
-          <p className="text-sm font-medium">
-            {previewLabel(
-              message.trim() || null,
-              genders,
-              parsedAgeMin,
-              parsedAgeMax,
-              countryNames
+          <div className="space-y-2">
+            <Label htmlFor="banner-description">Description</Label>
+            <Textarea
+              id="banner-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX))}
+              placeholder={DEFAULT_BANNER_DESCRIPTION}
+              rows={4}
+            />
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>Longer body under the title. Clear to omit the subtitle on clients.</span>
+              <span>
+                {description.length}/{DESCRIPTION_MAX}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-md border bg-muted/40 p-4 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Preview</p>
+            {!titlePreview ? (
+              <p className="text-sm text-muted-foreground">Banner is hidden</p>
+            ) : (
+              <>
+                <p className="text-sm font-semibold">{titlePreview}</p>
+                {descriptionPreview ? (
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{descriptionPreview}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">No subtitle</p>
+                )}
+              </>
             )}
-          </p>
+            <p className="text-sm font-medium pt-1">
+              {audienceLabel(genders, parsedAgeMin, parsedAgeMax, countryNames)}
+            </p>
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => void handleSave()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Save
             </Button>
-            <Button variant="outline" onClick={handleRestoreDefault} disabled={saving}>
-              Restore default
+            <Button variant="outline" onClick={handleRestoreDefaultTitle} disabled={saving}>
+              Restore default title
+            </Button>
+            <Button variant="outline" onClick={handleRestoreDefaultDescription} disabled={saving}>
+              Restore default description
+            </Button>
+            <Button variant="outline" onClick={() => void handleClearDescription()} disabled={saving}>
+              Clear description
             </Button>
             <Button variant="destructive" onClick={() => void handleHide()} disabled={saving}>
               Clear / hide banner
