@@ -67,19 +67,20 @@ export function ChallengePendingPostsQueue({
     }
   }
 
-  const approve = async (post: ChallengePendingPost, notes?: string) => {
+  const approve = async (post: ChallengePendingPost, _notes?: string) => {
     setActionLoading(true)
     try {
       const res =
         portal === 'admin'
-          ? await apiClient.approvePost(post.id, notes)
-          : await apiClient.approverApprovePost(post.id, notes)
+          ? await apiClient.approvePost(post.id)
+          : await apiClient.approverApprovePost(post.id, _notes)
       if (res.success) {
         toast({ title: 'Post approved' })
         await refetch()
-      } else {
-        await handleFailure('Approve failed', res as ChallengeApiErrorResponse)
+        return true
       }
+      await handleFailure('Approve failed', res as ChallengeApiErrorResponse)
+      return false
     } finally {
       setActionLoading(false)
     }
@@ -88,16 +89,18 @@ export function ChallengePendingPostsQueue({
   const reject = async (post: ChallengePendingPost, notes: string) => {
     setActionLoading(true)
     try {
+      const reason = notes.trim()
       const res =
         portal === 'admin'
-          ? await apiClient.rejectPost(post.id, notes)
-          : await apiClient.approverRejectPost(post.id, notes)
+          ? await apiClient.rejectPost(post.id, reason)
+          : await apiClient.approverRejectPost(post.id, reason)
       if (res.success) {
         toast({ title: 'Post rejected' })
         await refetch()
-      } else {
-        await handleFailure('Reject failed', res as ChallengeApiErrorResponse)
+        return true
       }
+      await handleFailure('Reject failed', res as ChallengeApiErrorResponse)
+      return false
     } finally {
       setActionLoading(false)
     }

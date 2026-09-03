@@ -947,27 +947,69 @@ class ApiClient {
     })
   }
 
-  // PUT /admin/approve takes the post id in the body as `id`, and requires
-  // `rejectionReason` whenever the target status is a rejection.
-  async approvePost(postId: string, reason?: string) {
+  // PUT /admin/approve
+  // Approve: { id|postId, status: "approved"|"active" } — never send rejectionReason.
+  // Reject: { id|postId, status: "rejected"|"suspended", rejectionReason|notes } (required).
+  async approvePost(postId: string, _notes?: string) {
     return this.request('/admin/approve', {
       method: 'PUT',
       body: JSON.stringify({
         id: postId,
+        postId,
         status: 'approved',
-        ...(reason ? { rejectionReason: reason } : {}),
       }),
     })
   }
 
   async rejectPost(postId: string, reason: string) {
+    const rejectionReason = reason.trim()
+    if (!rejectionReason) {
+      return {
+        success: false as const,
+        error: 'Rejection reason is required',
+      }
+    }
     return this.request('/admin/approve', {
       method: 'PUT',
       body: JSON.stringify({
         id: postId,
+        postId,
         status: 'rejected',
-        rejectionReason: reason,
+        rejectionReason,
+        notes: rejectionReason,
       }),
+    })
+  }
+
+  async getAdminFlaggedPosts(params?: { page?: number; limit?: number }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return this.request(`/admin/posts/flagged${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async reviewAdminFlaggedPost(
+    postId: string,
+    action: 'approve' | 'reject',
+    notes?: string
+  ) {
+    const body: { action: 'approve' | 'reject'; notes?: string } = { action }
+    if (action === 'reject') {
+      const trimmed = notes?.trim()
+      if (!trimmed) {
+        return {
+          success: false as const,
+          error: 'Notes are required when rejecting a flagged post',
+        }
+      }
+      body.notes = trimmed
+    } else if (notes?.trim()) {
+      body.notes = notes.trim()
+    }
+    return this.request(`/admin/posts/${postId}/flagged/review`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
     })
   }
 
