@@ -41,8 +41,8 @@ export function ChallengePendingPostCard({
   actionLoading,
 }: {
   post: ChallengePendingPost
-  onApprove: (post: ChallengePendingPost, notes?: string) => Promise<void>
-  onReject: (post: ChallengePendingPost, notes: string) => Promise<void>
+  onApprove: (post: ChallengePendingPost, notes?: string) => Promise<boolean | void>
+  onReject: (post: ChallengePendingPost, notes: string) => Promise<boolean | void>
   linkChallengeToAdmin?: boolean
   linkChallengeToApprover?: boolean
   portal?: PendingPostsPortal
@@ -127,11 +127,11 @@ export function ChallengePendingPostCard({
     setSubmitting(true)
     try {
       if (actionType === 'approve') {
-        await onApprove(post, notes || undefined)
-        setDialogOpen(false)
+        const ok = await onApprove(post, notes || undefined)
+        if (ok !== false) setDialogOpen(false)
       } else if (actionType === 'reject') {
-        await onReject(post, notes.trim())
-        setDialogOpen(false)
+        const ok = await onReject(post, notes.trim())
+        if (ok !== false) setDialogOpen(false)
       } else if (actionType === 'doc-approve') {
         await handleDocumentApprove()
       } else if (actionType === 'doc-reject') {
@@ -324,7 +324,10 @@ export function ChallengePendingPostCard({
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
-          {actionType === 'reject' || actionType === 'doc-reject' || actionType === 'approve' ? (
+          {actionType === 'reject' ||
+          actionType === 'doc-reject' ||
+          actionType === 'doc-approve' ||
+          (actionType === 'approve' && portal === 'approver') ? (
             <div className="space-y-2">
               <Label htmlFor="post-notes">
                 {actionType === 'reject' || actionType === 'doc-reject'

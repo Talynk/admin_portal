@@ -332,10 +332,11 @@ export default function ContentPage() {
       let result;
       switch (actionType) {
         case "approve":
-          result = await approvePost(selectedVideo.id, actionReason);
+          // Optional reason field is UI-only for activate; API must not receive rejectionReason.
+          result = await approvePost(selectedVideo.id);
           break;
         case "reject":
-          result = await rejectPost(selectedVideo.id, actionReason);
+          result = await rejectPost(selectedVideo.id, actionReason.trim());
           break;
         case "suspend":
           result = await suspendPost(selectedVideo.id, actionReason);

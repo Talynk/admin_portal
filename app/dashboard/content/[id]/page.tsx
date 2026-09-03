@@ -168,10 +168,10 @@ export default function PostDetailPage() {
       let result: { success?: boolean; error?: string } | undefined
       switch (actionType) {
         case "approve":
-          result = await apiClient.approvePost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          result = await apiClient.approvePost(post.id).then((r) => ({ success: r.success, error: r.error }))
           break
         case "reject":
-          result = await apiClient.rejectPost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          result = await apiClient.rejectPost(post.id, actionReason.trim()).then((r) => ({ success: r.success, error: r.error }))
           break
         case "suspend":
           result = await apiClient.suspendPost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
