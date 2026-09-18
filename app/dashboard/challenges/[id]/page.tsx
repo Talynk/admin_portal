@@ -300,6 +300,11 @@ export default function ChallengeDetailPage() {
     }
   }, [challenge?.moderation_mode])
 
+  // The aggregated-winners endpoint paginates over ALL participants, sorted
+  // winners-first — a hardcoded limit of 10 would silently truncate the
+  // Winners tab whenever max_winners is configured above 10.
+  const winnersFetchLimit = Math.max(challenge?.max_winners ?? 10, 10, challenge?.effective_max_winners ?? 0)
+
   const {
     winners: aggregatedWinners,
     pagination: aggPagination,
@@ -311,7 +316,7 @@ export default function ChallengeDetailPage() {
     orderedBy: aggOrderedBy,
   } = useChallengeAggregatedWinners(
     challengeId,
-    { page: 1, limit: 10, enabled: !!challengeId && isEndedOrStopped }
+    { page: 1, limit: winnersFetchLimit, enabled: !!challengeId && isEndedOrStopped }
   )
 
   useEffect(() => {
@@ -502,15 +507,14 @@ export default function ChallengeDetailPage() {
           return lB - lA
         })
       }
+      // One post per winning user, in winner order. A winner slot is per-user,
+      // not per-post: submitting every submission (or every other participant's
+      // posts) would both blow past effective_max_winners on the backend and
+      // let a single prolific user occupy multiple rank slots.
       const result: string[] = []
       for (const uid of orderedUserIds) {
         const posts = byUser.get(uid) ?? []
-        for (const p of posts) result.push(p.id)
-      }
-      const orderedSet = new Set(orderedUserIds)
-      for (const [uid, posts] of byUser) {
-        if (orderedSet.has(uid)) continue
-        for (const p of posts) result.push(p.id)
+        if (posts.length > 0) result.push(posts[0].id)
       }
       return result
     },
@@ -524,8 +528,11 @@ export default function ChallengeDetailPage() {
 
   const handleWinnersDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over || active.id === over.id || !orderedWinnersForDisplay.length) return
-    const currentOrder = orderedWinnerUserIds ?? orderedWinnersForDisplay.map((r) => r.user.id)
+    if (!over || active.id === over.id || !winnersForDisplay.length) return
+    // Only reorder within the winner slots (capped to max winners) — submitting
+    // ids for every participant would exceed the backend's effective_max_winners
+    // cap and get rejected with MAX_WINNERS_EXCEEDED.
+    const currentOrder = orderedWinnerUserIds ?? winnersForDisplay.map((r) => r.user.id)
     const oldIndex = currentOrder.indexOf(active.id as string)
     const newIndex = currentOrder.indexOf(over.id as string)
     if (oldIndex === -1 || newIndex === -1) return
@@ -549,13 +556,13 @@ export default function ChallengeDetailPage() {
   }
 
   const handleSetRankUser = async () => {
-    if (!setRankDialogUser || !orderedWinnersForDisplay.length) return
+    if (!setRankDialogUser || !winnersForDisplay.length) return
     const rank = parseInt(setRankValue, 10)
-    if (isNaN(rank) || rank < 1 || rank > orderedWinnersForDisplay.length) {
-      toast({ title: "Invalid rank", description: `Enter a number between 1 and ${orderedWinnersForDisplay.length}.`, variant: "destructive" })
+    if (isNaN(rank) || rank < 1 || rank > winnersForDisplay.length) {
+      toast({ title: "Invalid rank", description: `Enter a number between 1 and ${winnersForDisplay.length}.`, variant: "destructive" })
       return
     }
-    const currentOrder = orderedWinnerUserIds ?? orderedWinnersForDisplay.map((r) => r.user.id)
+    const currentOrder = orderedWinnerUserIds ?? winnersForDisplay.map((r) => r.user.id)
     const userId = setRankDialogUser.user.id
     const currentIndex = currentOrder.indexOf(userId)
     if (currentIndex === -1) return
