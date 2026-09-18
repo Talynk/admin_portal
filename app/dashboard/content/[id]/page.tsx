@@ -99,7 +99,7 @@ export default function PostDetailPage() {
   const { buckets: engagementBuckets, loading: engagementLoading } = usePostEngagement(postId, engagementFrame)
   const { reports, loading: reportsLoading, refetch: refetchReports } = usePostReports(postId)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
-  const [actionType, setActionType] = useState<"approve" | "reject" | "suspend" | "freeze" | "unfreeze" | "delete" | "feature" | "unfeature" | null>(null)
+  const [actionType, setActionType] = useState<"approve" | "reject" | "suspend" | "freeze" | "unfreeze" | "flagged_approve" | "flagged_reject" | "delete" | "feature" | "unfeature" | null>(null)
   const [actionReason, setActionReason] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
   const [isReviewing, setIsReviewing] = useState(false)
@@ -149,7 +149,7 @@ export default function PostDetailPage() {
 
   // PUT /admin/approve requires rejectionReason for rejections; suspend sends
   // the same text on to the owner's notification.
-  const requiresReason = actionType === "reject" || actionType === "suspend"
+  const requiresReason = actionType === "reject" || actionType === "suspend" || actionType === "flagged_reject"
 
   const executeAction = async () => {
     if (!post || !actionType) return
@@ -181,6 +181,12 @@ export default function PostDetailPage() {
           break
         case "unfreeze":
           result = await apiClient.unfreezePost(post.id, actionReason).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "flagged_approve":
+          result = await apiClient.reviewAdminFlaggedPost(post.id, "approve", actionReason || undefined).then((r) => ({ success: r.success, error: r.error }))
+          break
+        case "flagged_reject":
+          result = await apiClient.reviewAdminFlaggedPost(post.id, "reject", actionReason.trim()).then((r) => ({ success: r.success, error: r.error }))
           break
         case "delete":
           result = await apiClient.deletePost(post.id, actionReason || undefined).then((r) => ({ success: r.success, error: r.error }))
@@ -394,10 +400,16 @@ export default function PostDetailPage() {
                   </DropdownMenuItem>
                 )}
                 {isFrozen ? (
-                  <DropdownMenuItem className="text-blue-600" onClick={() => handleVideoAction("unfreeze")}>
-                    <Play className="mr-2 h-4 w-4" />
-                    Unfreeze
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem className="text-green-600" onClick={() => handleVideoAction("flagged_approve")}>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Approve (restore to active)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-red-600" onClick={() => handleVideoAction("flagged_reject")}>
+                      <Ban className="mr-2 h-4 w-4" />
+                      Reject (confirm violation)
+                    </DropdownMenuItem>
+                  </>
                 ) : (
                   <DropdownMenuItem className="text-blue-600" onClick={() => handleVideoAction("freeze")}>
                     <Freeze className="mr-2 h-4 w-4" />
@@ -866,6 +878,8 @@ export default function PostDetailPage() {
                 {actionType === "suspend" && "Suspend post"}
                 {actionType === "freeze" && "Freeze post"}
                 {actionType === "unfreeze" && "Unfreeze post"}
+                {actionType === "flagged_approve" && "Approve flagged post"}
+                {actionType === "flagged_reject" && "Reject flagged post"}
                 {actionType === "feature" && "Add to Featured"}
                 {actionType === "unfeature" && "Remove from Featured"}
                 {actionType === "delete" && "Delete post"}
@@ -875,7 +889,11 @@ export default function PostDetailPage() {
                   "This cannot be undone. The post and related data will be removed."}
                 {actionType === "suspend" &&
                   "The post owner will be notified and can appeal if they believe it's a mistake (one appeal per post). Suspended posts are frozen (read-only)."}
-                {actionType !== "delete" && actionType !== "suspend" &&
+                {actionType === "flagged_approve" &&
+                  "Restores the post to active and clears the suspension — use when the report/freeze was a mistake or the issue is resolved."}
+                {actionType === "flagged_reject" &&
+                  "Confirms the violation. The post stays suspended and is no longer pending review. The reason is sent to the owner."}
+                {actionType !== "delete" && actionType !== "suspend" && actionType !== "flagged_approve" && actionType !== "flagged_reject" &&
                   `Confirm: ${actionType} for "${post?.title || "this post"}".`}
               </DialogDescription>
             </DialogHeader>

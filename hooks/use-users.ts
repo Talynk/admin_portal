@@ -200,9 +200,9 @@ export function useUsers(params: UseUsersParams = {}) {
     }
   }
 
-  const deleteUser = async (userId: string) => {
+  const deleteUser = async (userId: string, reason?: string) => {
     try {
-      const response = await apiClient.deleteUser(userId)
+      const response = await apiClient.deleteUser(userId, reason)
       if (response.success) {
         await fetchUsers() // Refresh the list
         return { success: true }
@@ -221,14 +221,7 @@ export function useUsers(params: UseUsersParams = {}) {
         await fetchUsers() // Refresh the list
         return { success: true, data: response.data }
       }
-      const errMsg = response.error || (response as any).message || 'Failed to suspend user'
-      // Fallback: try PATCH status if manage endpoint failed (e.g. wrong id format or endpoint)
-      const fallback = await apiClient.updateUserStatus(userId, 'suspended')
-      if (fallback.success) {
-        await fetchUsers()
-        return { success: true, data: fallback.data }
-      }
-      return { success: false, error: errMsg }
+      return { success: false, error: response.error || (response as any).message || 'Failed to suspend user' }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
     }
@@ -241,13 +234,7 @@ export function useUsers(params: UseUsersParams = {}) {
         await fetchUsers() // Refresh the list
         return { success: true, data: response.data }
       }
-      const errMsg = response.error || (response as any).message || 'Failed to unsuspend user'
-      const fallback = await apiClient.updateUserStatus(userId, 'active')
-      if (fallback.success) {
-        await fetchUsers()
-        return { success: true, data: fallback.data }
-      }
-      return { success: false, error: errMsg }
+      return { success: false, error: response.error || (response as any).message || 'Failed to unsuspend user' }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
     }
@@ -267,6 +254,32 @@ export function useUsers(params: UseUsersParams = {}) {
     }
   }
 
+  const freezeUser = async (userId: string, reason?: string) => {
+    try {
+      const response = await apiClient.freezeUser(userId, reason)
+      if (response.success) {
+        await fetchUsers() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
+  const sendMessage = async (userId: string, message: string, type?: string) => {
+    try {
+      const response = await apiClient.sendNotificationToUser(userId, message, type)
+      if (response.success) {
+        return { success: true, data: response.data }
+      }
+      return { success: false, error: response.error || (response as any).message || 'Failed to send message' }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
   return {
     users,
     loading,
@@ -280,6 +293,8 @@ export function useUsers(params: UseUsersParams = {}) {
     suspendUser,
     unsuspendUser,
     activateUser,
+    freezeUser,
+    sendMessage,
   }
 }
 

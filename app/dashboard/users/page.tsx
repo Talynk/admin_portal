@@ -66,6 +66,8 @@ import {
   FileText,
   Megaphone,
   Trash2,
+  Lock,
+  Send,
 } from "lucide-react";
 import { useUsers } from "@/hooks/use-users";
 import { apiClient } from "@/lib/api-client";
@@ -108,9 +110,13 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
-    "suspend" | "unsuspend" | "activate" | "delete" | null
+    "suspend" | "unsuspend" | "activate" | "freeze" | "delete" | null
   >(null);
   const [actionReason, setActionReason] = useState("");
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<any>(null);
+  const [messageText, setMessageText] = useState("");
+  const [messageLoading, setMessageLoading] = useState(false);
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     username: "",
@@ -143,6 +149,8 @@ export default function UsersPage() {
     suspendUser,
     unsuspendUser,
     activateUser,
+    freezeUser,
+    sendMessage,
   } = useUsers({
     page,
     limit: 20,
@@ -164,11 +172,39 @@ export default function UsersPage() {
 
   const handleUserAction = (
     user: any,
-    action: "suspend" | "unsuspend" | "activate" | "delete"
+    action: "suspend" | "unsuspend" | "activate" | "freeze" | "delete"
   ) => {
     setSelectedUser(user);
     setActionType(action);
+    setActionReason("");
     setActionDialogOpen(true);
+  };
+
+  const openMessageDialog = (user: any) => {
+    setMessageTarget(user);
+    setMessageText("");
+    setMessageDialogOpen(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageTarget) return;
+    if (!messageText.trim()) {
+      toast({ title: "Message required", description: "Enter a message to send.", variant: "destructive" });
+      return;
+    }
+    setMessageLoading(true);
+    try {
+      const result = await sendMessage(messageTarget.id, messageText.trim());
+      if (result.success) {
+        toast({ title: "Message sent", description: `Delivered to @${messageTarget.username}.` });
+        setMessageDialogOpen(false);
+        setMessageText("");
+      } else {
+        toast({ title: "Error", description: result.error || "Failed to send message", variant: "destructive" });
+      }
+    } finally {
+      setMessageLoading(false);
+    }
   };
 
   const executeAction = async () => {
@@ -187,13 +223,23 @@ export default function UsersPage() {
         case "activate":
           result = await activateUser(selectedUser.id, actionReason);
           break;
+        case "freeze":
+          result = await freezeUser(selectedUser.id, actionReason);
+          break;
         case "delete":
-          result = await deleteUser(selectedUser.id);
+          result = await deleteUser(selectedUser.id, actionReason);
           break;
       }
 
       if (result?.success) {
-        const verb = actionType === "unsuspend" ? "unsuspended" : `${actionType}d`;
+        const verbs: Record<string, string> = {
+          suspend: "suspended",
+          unsuspend: "unsuspended",
+          activate: "reactivated",
+          freeze: "frozen",
+          delete: "deleted",
+        };
+        const verb = verbs[actionType] || `${actionType}d`;
         toast({
           title: "Success",
           description: `User ${verb} successfully`,
@@ -1020,12 +1066,7 @@ export default function UsersPage() {
                                   <Eye className="mr-2 h-4 w-4" />
                                   View profile
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    if (user.email) window.location.href = `mailto:${user.email}`;
-                                    else toast({ title: "No email", description: "This user has no email on file.", variant: "destructive" });
-                                  }}
-                                >
+                                <DropdownMenuItem onClick={() => openMessageDialog(user)}>
                                   <Mail className="mr-2 h-4 w-4" />
                                   Send message
                                 </DropdownMenuItem>
@@ -1038,23 +1079,33 @@ export default function UsersPage() {
                                     <UserCheck className="mr-2 h-4 w-4" />
                                     Unsuspend
                                   </DropdownMenuItem>
-                                ) : (user.status === "active" || user.status === "frozen") ? (
-                                  <DropdownMenuItem
-                                    className="text-orange-600"
-                                    onClick={() => handleUserAction(user, "suspend")}
-                                  >
-                                    <Ban className="mr-2 h-4 w-4" />
-                                    Suspend
-                                  </DropdownMenuItem>
-                                ) : null}
-                                {user.status === "frozen" && (
-                                  <DropdownMenuItem
-                                    className="text-green-600"
-                                    onClick={() => handleUserAction(user, "activate")}
-                                  >
-                                    <Shield className="mr-2 h-4 w-4" />
-                                    Reactivate
-                                  </DropdownMenuItem>
+                                ) : (
+                                  <>
+                                    {user.status === "active" ? (
+                                      <DropdownMenuItem onClick={() => handleUserAction(user, "freeze")}>
+                                        <Lock className="mr-2 h-4 w-4" />
+                                        Freeze
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                    {user.status === "frozen" ? (
+                                      <DropdownMenuItem
+                                        className="text-green-600"
+                                        onClick={() => handleUserAction(user, "activate")}
+                                      >
+                                        <Shield className="mr-2 h-4 w-4" />
+                                        Reactivate
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                    {(user.status === "active" || user.status === "frozen") ? (
+                                      <DropdownMenuItem
+                                        className="text-orange-600"
+                                        onClick={() => handleUserAction(user, "suspend")}
+                                      >
+                                        <Ban className="mr-2 h-4 w-4" />
+                                        Suspend
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                  </>
                                 )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -1119,6 +1170,7 @@ export default function UsersPage() {
                 {actionType === "suspend" && "Suspend User"}
                 {actionType === "unsuspend" && "Unsuspend User"}
                 {actionType === "activate" && "Reactivate User"}
+                {actionType === "freeze" && "Freeze User"}
                 {actionType === "delete" && "Delete User"}
               </DialogTitle>
               <DialogDescription>
@@ -1128,6 +1180,8 @@ export default function UsersPage() {
                   `Are you sure you want to unsuspend @${selectedUser?.username}? This will restore their platform access.`}
                 {actionType === "activate" &&
                   `Are you sure you want to reactivate @${selectedUser?.username}? This will restore their platform access.`}
+                {actionType === "freeze" &&
+                  `Freeze @${selectedUser?.username}? This is a lighter, reversible restriction than Suspend — use Reactivate to restore access.`}
                 {actionType === "delete" &&
                   `Are you sure you want to delete @${selectedUser?.username}? This action cannot be undone.`}
               </DialogDescription>
@@ -1169,6 +1223,7 @@ export default function UsersPage() {
                     {actionType === "suspend" && "Suspend User"}
                     {actionType === "unsuspend" && "Unsuspend User"}
                     {actionType === "activate" && "Reactivate User"}
+                    {actionType === "freeze" && "Freeze User"}
                     {actionType === "delete" && "Delete User"}
                   </>
                 )}
@@ -1326,6 +1381,48 @@ export default function UsersPage() {
                   </>
                 ) : (
                   "Send broadcast"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Single-user message dialog */}
+        <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Message @{messageTarget?.username}
+              </DialogTitle>
+              <DialogDescription>
+                Delivered as an in-app notification. The user must have a username to receive it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="user-message">Message *</Label>
+                <Textarea
+                  id="user-message"
+                  placeholder="Write a message to this user..."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMessageDialogOpen(false)} disabled={messageLoading}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSendMessage()} disabled={messageLoading}>
+                {messageLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send message"
                 )}
               </Button>
             </DialogFooter>

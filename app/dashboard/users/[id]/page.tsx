@@ -48,6 +48,8 @@ import {
   AlertTriangle,
   Monitor,
   LogOut,
+  Lock,
+  Send,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useUser } from "@/hooks/use-users";
@@ -114,7 +116,10 @@ export default function UserProfilePage() {
   const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [suspendLoading, setSuspendLoading] = useState(false);
-  const [suspendAction, setSuspendAction] = useState<"suspend" | "unsuspend">("suspend");
+  const [suspendAction, setSuspendAction] = useState<"suspend" | "unsuspend" | "freeze" | "reactivate">("suspend");
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [messageLoading, setMessageLoading] = useState(false);
   const { sessions: userSessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions, revokeSession } = useUserSessions(userId);
   const [sessionToRevoke, setSessionToRevoke] = useState<string | null>(null);
   const [revokeLoading, setRevokeLoading] = useState(false);
@@ -161,18 +166,42 @@ export default function UserProfilePage() {
     }
   };
 
-  const handleSendMessage = () => {
-    if (user?.email) {
-      window.location.href = `mailto:${user.email}`;
-    } else {
-      toast({ title: "No email", description: "This user has no email on file.", variant: "destructive" });
+  const openMessageDialog = () => {
+    setMessageText("");
+    setMessageDialogOpen(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!user) return;
+    if (!messageText.trim()) {
+      toast({ title: "Message required", description: "Enter a message to send.", variant: "destructive" });
+      return;
+    }
+    setMessageLoading(true);
+    try {
+      const res = await apiClient.sendNotificationToUser(user.id, messageText.trim());
+      if (res.success) {
+        toast({ title: "Message sent", description: `Delivered to @${user.username}.` });
+        setMessageDialogOpen(false);
+      } else {
+        toast({ title: "Error", description: (res as any).error || (res as any).message || "Failed to send message", variant: "destructive" });
+      }
+    } finally {
+      setMessageLoading(false);
     }
   };
 
-  const openSuspendDialog = (action: "suspend" | "unsuspend") => {
+  const openSuspendDialog = (action: "suspend" | "unsuspend" | "freeze" | "reactivate") => {
     setSuspendAction(action);
     setSuspendReason("");
     setSuspendDialogOpen(true);
+  };
+
+  const accountActionVerbs: Record<string, string> = {
+    suspend: "suspended",
+    unsuspend: "unsuspended",
+    freeze: "frozen",
+    reactivate: "reactivated",
   };
 
   const executeSuspendAction = async () => {
@@ -182,9 +211,13 @@ export default function UserProfilePage() {
       const res =
         suspendAction === "suspend"
           ? await apiClient.suspendUser(user.id, suspendReason)
-          : await apiClient.unsuspendUser(user.id, suspendReason);
+          : suspendAction === "unsuspend"
+            ? await apiClient.unsuspendUser(user.id, suspendReason)
+            : suspendAction === "freeze"
+              ? await apiClient.freezeUser(user.id, suspendReason)
+              : await apiClient.activateUser(user.id, suspendReason);
       if (res.success) {
-        toast({ title: "Success", description: suspendAction === "suspend" ? "User suspended." : "User unsuspended." });
+        toast({ title: "Success", description: `User ${accountActionVerbs[suspendAction]}.` });
         setSuspendDialogOpen(false);
         refetch();
       } else {
@@ -297,7 +330,7 @@ export default function UserProfilePage() {
                     Last active: {new Date(user.last_active_date).toLocaleDateString()}
                   </p>
                   <div className="flex flex-wrap gap-2 pt-2">
-                    <Button variant="outline" size="sm" onClick={handleSendMessage}>
+                    <Button variant="outline" size="sm" onClick={openMessageDialog}>
                       <Mail className="h-4 w-4 mr-2" />
                       Send message
                     </Button>
@@ -307,10 +340,26 @@ export default function UserProfilePage() {
                         Unsuspend
                       </Button>
                     ) : (
-                      <Button variant="outline" size="sm" onClick={() => openSuspendDialog("suspend")}>
-                        <Ban className="h-4 w-4 mr-2" />
-                        Suspend
-                      </Button>
+                      <>
+                        {user.status === "active" ? (
+                          <Button variant="outline" size="sm" onClick={() => openSuspendDialog("freeze")}>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Freeze
+                          </Button>
+                        ) : null}
+                        {user.status === "frozen" ? (
+                          <Button variant="outline" size="sm" onClick={() => openSuspendDialog("reactivate")}>
+                            <Shield className="h-4 w-4 mr-2" />
+                            Reactivate
+                          </Button>
+                        ) : null}
+                        {(user.status === "active" || user.status === "frozen") ? (
+                          <Button variant="outline" size="sm" onClick={() => openSuspendDialog("suspend")}>
+                            <Ban className="h-4 w-4 mr-2" />
+                            Suspend
+                          </Button>
+                        ) : null}
+                      </>
                     )}
                   </div>
                 </div>
@@ -688,11 +737,21 @@ export default function UserProfilePage() {
         <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{suspendAction === "suspend" ? "Suspend user" : "Unsuspend user"}</DialogTitle>
+              <DialogTitle>
+                {{
+                  suspend: "Suspend user",
+                  unsuspend: "Unsuspend user",
+                  freeze: "Freeze user",
+                  reactivate: "Reactivate user",
+                }[suspendAction]}
+              </DialogTitle>
               <DialogDescription>
-                {suspendAction === "suspend"
-                  ? `Suspend @${user.username}? Suspension takes effect immediately: they will not be able to perform any authenticated actions. Client apps will receive a 403 (account_suspended) and will log the user out and show the suspension reason. No extra step to revoke tokens is required.`
-                  : `Restore access for @${user.username}. They will be able to sign in again.`}
+                {suspendAction === "suspend" &&
+                  `Suspend @${user.username}? Suspension takes effect immediately: they will not be able to perform any authenticated actions. Client apps will receive a 403 (account_suspended) and will log the user out and show the suspension reason. No extra step to revoke tokens is required.`}
+                {suspendAction === "unsuspend" && `Restore access for @${user.username}. They will be able to sign in again.`}
+                {suspendAction === "freeze" &&
+                  `Freeze @${user.username}? This is a lighter, reversible restriction than Suspend — use Reactivate to restore access.`}
+                {suspendAction === "reactivate" && `Restore access for @${user.username}. They will be able to sign in again.`}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -715,7 +774,42 @@ export default function UserProfilePage() {
                 disabled={suspendLoading}
               >
                 {suspendLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {suspendAction === "suspend" ? "Suspend" : "Unsuspend"}
+                {{ suspend: "Suspend", unsuspend: "Unsuspend", freeze: "Freeze", reactivate: "Reactivate" }[suspendAction]}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Single-user message dialog */}
+        <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Message @{user.username}
+              </DialogTitle>
+              <DialogDescription>
+                Delivered as an in-app notification. The user must have a username to receive it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Message *</Label>
+                <Textarea
+                  placeholder="Write a message to this user..."
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMessageDialogOpen(false)} disabled={messageLoading}>
+                Cancel
+              </Button>
+              <Button onClick={() => void handleSendMessage()} disabled={messageLoading}>
+                {messageLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Send message
               </Button>
             </DialogFooter>
           </DialogContent>

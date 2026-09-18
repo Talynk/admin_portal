@@ -387,16 +387,13 @@ class ApiClient {
     })
   }
 
-  async updateUserStatus(userId: string, status: 'active' | 'inactive' | 'suspended') {
-    return this.request(`/admin/users/${userId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    })
-  }
-
-  async deleteUser(userId: string) {
-    return this.request(`/admin/users/${userId}`, {
-      method: 'DELETE',
+  // There is no DELETE /admin/users/:id route on the backend — account
+  // deletion is a status transition through the same manage-account endpoint
+  // as suspend/unsuspend/freeze.
+  async deleteUser(userId: string, reason?: string) {
+    return this.request('/admin/accounts/manage', {
+      method: 'POST',
+      body: JSON.stringify({ id: userId, action: 'delete', reason }),
     })
   }
 
@@ -404,6 +401,13 @@ class ApiClient {
     return this.request('/admin/accounts/manage', {
       method: 'POST',
       body: JSON.stringify({ id: userId, action: 'suspend', reason }),
+    })
+  }
+
+  async freezeUser(userId: string, reason?: string) {
+    return this.request('/admin/accounts/manage', {
+      method: 'POST',
+      body: JSON.stringify({ id: userId, action: 'freeze', reason }),
     })
   }
 
@@ -1679,6 +1683,13 @@ class ApiClient {
     return this.request('/admin/notifications/broadcast', {
       method: 'POST',
       body: JSON.stringify(data),
+    })
+  }
+
+  async sendNotificationToUser(userId: string, message: string, type?: string) {
+    return this.request(`/admin/notifications/send/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ message, ...(type ? { type } : {}) }),
     })
   }
 

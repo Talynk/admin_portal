@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Search, Star, X } from 'lucide-react'
+import { Check, Loader2, Play, Search, Star, X } from 'lucide-react'
 import { useBestPerformer } from '@/hooks/use-best-performer'
 import { apiClient } from '@/lib/api-client'
 import { toast } from '@/hooks/use-toast'
 import { PostMediaThumbnail } from '@/components/media/post-media-thumbnail'
+import { PostMediaDialog } from '@/components/media/post-media-dialog'
 import type { LegacyMediaFields, PostPlaybackFields } from '@/lib/types/media'
 
 interface SearchPost extends PostPlaybackFields, LegacyMediaFields {
@@ -30,6 +31,15 @@ export function BestPerformerSettings() {
   const [results, setResults] = useState<SearchPost[]>([])
   const [currentPost, setCurrentPost] = useState<SearchPost | null>(null)
   const [loadingCurrent, setLoadingCurrent] = useState(false)
+  const [selectedPost, setSelectedPost] = useState<SearchPost | null>(null)
+  const [previewPost, setPreviewPost] = useState<SearchPost | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  const openPreview = (post: SearchPost | null) => {
+    if (!post) return
+    setPreviewPost(post)
+    setPreviewOpen(true)
+  }
 
   useEffect(() => {
     setLabel(settings.label || 'Best Performer')
@@ -130,9 +140,15 @@ export function BestPerformerSettings() {
     })
     if (result.success) {
       toast({ title: 'Best Performer set', description: result.message || 'Feed pin updated.' })
+      setSelectedPost(null)
     } else {
       toast({ title: 'Could not set Best Performer', description: result.error, variant: 'destructive' })
     }
+  }
+
+  const handleConfirmSelection = async () => {
+    if (!selectedPost) return
+    await handleSet(selectedPost.id)
   }
 
   const handleClear = async () => {
@@ -211,10 +227,21 @@ export function BestPerformerSettings() {
                 {currentPost?.user?.username ? (
                   <p className="text-sm text-muted-foreground">@{currentPost.user.username}</p>
                 ) : null}
-                <Button variant="destructive" size="sm" onClick={() => void handleClear()} disabled={saving}>
-                  <X className="h-4 w-4 mr-1" />
-                  Clear Best Performer
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openPreview(currentPost)}
+                    disabled={loadingCurrent || !currentPost}
+                  >
+                    <Play className="h-4 w-4 mr-1" />
+                    Play video
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => void handleClear()} disabled={saving}>
+                    <X className="h-4 w-4 mr-1" />
+                    Clear Best Performer
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -271,36 +298,83 @@ export function BestPerformerSettings() {
 
           {results.length > 0 ? (
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {results.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex items-center gap-3 rounded-md border p-2 hover:bg-muted/40"
-                >
-                  <div className="w-20 shrink-0">
-                    <PostMediaThumbnail source={post} title={post.title} compact className="rounded" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{post.title || 'Untitled'}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {post.user?.username ? `@${post.user.username} · ` : ''}
-                      {post.id}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={saving || settings.post_id === post.id}
-                    onClick={() => void handleSet(post.id)}
+              {results.map((post) => {
+                const isSelected = selectedPost?.id === post.id
+                const isCurrent = settings.post_id === post.id
+                return (
+                  <button
+                    type="button"
+                    key={post.id}
+                    onClick={() => setSelectedPost(isSelected ? null : post)}
+                    className={`flex w-full items-center gap-3 rounded-md border p-2 text-left transition-colors hover:bg-muted/40 ${
+                      isSelected ? 'border-primary ring-1 ring-primary bg-muted/40' : ''
+                    }`}
                   >
-                    Set as Best Performer
-                  </Button>
-                </div>
-              ))}
+                    <div className="w-20 shrink-0">
+                      <PostMediaThumbnail source={post} title={post.title} compact className="rounded" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{post.title || 'Untitled'}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {post.user?.username ? `@${post.user.username} · ` : ''}
+                        {post.id}
+                      </p>
+                    </div>
+                    {isCurrent ? (
+                      <Badge variant="secondary" className="shrink-0">
+                        Current
+                      </Badge>
+                    ) : null}
+                    {isSelected ? (
+                      <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Run a search to find feed-ready posts.</p>
           )}
+
+          {selectedPost ? (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-muted-foreground">Selected post</p>
+                <p className="text-sm font-medium truncate">{selectedPost.title || 'Untitled'}</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" size="sm" onClick={() => openPreview(selectedPost)}>
+                  <Play className="h-4 w-4 mr-1" />
+                  Play video
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedPost(null)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={saving || settings.post_id === selectedPost.id}
+                  onClick={() => void handleConfirmSelection()}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Confirm Best Performer
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
+
+      <PostMediaDialog
+        source={previewPost}
+        open={previewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open)
+          if (!open) setPreviewPost(null)
+        }}
+        title={previewPost?.title || 'Best Performer preview'}
+      />
     </div>
   )
 }
