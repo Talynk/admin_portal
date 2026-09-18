@@ -140,10 +140,15 @@ class ApiClient {
               const retryData = await retryResponse.json()
               
               if (retryResponse.ok) {
+                // Some list endpoints (e.g. challenge ranking/winners) return
+                // pagination/max_winners/etc as siblings of `data`, not nested
+                // inside it — forward them instead of silently dropping them.
+                const { data: retryInnerData, message: _retryMsg, status: _retryStatus, ...retrySiblings } = retryData
                 return {
                   success: true,
-                  data: retryData.data || retryData,
+                  data: retryInnerData || retryData,
                   message: retryData.message,
+                  ...retrySiblings,
                 }
               }
             }
@@ -168,10 +173,16 @@ class ApiClient {
         }
       }
 
+      // Some list endpoints (e.g. challenge ranking/winners) return
+      // pagination/max_winners/ordered_by/winners_confirmed_at as siblings of
+      // `data`, not nested inside it — forward them instead of silently
+      // dropping them, since callers rely on both shapes.
+      const { data: innerData, message: _msg, status: _status, ...siblings } = data
       return {
         success: true,
-        data: data.data || data,
+        data: innerData || data,
         message: data.message,
+        ...siblings,
       }
     } catch (error) {
       return {

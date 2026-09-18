@@ -72,23 +72,30 @@ export function useChallengeAggregatedWinners(
     try {
       const res = await apiClient.getChallengeAggregatedWinners(challengeId, { page, limit })
       const data = res?.data as any
+      // The backend returns pagination/max_winners/ordered_by/winners_confirmed_at
+      // as siblings of `data` (which is just the winners array), not nested
+      // inside it — the API client now forwards those onto `res` itself.
+      const meta = res as any
       const raw = data?.data ?? data?.winners ?? data
       const list = Array.isArray(raw) ? raw : raw?.rows ?? []
       setWinners(list)
-      const pag = data?.pagination ?? (res as any)?.pagination
+      const pag = data?.pagination ?? meta?.pagination
       if (pag) {
         setPagination({
           page: pag.page ?? page,
           limit: pag.limit ?? limit,
           total: pag.total ?? pag.totalCount,
-          totalPages: pag.totalPages ?? (pag.total && pag.limit ? Math.ceil(pag.total / pag.limit) : undefined),
+          totalPages: pag.totalPages ?? pag.pages ?? (pag.total && pag.limit ? Math.ceil(pag.total / pag.limit) : undefined),
         })
       } else {
         setPagination({ page, limit })
       }
-      setMaxWinners(typeof data?.max_winners === 'number' ? data.max_winners : data?.max_winners ?? null)
-      setOrderedBy(typeof data?.ordered_by === 'string' ? data.ordered_by : null)
-      setWinnersConfirmedAt(typeof data?.winners_confirmed_at === 'string' ? data.winners_confirmed_at : null)
+      const maxWinnersValue = data?.max_winners ?? meta?.max_winners
+      setMaxWinners(typeof maxWinnersValue === 'number' ? maxWinnersValue : null)
+      const orderedByValue = data?.ordered_by ?? meta?.ordered_by
+      setOrderedBy(typeof orderedByValue === 'string' ? orderedByValue : null)
+      const winnersConfirmedAtValue = data?.winners_confirmed_at ?? meta?.winners_confirmed_at
+      setWinnersConfirmedAt(typeof winnersConfirmedAtValue === 'string' ? winnersConfirmedAtValue : null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load aggregated winners')
       setWinners([])
