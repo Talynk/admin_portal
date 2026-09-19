@@ -259,6 +259,10 @@ export default function ChallengeDetailPage() {
   })
 
   const isEndedOrStopped = challenge?.status === "ended" || challenge?.status === "stopped"
+  // The reorder endpoint only accepts status "ended" — it rejects "stopped" —
+  // so drag/set-rank must not be offered for stopped challenges even though
+  // confirm itself works for both.
+  const canReorderWinners = challenge?.status === "ended"
   const winnersConfirmedAt = (challenge as any)?.winners_confirmed_at
   const winnersConfirmedBy = (challenge as any)?.winners_confirmed_by
 
@@ -1568,9 +1572,14 @@ export default function ChallengeDetailPage() {
                       </div>
                     ) : (
                       <>
-                        {!winnersConfirmedAt && isEndedOrStopped && (
+                        {!winnersConfirmedAt && canReorderWinners && (
                           <p className="text-sm text-muted-foreground">
                             Drag rows or use &quot;Set rank&quot; to set the official winner order. Then click &quot;Confirm winners&quot; to notify all participants.
+                          </p>
+                        )}
+                        {!winnersConfirmedAt && isEndedOrStopped && !canReorderWinners && (
+                          <p className="text-sm text-muted-foreground">
+                            Reordering isn&apos;t available for stopped challenges — winners are ranked by likes. Click &quot;Confirm winners&quot; to finalize and notify all participants.
                           </p>
                         )}
                         {!isEndedOrStopped && (
@@ -1584,7 +1593,7 @@ export default function ChallengeDetailPage() {
                             Saving order…
                           </div>
                         )}
-                        {!winnersConfirmedAt && isEndedOrStopped && winnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && canReorderWinners && winnersForDisplay.length > 0 && (
                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWinnersDragEnd}>
                             <div className="rounded-md border">
                               <Table>
@@ -1623,7 +1632,7 @@ export default function ChallengeDetailPage() {
                             </div>
                           </DndContext>
                         )}
-                        {winnersConfirmedAt && (
+                        {(winnersConfirmedAt || (isEndedOrStopped && !canReorderWinners)) && (
                           <div className="rounded-md border">
                             <Table>
                               <TableHeader>

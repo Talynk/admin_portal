@@ -227,18 +227,7 @@ export default function ReportsPage() {
         refetchContentReports()
       } else {
         const err = (res as { error?: string }).error
-        if (err && err.includes("404") || err?.toLowerCase().includes("not found")) {
-          const fallback = await apiClient.updateReportStatus(selectedReport.id, reviewStatus, adminNotes.trim() || undefined)
-          if (fallback.success) {
-            toast({ title: "Report updated", description: "Status and notes saved." })
-            closeReview()
-            refetchContentReports()
-          } else {
-            toast({ title: "Error", description: (fallback as { error?: string }).error ?? "Failed to update report", variant: "destructive" })
-          }
-        } else {
-          toast({ title: "Error", description: err ?? "Failed to review report", variant: "destructive" })
-        }
+        toast({ title: "Error", description: err ?? "Failed to review report", variant: "destructive" })
       }
     } catch {
       toast({ title: "Error", description: "Failed to review report", variant: "destructive" })

@@ -253,15 +253,7 @@ export default function PostDetailPage() {
         refetchReports()
         refetch()
       } else {
-        const fallback = await apiClient.updateReportStatus(reportReviewTarget.id, reportReviewStatus, reportReviewNotes.trim() || undefined)
-        if (fallback.success) {
-          toast({ title: "Report updated", description: "Status and notes saved." })
-          closeReportReview()
-          refetchReports()
-          refetch()
-        } else {
-          toast({ title: "Error", description: (fallback as { error?: string }).error ?? "Failed to update report", variant: "destructive" })
-        }
+        toast({ title: "Error", description: (res as { error?: string }).error ?? "Failed to review report", variant: "destructive" })
       }
     } catch {
       toast({ title: "Error", description: "Failed to review report", variant: "destructive" })

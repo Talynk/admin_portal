@@ -1235,18 +1235,9 @@ class ApiClient {
     if (params?.endDate) queryParams.append('endDate', params.endDate)
 
     const queryString = queryParams.toString()
-    return this.request(`/admin/reports${queryString ? `?${queryString}` : ''}`)
-  }
-
-  async getReportById(reportId: string) {
-    return this.request(`/admin/reports/${reportId}`)
-  }
-
-  async updateReportStatus(reportId: string, status: string, resolution?: string) {
-    return this.request(`/admin/reports/${reportId}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status, resolution }),
-    })
+    // Not /admin/reports — content reports live at /reports (admin-gated by
+    // middleware), registered in report.routes.js.
+    return this.request(`/reports${queryString ? `?${queryString}` : ''}`)
   }
 
   /** Review a report: updates status and notifies reporter and post owner. Use status "reviewed" | "resolved" | "dismissed". */
