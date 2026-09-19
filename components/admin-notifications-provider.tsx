@@ -147,7 +147,7 @@ export function AdminNotificationsProvider({ children }: { children: React.React
         variant:
           payload.severity === 'critical' || payload.severity === 'action_required' ? 'destructive' : undefined,
         action: dashboardHref ? (
-          <ToastAction asChild>
+          <ToastAction asChild altText={`View ${payload.title || 'details'}`}>
             <Link href={dashboardHref}>View</Link>
           </ToastAction>
         ) : undefined,
