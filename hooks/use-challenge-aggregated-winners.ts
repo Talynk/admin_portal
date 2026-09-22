@@ -27,6 +27,7 @@ export interface AggregatedWinnerRow {
   total_winner_posts: number
   total_likes_during_challenge: number
   winner_rank?: number | null
+  is_winner?: boolean
   latest_submission_at?: string
   posts?: AggregatedWinnerPostSummary[]
 }
@@ -40,6 +41,7 @@ export interface UseChallengeAggregatedWinnersReturn {
   setPage: (p: number) => void
   page: number
   maxWinners: number | null
+  participantCount: number | null
   orderedBy: string | null
   winnersConfirmedAt: string | null
 }
@@ -53,6 +55,7 @@ export function useChallengeAggregatedWinners(
   const [winners, setWinners] = useState<AggregatedWinnerRow[]>([])
   const [pagination, setPagination] = useState<UseChallengeAggregatedWinnersReturn['pagination']>(null)
   const [maxWinners, setMaxWinners] = useState<number | null>(null)
+  const [participantCount, setParticipantCount] = useState<number | null>(null)
   const [orderedBy, setOrderedBy] = useState<string | null>(null)
   const [winnersConfirmedAt, setWinnersConfirmedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -63,6 +66,7 @@ export function useChallengeAggregatedWinners(
       setWinners([])
       setPagination(null)
       setMaxWinners(null)
+      setParticipantCount(null)
       setOrderedBy(null)
       setWinnersConfirmedAt(null)
       return
@@ -92,6 +96,8 @@ export function useChallengeAggregatedWinners(
       }
       const maxWinnersValue = data?.max_winners ?? meta?.max_winners
       setMaxWinners(typeof maxWinnersValue === 'number' ? maxWinnersValue : null)
+      const participantCountValue = data?.participant_count ?? meta?.participant_count
+      setParticipantCount(typeof participantCountValue === 'number' ? participantCountValue : null)
       const orderedByValue = data?.ordered_by ?? meta?.ordered_by
       setOrderedBy(typeof orderedByValue === 'string' ? orderedByValue : null)
       const winnersConfirmedAtValue = data?.winners_confirmed_at ?? meta?.winners_confirmed_at
@@ -101,6 +107,7 @@ export function useChallengeAggregatedWinners(
       setWinners([])
       setPagination(null)
       setMaxWinners(null)
+      setParticipantCount(null)
       setOrderedBy(null)
       setWinnersConfirmedAt(null)
     } finally {
@@ -121,6 +128,7 @@ export function useChallengeAggregatedWinners(
     setPage,
     page,
     maxWinners,
+    participantCount,
     orderedBy,
     winnersConfirmedAt,
   }

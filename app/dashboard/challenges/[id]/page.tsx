@@ -100,15 +100,9 @@ import { ChallengeDocumentsQueue } from "@/components/challenge-documents-queue"
 import { ChallengePendingPostsQueue } from "@/components/challenge-pending-posts-queue"
 import type { ModerationMode } from "@/lib/types/challenge"
 
-function getWinnersErrorMessage(error: string | undefined, code?: string, errorData?: unknown) {
-  const data = (errorData ?? {}) as {
-    participant_count?: number
-    requested_max_winners?: number
-  }
+function getWinnersErrorMessage(error: string | undefined, code?: string, _errorData?: unknown) {
   const fallback = error || "Winners operation failed."
   switch (code) {
-    case "MAX_WINNERS_EXCEEDS_PARTICIPANTS":
-      return `Max winners cannot exceed participants (${data.participant_count ?? "unknown"}). Requested: ${data.requested_max_winners ?? "unknown"}.`
     case "MAX_WINNERS_EXCEEDED":
       return "The submitted winner ranking exceeds the effective winners cap."
     case "INCOMPLETE_WINNER_RANKING":
@@ -317,6 +311,7 @@ export default function ChallengeDetailPage() {
     page: aggPage,
     refetch: refetchAggregated,
     maxWinners: aggMaxWinners,
+    participantCount: aggParticipantCount,
     orderedBy: aggOrderedBy,
   } = useChallengeAggregatedWinners(
     challengeId,
@@ -382,7 +377,12 @@ export default function ChallengeDetailPage() {
     [aggMaxWinners, rankingMaxWinners, challenge?.max_winners]
   )
 
-  const participantCountForWinnersTab = challenge?.statistics?.total_participants ?? null
+  // Prefer the aggregated-winners endpoint's participant_count — it counts
+  // who actually posted (ChallengePost), the same definition confirm/reorder
+  // use, unlike challenge.statistics.total_participants which counts anyone
+  // who joined (ChallengeParticipant). Falling back to the join-based count
+  // only until the aggregated fetch has loaded.
+  const participantCountForWinnersTab = aggParticipantCount ?? challenge?.statistics?.total_participants ?? null
 
   useEffect(() => {
     // If aggregated winners didn't return maxWinners but ranking did, keep the max-winners input in sync.
@@ -484,10 +484,13 @@ export default function ChallengeDetailPage() {
 
   const winnersForDisplay = useMemo(() => {
     if (!orderedWinnersForDisplay.length) return []
-    const hasWinnerMarkers = orderedWinnersForDisplay.some((r: any) => r?.winner_rank != null || r?.is_winner === true)
-    const filtered = hasWinnerMarkers
-      ? orderedWinnersForDisplay.filter((r: any) => r?.winner_rank != null || r?.is_winner === true)
-      : orderedWinnersForDisplay
+    // The backend now flags is_winner per row using the correct
+    // (posted-participant) effective_max_winners — trust it directly rather
+    // than re-deriving from row position, which is what produced the "only
+    // ever shows the original 2 winners" bug this endpoint used to have.
+    const filtered = orderedWinnersForDisplay.filter((r: any) =>
+      typeof r?.is_winner === "boolean" ? r.is_winner : r?.winner_rank != null
+    )
     return filtered.slice(0, maxWinnersForWinnersTab)
   }, [orderedWinnersForDisplay, maxWinnersForWinnersTab])
 
@@ -1524,17 +1527,16 @@ export default function ChallengeDetailPage() {
                           id="max-winners"
                           type="number"
                           min={1}
-                          max={participantCountForWinnersTab ?? undefined}
                           placeholder="Default: 10"
                           value={maxWinnersInput}
                           onChange={(e) => setMaxWinnersInput(e.target.value)}
-                          disabled={maxWinnersSaving}
+                          disabled={maxWinnersSaving || !!winnersConfirmedAt}
                           className="w-32"
                         />
                         <Button
                           size="sm"
                           onClick={handleSaveMaxWinners}
-                          disabled={maxWinnersSaving}
+                          disabled={maxWinnersSaving || !!winnersConfirmedAt}
                         >
                           {maxWinnersSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                           Save
@@ -2007,7 +2009,6 @@ export default function ChallengeDetailPage() {
                 id="confirm-max-winners"
                 type="number"
                 min={1}
-                max={participantCountForWinnersTab ?? undefined}
                 placeholder="Default: 10"
                 value={confirmMaxWinnersInput}
                 onChange={(e) => setConfirmMaxWinnersInput(e.target.value)}
