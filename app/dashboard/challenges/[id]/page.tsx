@@ -56,6 +56,8 @@ import {
   FileCheck,
   MoreHorizontal,
   ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -118,24 +120,67 @@ function getWinnersErrorMessage(error: string | undefined, code?: string, _error
 function SortableWinnerUserRow({
   row,
   rank,
+  isWinner,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   onViewPosts,
   onSetRank,
 }: {
   row: AggregatedWinnerRow
   rank: number
+  isWinner: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
   onViewPosts: () => void
   onSetRank?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.user.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
-    <tr ref={setNodeRef} style={style} className={isDragging ? "opacity-50 bg-muted/50" : ""}>
-      <TableCell className="w-10">
-        <button type="button" className="cursor-grab active:cursor-grabbing touch-none p-1 rounded" {...attributes} {...listeners}>
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </button>
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`group ${isDragging ? "opacity-50 bg-muted/50" : isWinner ? "bg-primary/5" : ""}`}
+    >
+      <TableCell className="w-16">
+        <div className="flex items-center gap-0.5">
+          <button type="button" className="cursor-grab active:cursor-grabbing touch-none p-1 rounded" {...attributes} {...listeners}>
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <div className="flex flex-col opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              aria-label={`Move @${row.user.username} up`}
+              className="p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              aria-label={`Move @${row.user.username} down`}
+              className="p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </TableCell>
-      <TableCell className="w-16 font-bold text-lg text-primary">{rank}</TableCell>
+      <TableCell className="w-16">
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-lg text-primary">{rank}</span>
+          {isWinner ? (
+            <Badge className="px-1.5 py-0 text-[10px] leading-4">Winner</Badge>
+          ) : null}
+        </div>
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
@@ -298,10 +343,17 @@ export default function ChallengeDetailPage() {
     }
   }, [challenge?.moderation_mode])
 
-  // The aggregated-winners endpoint paginates over ALL participants, sorted
-  // winners-first — a hardcoded limit of 10 would silently truncate the
-  // Winners tab whenever max_winners is configured above 10.
-  const winnersFetchLimit = Math.max(challenge?.max_winners ?? 10, 10, challenge?.effective_max_winners ?? 0)
+  // The Winners tab now shows every participant (ranked by likes), not just
+  // the winner slots, so the fetch limit must cover the whole roster, not
+  // just max_winners — otherwise participants past the limit would silently
+  // never appear for reordering.
+  const winnersFetchLimit = Math.max(
+    challenge?.max_winners ?? 10,
+    10,
+    challenge?.effective_max_winners ?? 0,
+    challenge?.statistics?.total_participants ?? 0,
+    50
+  )
 
   const {
     winners: aggregatedWinners,
@@ -482,17 +534,17 @@ export default function ChallengeDetailPage() {
     })
   }, [aggregatedWinners, orderedWinnerUserIds])
 
-  const winnersForDisplay = useMemo(() => {
-    if (!orderedWinnersForDisplay.length) return []
-    // The backend now flags is_winner per row using the correct
-    // (posted-participant) effective_max_winners — trust it directly rather
-    // than re-deriving from row position, which is what produced the "only
-    // ever shows the original 2 winners" bug this endpoint used to have.
-    const filtered = orderedWinnersForDisplay.filter((r: any) =>
-      typeof r?.is_winner === "boolean" ? r.is_winner : r?.winner_rank != null
-    )
-    return filtered.slice(0, maxWinnersForWinnersTab)
-  }, [orderedWinnersForDisplay, maxWinnersForWinnersTab])
+  // The whole roster, ranked — the admin needs to see every participant next
+  // to the winners (not just the winner slots) to rank the full list; the
+  // top maxWinnersForWinnersTab rows (by current display order) are the
+  // winners, highlighted in the UI. Position-based rather than trusting each
+  // row's own is_winner flag, since that flag goes stale the instant the
+  // admin locally reorders (before the next refetch confirms it).
+  const allParticipantsForDisplay = orderedWinnersForDisplay
+  const isWinnerAtIndex = useCallback(
+    (index: number) => index < maxWinnersForWinnersTab,
+    [maxWinnersForWinnersTab]
+  )
 
   const buildOrderedChallengePostIds = useCallback(
     (orderedUserIds: string[]) => {
@@ -533,66 +585,72 @@ export default function ChallengeDetailPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
+  // Reordering happens across the FULL participant list (so the admin can
+  // promote anyone into a winner slot, not just re-sort the current
+  // winners), but only the top maxWinnersForWinnersTab entries are ever
+  // submitted — submitting the whole roster would exceed the backend's
+  // effective_max_winners cap and get rejected with MAX_WINNERS_EXCEEDED.
+  const submitReorder = useCallback(
+    async (reordered: string[], successMessage: string) => {
+      setOrderedWinnerUserIds(reordered)
+      const postIds = buildOrderedChallengePostIds(reordered.slice(0, maxWinnersForWinnersTab))
+      setWinnersReordering(true)
+      const result = await reorderWinners(postIds)
+      setWinnersReordering(false)
+      if (result.success) {
+        toast({ title: "Winners updated", description: successMessage })
+        refetch()
+        refetchAggregated()
+      } else {
+        toast({
+          title: "Error",
+          description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
+          variant: "destructive",
+        })
+      }
+      return result
+    },
+    [buildOrderedChallengePostIds, maxWinnersForWinnersTab, reorderWinners, refetch, refetchAggregated]
+  )
+
   const handleWinnersDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
-    if (!over || active.id === over.id || !winnersForDisplay.length) return
-    // Only reorder within the winner slots (capped to max winners) — submitting
-    // ids for every participant would exceed the backend's effective_max_winners
-    // cap and get rejected with MAX_WINNERS_EXCEEDED.
-    const currentOrder = orderedWinnerUserIds ?? winnersForDisplay.map((r) => r.user.id)
+    if (!over || active.id === over.id || !allParticipantsForDisplay.length) return
+    const currentOrder = orderedWinnerUserIds ?? allParticipantsForDisplay.map((r) => r.user.id)
     const oldIndex = currentOrder.indexOf(active.id as string)
     const newIndex = currentOrder.indexOf(over.id as string)
     if (oldIndex === -1 || newIndex === -1) return
-    const reordered = arrayMove(currentOrder, oldIndex, newIndex)
-    setOrderedWinnerUserIds(reordered)
-    const postIds = buildOrderedChallengePostIds(reordered)
-    setWinnersReordering(true)
-    const result = await reorderWinners(postIds)
-    setWinnersReordering(false)
-    if (result.success) {
-      toast({ title: "Winners updated", description: "Ranking saved successfully." })
-      refetch()
-      refetchAggregated()
-    } else {
-      toast({
-        title: "Error",
-        description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
-        variant: "destructive",
-      })
-    }
+    await submitReorder(arrayMove(currentOrder, oldIndex, newIndex), "Ranking saved successfully.")
+  }
+
+  const handleMoveParticipant = async (userId: string, direction: "up" | "down") => {
+    if (!allParticipantsForDisplay.length) return
+    const currentOrder = orderedWinnerUserIds ?? allParticipantsForDisplay.map((r) => r.user.id)
+    const index = currentOrder.indexOf(userId)
+    if (index === -1) return
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= currentOrder.length) return
+    await submitReorder(arrayMove(currentOrder, index, targetIndex), "Ranking saved successfully.")
   }
 
   const handleSetRankUser = async () => {
-    if (!setRankDialogUser || !winnersForDisplay.length) return
+    if (!setRankDialogUser || !allParticipantsForDisplay.length) return
     const rank = parseInt(setRankValue, 10)
-    if (isNaN(rank) || rank < 1 || rank > winnersForDisplay.length) {
-      toast({ title: "Invalid rank", description: `Enter a number between 1 and ${winnersForDisplay.length}.`, variant: "destructive" })
+    if (isNaN(rank) || rank < 1 || rank > allParticipantsForDisplay.length) {
+      toast({ title: "Invalid rank", description: `Enter a number between 1 and ${allParticipantsForDisplay.length}.`, variant: "destructive" })
       return
     }
-    const currentOrder = orderedWinnerUserIds ?? winnersForDisplay.map((r) => r.user.id)
+    const currentOrder = orderedWinnerUserIds ?? allParticipantsForDisplay.map((r) => r.user.id)
     const userId = setRankDialogUser.user.id
     const currentIndex = currentOrder.indexOf(userId)
     if (currentIndex === -1) return
     const targetIndex = rank - 1
     const reordered = arrayMove(currentOrder, currentIndex, Math.min(targetIndex, currentOrder.length - 1))
-    setOrderedWinnerUserIds(reordered)
-    const postIds = buildOrderedChallengePostIds(reordered)
     setSetRankSubmitting(true)
-    const result = await reorderWinners(postIds)
+    await submitReorder(reordered, "Winner position saved.")
     setSetRankSubmitting(false)
     setSetRankDialogUser(null)
     setSetRankValue("")
-    if (result.success) {
-      toast({ title: "Rank updated", description: "Winner position saved." })
-      refetch()
-      refetchAggregated()
-    } else {
-      toast({
-        title: "Error",
-        description: getWinnersErrorMessage(result.error, result.errorCode, result.errorData),
-        variant: "destructive",
-      })
-    }
   }
 
   const handleAction = (action: "approve" | "reject" | "stop") => {
@@ -1576,7 +1634,9 @@ export default function ChallengeDetailPage() {
                       <>
                         {!winnersConfirmedAt && canReorderWinners && (
                           <p className="text-sm text-muted-foreground">
-                            Drag rows or use &quot;Set rank&quot; to set the official winner order. Then click &quot;Confirm winners&quot; to notify all participants.
+                            All participants are shown below, ranked by likes — the top {maxWinnersForWinnersTab} (highlighted) are the winners.
+                            Drag rows, use the up/down arrows on hover, or &quot;Set rank&quot; to reorder anyone in or out of the winner slots.
+                            Then click &quot;Confirm winners&quot; to notify all participants.
                           </p>
                         )}
                         {!winnersConfirmedAt && isEndedOrStopped && !canReorderWinners && (
@@ -1595,13 +1655,13 @@ export default function ChallengeDetailPage() {
                             Saving order…
                           </div>
                         )}
-                        {!winnersConfirmedAt && canReorderWinners && winnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && canReorderWinners && allParticipantsForDisplay.length > 0 && (
                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWinnersDragEnd}>
                             <div className="rounded-md border">
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead className="w-10" />
+                                    <TableHead className="w-16" />
                                     <TableHead className="w-16">Rank</TableHead>
                                     <TableHead>User</TableHead>
                                     <TableHead>Posts</TableHead>
@@ -1612,12 +1672,17 @@ export default function ChallengeDetailPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  <SortableContext items={winnersForDisplay.map((r) => r.user.id)} strategy={verticalListSortingStrategy}>
-                                    {winnersForDisplay.map((row, index) => (
+                                  <SortableContext items={allParticipantsForDisplay.map((r) => r.user.id)} strategy={verticalListSortingStrategy}>
+                                    {allParticipantsForDisplay.map((row, index) => (
                                       <SortableWinnerUserRow
                                         key={row.user.id}
                                         row={row}
                                         rank={index + 1}
+                                        isWinner={isWinnerAtIndex(index)}
+                                        canMoveUp={index > 0}
+                                        canMoveDown={index < allParticipantsForDisplay.length - 1}
+                                        onMoveUp={() => handleMoveParticipant(row.user.id, "up")}
+                                        onMoveDown={() => handleMoveParticipant(row.user.id, "down")}
                                         onViewPosts={() =>
                                           setViewPostsForUser({
                                             userId: row.user.id,
@@ -1649,10 +1714,10 @@ export default function ChallengeDetailPage() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {winnersForDisplay.map((row, index) => (
+                                {allParticipantsForDisplay.map((row, index) => (
                                   <TableRow
                                     key={row.user.id}
-                                    className="cursor-pointer hover:bg-muted/50"
+                                    className={`cursor-pointer hover:bg-muted/50 ${isWinnerAtIndex(index) ? "bg-primary/5" : ""}`}
                                     onClick={() =>
                                       setViewPostsForUser({
                                         userId: row.user.id,
@@ -1661,7 +1726,14 @@ export default function ChallengeDetailPage() {
                                       })
                                     }
                                   >
-                                    <TableCell className="font-bold text-primary">{index + 1}</TableCell>
+                                    <TableCell className="font-bold text-primary">
+                                      <div className="flex items-center gap-1.5">
+                                        <span>{index + 1}</span>
+                                        {isWinnerAtIndex(index) ? (
+                                          <Badge className="px-1.5 py-0 text-[10px] leading-4">Winner</Badge>
+                                        ) : null}
+                                      </div>
+                                    </TableCell>
                                     <TableCell>
                                       <div className="flex items-center gap-2">
                                         <Avatar className="h-8 w-8">
@@ -1706,11 +1778,9 @@ export default function ChallengeDetailPage() {
                           </div>
                         )}
                         {aggregatedWinners.length === 0 && !aggLoading ? (
-                          <p className="text-center py-8 text-muted-foreground">
-                            {isEndedOrStopped ? "No winners assigned yet." : "No winners yet."}
-                          </p>
+                          <p className="text-center py-8 text-muted-foreground">No participants yet.</p>
                         ) : null}
-                        {!winnersConfirmedAt && isEndedOrStopped && winnersForDisplay.length > 0 && (
+                        {!winnersConfirmedAt && isEndedOrStopped && allParticipantsForDisplay.length > 0 && (
                           <Button className="mt-4" onClick={() => setConfirmWinnersDialogOpen(true)}>
                             <CheckCircle2 className="h-4 w-4 mr-2" />
                             Confirm winners
