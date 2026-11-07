@@ -32,6 +32,7 @@ import {
   Activity,
   LifeBuoy,
   Scale,
+  Music,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -49,6 +50,7 @@ const navigation = [
   { name: "Appeals", href: "/dashboard/appeals", icon: Scale },
   { name: "Challenges", href: "/dashboard/challenges", icon: Trophy },
   { name: "Ads", href: "/dashboard/ads", icon: Megaphone },
+  { name: "Instrumentals", href: "/dashboard/instrumentals", icon: Music },
   { name: "Approver Portal", href: "/dashboard/approvers", icon: UserCheck },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Activity Logs", href: "/dashboard/activity", icon: Activity },

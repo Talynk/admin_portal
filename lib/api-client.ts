@@ -817,6 +817,70 @@ class ApiClient {
     })
   }
 
+  // Instrumental library (admin)
+  async createInstrumentalUploadSession(mimeType: string) {
+    return this.request('/admin/instrumentals/create-upload', {
+      method: 'POST',
+      body: JSON.stringify({ mimeType }),
+    })
+  }
+
+  async completeInstrumentalUpload(data: {
+    title: string
+    artistCredit?: string
+    genre?: string
+    categoryId?: number
+    bpm?: number
+    durationSec?: number
+    licenseType?: 'commissioned' | 'cc0' | 'licensed'
+    licenseSource?: string
+    attributionText?: string
+    coverArtUrl?: string
+    previewUrl?: string
+  }) {
+    return this.request('/admin/instrumentals/upload-complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async getInstrumentals(params?: { page?: number; limit?: number; status?: string }) {
+    const queryParams = new URLSearchParams()
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.status) queryParams.append('status', params.status)
+    const queryString = queryParams.toString()
+    return this.request(`/admin/instrumentals${queryString ? `?${queryString}` : ''}`)
+  }
+
+  async updateInstrumental(
+    instrumentalId: string,
+    data: Partial<{
+      title: string
+      artistCredit: string
+      genre: string
+      categoryId: number
+      bpm: number
+      status: 'active' | 'retired'
+    }>
+  ) {
+    return this.request(`/admin/instrumentals/${instrumentalId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async retireInstrumental(instrumentalId: string) {
+    return this.request(`/admin/instrumentals/${instrumentalId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Category tree (public endpoint, used here to pick a genre for an instrumental)
+  async getCategories() {
+    return this.request('/categories')
+  }
+
   // Posts Management Endpoints
   async getPosts(params?: {
     page?: number
