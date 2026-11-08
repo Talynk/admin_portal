@@ -212,7 +212,7 @@ export default function InstrumentalsPage() {
           );
         }
       } catch {
-        // Category dropdown is a convenience, not required — upload still works without it.
+        // Swallow — submitUpload's categoryId check will surface the failure to the user.
       }
     })();
   }, []);
@@ -258,6 +258,11 @@ export default function InstrumentalsPage() {
     }
     if (!title.trim()) {
       setUploadError("Title is required.");
+      setUploadState("error");
+      return;
+    }
+    if (!categoryId) {
+      setUploadError("Select a category for this track.");
       setUploadState("error");
       return;
     }
@@ -307,7 +312,7 @@ export default function InstrumentalsPage() {
         title: title.trim(),
         artistCredit: artistCredit.trim() || undefined,
         genre: genre.trim() || undefined,
-        categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
+        categoryId: parseInt(categoryId, 10),
         durationSec: durationSec ?? undefined,
         licenseType,
         licenseSource: licenseSource.trim() || undefined,
@@ -497,7 +502,7 @@ export default function InstrumentalsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Category</Label>
+                    <Label>Category *</Label>
                     <Select value={categoryId} onValueChange={setCategoryId}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a category" />
