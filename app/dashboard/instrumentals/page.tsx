@@ -58,17 +58,24 @@ import {
   XCircle,
   Trash2,
   Music,
+  X,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 
-type UploadState =
-  | "idle"
-  | "creatingSession"
-  | "uploading"
-  | "completing"
-  | "done"
-  | "error";
+type UploadState = "idle" | "uploading" | "done" | "error";
+
+type FileUploadStatus = "pending" | "uploading" | "completing" | "done" | "error";
+
+interface BulkFileItem {
+  id: string;
+  file: File;
+  title: string;
+  durationSec: number | null;
+  status: FileUploadStatus;
+  progress: number;
+  error?: string;
+}
 
 type LicenseType = "commissioned" | "cc0" | "licensed";
 
@@ -150,19 +157,16 @@ export default function InstrumentalsPage() {
   const [retireTarget, setRetireTarget] = useState<InstrumentalItem | null>(null);
   const [retiring, setRetiring] = useState(false);
 
-  // Create form
-  const [title, setTitle] = useState("");
+  // Create form (shared across the whole batch; each file keeps its own title)
   const [artistCredit, setArtistCredit] = useState("");
   const [genre, setGenre] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [licenseType, setLicenseType] = useState<LicenseType>("commissioned");
   const [licenseSource, setLicenseSource] = useState("");
   const [attributionText, setAttributionText] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [durationSec, setDurationSec] = useState<number | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<BulkFileItem[]>([]);
 
   const [uploadState, setUploadState] = useState<UploadState>("idle");
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fetchInstrumentals = useCallback(async () => {
@@ -218,17 +222,14 @@ export default function InstrumentalsPage() {
   }, []);
 
   const resetCreateForm = () => {
-    setTitle("");
     setArtistCredit("");
     setGenre("");
     setCategoryId("");
     setLicenseType("commissioned");
     setLicenseSource("");
     setAttributionText("");
-    setSelectedFile(null);
-    setDurationSec(null);
+    setSelectedFiles([]);
     setUploadState("idle");
-    setUploadProgress(0);
     setUploadError(null);
   };
 
@@ -238,31 +239,50 @@ export default function InstrumentalsPage() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setSelectedFile(file);
-    setDurationSec(null);
-    if (file) {
-      if (!title.trim()) {
-        setTitle(file.name.replace(/\.[^/.]+$/, ""));
-      }
-      const d = await readAudioDuration(file);
-      setDurationSec(d);
-    }
+    const files = Array.from(e.target.files || []);
+    e.target.value = ""; // allow re-picking the same file(s) after removing them from the list
+    if (files.length === 0) return;
+
+    const items: BulkFileItem[] = await Promise.all(
+      files.map(async (file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        title: file.name.replace(/\.[^/.]+$/, ""),
+        durationSec: await readAudioDuration(file),
+        status: "pending" as const,
+        progress: 0,
+      }))
+    );
+    setSelectedFiles((prev) => [...prev, ...items]);
   };
 
+  const removeSelectedFile = (id: string) => {
+    setSelectedFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const updateSelectedFileTitle = (id: string, newTitle: string) => {
+    setSelectedFiles((prev) => prev.map((f) => (f.id === id ? { ...f, title: newTitle } : f)));
+  };
+
+  const patchFile = (id: string, patch: Partial<BulkFileItem>) => {
+    setSelectedFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  };
+
+  // Uploads sequentially: the backend allows only one in-flight presigned
+  // upload session per admin, so parallel calls would clobber each other.
   const submitUpload = async () => {
-    if (!selectedFile) {
-      setUploadError("Select an audio file first.");
+    if (selectedFiles.length === 0) {
+      setUploadError("Select at least one audio file.");
       setUploadState("error");
       return;
     }
-    if (!title.trim()) {
-      setUploadError("Title is required.");
+    if (selectedFiles.some((f) => !f.title.trim())) {
+      setUploadError("Every track needs a title.");
       setUploadState("error");
       return;
     }
     if (!categoryId) {
-      setUploadError("Select a category for this track.");
+      setUploadError("Select a category — it's applied to every track in this batch.");
       setUploadState("error");
       return;
     }
@@ -273,66 +293,80 @@ export default function InstrumentalsPage() {
     }
 
     setUploadError(null);
-    setUploadState("creatingSession");
+    setUploadState("uploading");
 
-    try {
-      const mimeType = guessMimeType(selectedFile);
-      const sessionRes = await apiClient.createInstrumentalUploadSession(mimeType);
-      if (!sessionRes.success) {
-        setUploadError((sessionRes as any).error || "Failed to create upload session");
-        setUploadState("error");
-        return;
-      }
-      const uploadUrl = (sessionRes.data as any)?.uploadUrl;
-      if (!uploadUrl) {
-        setUploadError("No upload URL returned");
-        setUploadState("error");
-        return;
-      }
+    let successCount = 0;
+    let failCount = 0;
 
-      setUploadState("uploading");
-      setUploadProgress(0);
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.addEventListener("progress", (e) => {
-          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+    for (const item of selectedFiles) {
+      if (item.status === "done") continue; // allows "Try again" to skip already-uploaded tracks
+
+      patchFile(item.id, { status: "uploading", progress: 0, error: undefined });
+      try {
+        const mimeType = guessMimeType(item.file);
+        const sessionRes = await apiClient.createInstrumentalUploadSession(mimeType);
+        if (!sessionRes.success) {
+          throw new Error((sessionRes as any).error || "Failed to create upload session");
+        }
+        const uploadUrl = (sessionRes.data as any)?.uploadUrl;
+        if (!uploadUrl) throw new Error("No upload URL returned");
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+              patchFile(item.id, { progress: Math.round((e.loaded / e.total) * 100) });
+            }
+          });
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`Upload failed: ${xhr.status}`));
+          });
+          xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+          xhr.open("PUT", uploadUrl);
+          xhr.setRequestHeader("Content-Type", mimeType);
+          xhr.send(item.file);
         });
-        xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Upload failed: ${xhr.status}`));
+
+        patchFile(item.id, { status: "completing" });
+        const completeRes = await apiClient.completeInstrumentalUpload({
+          title: item.title.trim(),
+          artistCredit: artistCredit.trim() || undefined,
+          genre: genre.trim() || undefined,
+          categoryId: parseInt(categoryId, 10),
+          durationSec: item.durationSec ?? undefined,
+          licenseType,
+          licenseSource: licenseSource.trim() || undefined,
+          attributionText: attributionText.trim() || undefined,
         });
-        xhr.addEventListener("error", () => reject(new Error("Upload failed")));
-        xhr.open("PUT", uploadUrl);
-        xhr.setRequestHeader("Content-Type", mimeType);
-        xhr.send(selectedFile);
-      });
+        if (!completeRes.success) {
+          throw new Error((completeRes as any).error || "Failed to complete upload");
+        }
 
-      setUploadState("completing");
-      const completeRes = await apiClient.completeInstrumentalUpload({
-        title: title.trim(),
-        artistCredit: artistCredit.trim() || undefined,
-        genre: genre.trim() || undefined,
-        categoryId: parseInt(categoryId, 10),
-        durationSec: durationSec ?? undefined,
-        licenseType,
-        licenseSource: licenseSource.trim() || undefined,
-        attributionText: attributionText.trim() || undefined,
-      });
-      if (!completeRes.success) {
-        setUploadError((completeRes as any).error || "Failed to complete upload");
-        setUploadState("error");
-        return;
+        patchFile(item.id, { status: "done", progress: 100 });
+        successCount++;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Upload failed";
+        patchFile(item.id, { status: "error", error: msg });
+        failCount++;
       }
+    }
 
-      setUploadState("done");
-      toast({ title: "Track added", description: `"${title.trim()}" is now in the library.` });
+    setUploadState("done");
+    if (failCount === 0) {
+      toast({
+        title: successCount > 1 ? "Tracks added" : "Track added",
+        description: `${successCount} track${successCount === 1 ? "" : "s"} added to the library.`,
+      });
       setCreateOpen(false);
       fetchInstrumentals();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Upload failed";
-      setUploadError(msg);
-      setUploadState("error");
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+    } else {
+      toast({
+        title: "Some uploads failed",
+        description: `${successCount} succeeded, ${failCount} failed. Fix and hit "Try again" to retry just the failed ones.`,
+        variant: "destructive",
+      });
+      fetchInstrumentals();
     }
   };
 
@@ -353,7 +387,8 @@ export default function InstrumentalsPage() {
     }
   };
 
-  const busy = ["creatingSession", "uploading", "completing"].includes(uploadState);
+  const busy = uploadState === "uploading";
+  const hasFailedFiles = selectedFiles.some((f) => f.status === "error");
 
   return (
     <ProtectedRoute>
@@ -481,21 +516,40 @@ export default function InstrumentalsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            {uploadState === "idle" && (
+            {(uploadState === "idle" || uploadState === "error") && (
               <div className="space-y-4">
                 <div>
-                  <Label>Audio file</Label>
-                  <Input type="file" accept="audio/*" onChange={handleFileChange} />
-                  {selectedFile && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {selectedFile.name} · {formatDuration(durationSec)}
-                    </p>
-                  )}
+                  <Label>Audio file(s)</Label>
+                  <Input type="file" accept="audio/*" multiple onChange={handleFileChange} />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Select one or many files — the category, genre and license below apply to the whole batch.
+                  </p>
                 </div>
-                <div>
-                  <Label>Title</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Track title" />
-                </div>
+                {selectedFiles.length > 0 && (
+                  <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-2">
+                    {selectedFiles.map((f) => (
+                      <div key={f.id} className="flex items-center gap-2">
+                        <Input
+                          value={f.title}
+                          onChange={(e) => updateSelectedFileTitle(f.id, e.target.value)}
+                          className="h-8"
+                        />
+                        <span className="w-14 shrink-0 text-xs text-muted-foreground text-right">
+                          {formatDuration(f.durationSec)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => removeSelectedFile(f.id)}
+                          title="Remove from batch"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div>
                   <Label>Artist credit (optional)</Label>
                   <Input value={artistCredit} onChange={(e) => setArtistCredit(e.target.value)} placeholder="Artist name" />
@@ -563,43 +617,46 @@ export default function InstrumentalsPage() {
               </div>
             )}
 
-            {uploadState === "creatingSession" && (
-              <div className="flex items-center gap-2 py-4">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Creating upload session…</span>
-              </div>
-            )}
-            {uploadState === "uploading" && (
-              <div className="space-y-2 py-2">
-                <div className="flex items-center gap-2">
-                  <Upload className="h-5 w-5 animate-pulse" />
-                  <span>Uploading… {uploadProgress}%</span>
-                </div>
-                <Progress value={uploadProgress} />
-              </div>
-            )}
-            {uploadState === "completing" && (
-              <div className="flex items-center gap-2 py-4">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Saving track…</span>
-              </div>
-            )}
-            {uploadState === "done" && (
-              <div className="flex items-center gap-2 py-4 text-green-600">
-                <CheckCircle2 className="h-5 w-5" />
-                <span>Track added.</span>
+            {(uploadState === "uploading" || uploadState === "done") && (
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {selectedFiles.map((f) => (
+                  <div key={f.id} className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      {f.status === "done" && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
+                      {f.status === "error" && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
+                      {(f.status === "uploading" || f.status === "completing") && (
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      )}
+                      {f.status === "pending" && <Upload className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      <TruncateCell title={f.title}>{f.title}</TruncateCell>
+                      {f.status === "completing" && (
+                        <span className="text-xs text-muted-foreground shrink-0">Saving…</span>
+                      )}
+                    </div>
+                    {f.status === "uploading" && <Progress value={f.progress} />}
+                    {f.status === "error" && f.error && (
+                      <p className="text-xs text-destructive pl-6">{f.error}</p>
+                    )}
+                  </div>
+                ))}
+                {uploadState === "done" && !hasFailedFiles && (
+                  <div className="flex items-center gap-2 pt-2 text-green-600">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>All tracks added.</span>
+                  </div>
+                )}
               </div>
             )}
 
             <DialogFooter>
-              {uploadState === "idle" && (
+              {(uploadState === "idle" || uploadState === "error") && (
                 <Button onClick={submitUpload}>
                   <Upload className="mr-2 h-4 w-4" />
-                  Upload
+                  {selectedFiles.length > 1 ? `Upload ${selectedFiles.length} tracks` : "Upload"}
                 </Button>
               )}
-              {uploadState === "error" && (
-                <Button onClick={() => setUploadState("idle")}>Try again</Button>
+              {uploadState === "done" && hasFailedFiles && (
+                <Button onClick={submitUpload}>Try again</Button>
               )}
             </DialogFooter>
           </DialogContent>
