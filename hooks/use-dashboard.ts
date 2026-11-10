@@ -39,7 +39,8 @@ export function useDashboard(): UseDashboardReturn {
         // Handle nested structure: data.data.stats and data.data.recentContent
         const data = responseData.data || responseData
         const statsData = data.stats || {}
-        
+        const allTimeStatsData = data.statsAllTime || {}
+
         setStats({
           period: data.period || '7d',
           totalUsers: statsData.totalUsers || 0,
@@ -47,7 +48,7 @@ export function useDashboard(): UseDashboardReturn {
           pendingReviews: statsData.pendingReviews || 0,
           flaggedContents: statsData.flaggedContents || 0,
           totalViews: statsData.totalViews || 0,
-          totalPosts: statsData.totalPosts || 0,
+          totalPosts: allTimeStatsData.totalPosts ?? statsData.totalPosts ?? 0,
           totalEngagements: statsData.totalEngagements || 0,
           engagementRate: statsData.engagementRate || 0,
           recentContent: data.recentContent || []
