@@ -832,7 +832,7 @@ class ApiClient {
     categoryId?: number
     bpm?: number
     durationSec?: number
-    licenseType?: 'commissioned' | 'cc0' | 'licensed'
+    licenseType?: 'commissioned' | 'cc0' | 'licensed' | 'ai_generated'
     licenseSource?: string
     attributionText?: string
     coverArtUrl?: string
@@ -844,11 +844,14 @@ class ApiClient {
     })
   }
 
-  async getInstrumentals(params?: { page?: number; limit?: number; status?: string }) {
+  async getInstrumentals(params?: { page?: number; limit?: number; status?: string; search?: string; licenseType?: string; categoryId?: number }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     if (params?.status) queryParams.append('status', params.status)
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.licenseType) queryParams.append('licenseType', params.licenseType)
+    if (params?.categoryId) queryParams.append('categoryId', params.categoryId.toString())
     const queryString = queryParams.toString()
     return this.request(`/admin/instrumentals${queryString ? `?${queryString}` : ''}`)
   }
