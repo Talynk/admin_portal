@@ -77,7 +77,7 @@ interface BulkFileItem {
   error?: string;
 }
 
-type LicenseType = "commissioned" | "cc0" | "licensed";
+type LicenseType = "commissioned" | "cc0" | "licensed" | "ai_generated";
 
 interface CategoryOption {
   id: number;
@@ -150,6 +150,9 @@ export default function InstrumentalsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"active" | "retired" | "all">("active");
+  const [licenseFilter, setLicenseFilter] = useState<LicenseType | "all">("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
 
   const [categories, setCategories] = useState<CategoryOption[]>([]);
 
@@ -176,6 +179,8 @@ export default function InstrumentalsPage() {
         page,
         limit: 20,
         status: statusFilter === "all" ? undefined : statusFilter,
+        search: search.trim() || undefined,
+        licenseType: licenseFilter === "all" ? undefined : licenseFilter,
       });
       if (res.success && res.data) {
         const data = res.data as any;
@@ -190,7 +195,7 @@ export default function InstrumentalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, search, licenseFilter]);
 
   useEffect(() => {
     fetchInstrumentals();
@@ -198,7 +203,13 @@ export default function InstrumentalsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter]);
+  }, [statusFilter, search, licenseFilter]);
+
+  // Debounce the search box so we don't fire a request on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   useEffect(() => {
     (async () => {
@@ -413,7 +424,13 @@ export default function InstrumentalsPage() {
               <CardDescription>All instrumentals available in the recording picker.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="flex flex-wrap items-center gap-4 mb-4">
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search title, artist, or genre..."
+                  className="w-[260px]"
+                />
                 <Select value={statusFilter} onValueChange={(v: "active" | "retired" | "all") => setStatusFilter(v)}>
                   <SelectTrigger className="w-[160px]">
                     <SelectValue />
@@ -422,6 +439,18 @@ export default function InstrumentalsPage() {
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="retired">Retired</SelectItem>
                     <SelectItem value="all">All</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={licenseFilter} onValueChange={(v: LicenseType | "all") => setLicenseFilter(v)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All licenses</SelectItem>
+                    <SelectItem value="commissioned">Commissioned</SelectItem>
+                    <SelectItem value="cc0">CC0 / public domain</SelectItem>
+                    <SelectItem value="licensed">Licensed</SelectItem>
+                    <SelectItem value="ai_generated">AI-generated</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
