@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DataTableShell, TruncateCell } from "@/components/data-table-shell";
@@ -59,6 +59,8 @@ import {
   Trash2,
   Music,
   X,
+  Play,
+  Pause,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
@@ -93,6 +95,7 @@ interface InstrumentalItem {
   category?: { id: number; name: string } | null;
   bpm?: number | null;
   duration_sec?: number | null;
+  audio_url?: string | null;
   license_type: LicenseType;
   status: string;
   usage_count: number;
@@ -151,6 +154,7 @@ export default function InstrumentalsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"active" | "retired" | "all">("active");
   const [licenseFilter, setLicenseFilter] = useState<LicenseType | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
@@ -172,6 +176,26 @@ export default function InstrumentalsPage() {
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+
+  const togglePlay = (item: InstrumentalItem) => {
+    const audio = audioRef.current;
+    if (!audio || !item.audio_url) return;
+    if (playingId === item.id) {
+      audio.pause();
+      setPlayingId(null);
+      return;
+    }
+    audio.src = item.audio_url;
+    audio
+      .play()
+      .then(() => setPlayingId(item.id))
+      .catch(() => {
+        toast({ title: "Playback failed", description: "Could not play this track.", variant: "destructive" });
+      });
+  };
+
   const fetchInstrumentals = useCallback(async () => {
     setLoading(true);
     try {
@@ -181,6 +205,7 @@ export default function InstrumentalsPage() {
         status: statusFilter === "all" ? undefined : statusFilter,
         search: search.trim() || undefined,
         licenseType: licenseFilter === "all" ? undefined : licenseFilter,
+        categoryId: categoryFilter === "all" ? undefined : parseInt(categoryFilter, 10),
       });
       if (res.success && res.data) {
         const data = res.data as any;
@@ -195,7 +220,7 @@ export default function InstrumentalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, search, licenseFilter]);
+  }, [page, statusFilter, search, licenseFilter, categoryFilter]);
 
   useEffect(() => {
     fetchInstrumentals();
@@ -203,7 +228,7 @@ export default function InstrumentalsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, search, licenseFilter]);
+  }, [statusFilter, search, licenseFilter, categoryFilter]);
 
   // Debounce the search box so we don't fire a request on every keystroke.
   useEffect(() => {
@@ -404,6 +429,7 @@ export default function InstrumentalsPage() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
+        <audio ref={audioRef} onEnded={() => setPlayingId(null)} onPause={() => setPlayingId(null)} className="hidden" />
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -453,6 +479,19 @@ export default function InstrumentalsPage() {
                     <SelectItem value="ai_generated">AI-generated</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All categories</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <DataTableShell
@@ -500,6 +539,19 @@ export default function InstrumentalsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => togglePlay(item)}
+                            disabled={!item.audio_url}
+                            title={playingId === item.id ? "Pause" : "Play"}
+                          >
+                            {playingId === item.id ? (
+                              <Pause className="h-4 w-4" />
+                            ) : (
+                              <Play className="h-4 w-4" />
+                            )}
+                          </Button>
                           {item.status === "active" && (
                             <Button
                               variant="ghost"
