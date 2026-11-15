@@ -844,6 +844,63 @@ class ApiClient {
     })
   }
 
+  // Uploads the audio file straight to our own server (not R2 directly), so
+  // it works even when the R2 bucket's CORS policy doesn't allow a browser
+  // PUT. Uses XHR instead of `request()` for upload-progress events and
+  // because the body is FormData, not JSON.
+  async uploadInstrumentalDirect(
+    file: File,
+    data: {
+      title: string
+      artistCredit?: string
+      genre?: string
+      categoryId: number
+      bpm?: number
+      durationSec?: number
+      licenseType?: 'commissioned' | 'cc0' | 'licensed' | 'ai_generated'
+      licenseSource?: string
+      attributionText?: string
+      coverArtUrl?: string
+      previewUrl?: string
+    },
+    onProgress?: (percent: number) => void
+  ): Promise<ApiResponse<unknown> | ApiError> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('talentix_admin_token') : this.token
+
+    const form = new FormData()
+    form.append('file', file)
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) form.append(key, String(value))
+    })
+
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest()
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100))
+      })
+      xhr.addEventListener('load', () => {
+        let parsed: any = null
+        try {
+          parsed = JSON.parse(xhr.responseText)
+        } catch {
+          // ignore — handled by the null check below
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && parsed) {
+          resolve({ success: true, data: parsed.data, message: parsed.message })
+        } else {
+          resolve({
+            success: false,
+            error: parsed?.error || parsed?.message || `HTTP ${xhr.status}`,
+          })
+        }
+      })
+      xhr.addEventListener('error', () => resolve({ success: false, error: 'Upload failed' }))
+      xhr.open('POST', `${this.baseURL}/admin/instrumentals/upload`)
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      xhr.send(form)
+    })
+  }
+
   async getInstrumentals(params?: { page?: number; limit?: number; status?: string; search?: string; licenseType?: string; categoryId?: number }) {
     const queryParams = new URLSearchParams()
     if (params?.page) queryParams.append('page', params.page.toString())

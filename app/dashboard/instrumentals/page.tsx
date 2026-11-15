@@ -103,21 +103,6 @@ interface InstrumentalItem {
   uploader?: { id: string; username?: string } | null;
 }
 
-const MIME_BY_EXT: Record<string, string> = {
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  m4a: "audio/mp4",
-  aac: "audio/aac",
-  ogg: "audio/ogg",
-  flac: "audio/flac",
-};
-
-function guessMimeType(file: File): string {
-  if (file.type) return file.type;
-  const ext = file.name.split(".").pop()?.toLowerCase() || "";
-  return MIME_BY_EXT[ext] || "audio/mpeg";
-}
-
 function formatDuration(sec?: number | null) {
   if (!sec || sec <= 0) return "—";
   const m = Math.floor(sec / 60);
@@ -304,8 +289,7 @@ export default function InstrumentalsPage() {
     setSelectedFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   };
 
-  // Uploads sequentially: the backend allows only one in-flight presigned
-  // upload session per admin, so parallel calls would clobber each other.
+  // Uploads sequentially to keep per-track progress/error reporting simple.
   const submitUpload = async () => {
     if (selectedFiles.length === 0) {
       setUploadError("Select at least one audio file.");
@@ -339,44 +323,22 @@ export default function InstrumentalsPage() {
 
       patchFile(item.id, { status: "uploading", progress: 0, error: undefined });
       try {
-        const mimeType = guessMimeType(item.file);
-        const sessionRes = await apiClient.createInstrumentalUploadSession(mimeType);
-        if (!sessionRes.success) {
-          throw new Error((sessionRes as any).error || "Failed to create upload session");
-        }
-        const uploadUrl = (sessionRes.data as any)?.uploadUrl;
-        if (!uploadUrl) throw new Error("No upload URL returned");
-
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.upload.addEventListener("progress", (e) => {
-            if (e.lengthComputable) {
-              patchFile(item.id, { progress: Math.round((e.loaded / e.total) * 100) });
-            }
-          });
-          xhr.addEventListener("load", () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`Upload failed: ${xhr.status}`));
-          });
-          xhr.addEventListener("error", () => reject(new Error("Upload failed")));
-          xhr.open("PUT", uploadUrl);
-          xhr.setRequestHeader("Content-Type", mimeType);
-          xhr.send(item.file);
-        });
-
-        patchFile(item.id, { status: "completing" });
-        const completeRes = await apiClient.completeInstrumentalUpload({
-          title: item.title.trim(),
-          artistCredit: artistCredit.trim() || undefined,
-          genre: genre.trim() || undefined,
-          categoryId: parseInt(categoryId, 10),
-          durationSec: item.durationSec ?? undefined,
-          licenseType,
-          licenseSource: licenseSource.trim() || undefined,
-          attributionText: attributionText.trim() || undefined,
-        });
-        if (!completeRes.success) {
-          throw new Error((completeRes as any).error || "Failed to complete upload");
+        const uploadRes = await apiClient.uploadInstrumentalDirect(
+          item.file,
+          {
+            title: item.title.trim(),
+            artistCredit: artistCredit.trim() || undefined,
+            genre: genre.trim() || undefined,
+            categoryId: parseInt(categoryId, 10),
+            durationSec: item.durationSec ?? undefined,
+            licenseType,
+            licenseSource: licenseSource.trim() || undefined,
+            attributionText: attributionText.trim() || undefined,
+          },
+          (percent) => patchFile(item.id, { progress: percent })
+        );
+        if (!uploadRes.success) {
+          throw new Error((uploadRes as any).error || "Failed to upload track");
         }
 
         patchFile(item.id, { status: "done", progress: 100 });
