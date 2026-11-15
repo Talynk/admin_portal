@@ -695,6 +695,25 @@ class ApiClient {
     })
   }
 
+  /** Permanently deletes a cancelled (rejected/stopped) challenge. Reject or stop it first otherwise. */
+  async deleteChallenge(challengeId: string) {
+    return this.request(`/admin/challenges/${challengeId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  /**
+   * Permanently deletes up to 100 cancelled challenges at once. Ids that
+   * aren't rejected/stopped (or don't exist) are skipped, not errored — the
+   * response's `results` says which were deleted vs. skipped and why.
+   */
+  async bulkDeleteChallenges(challengeIds: string[]) {
+    return this.request('/admin/challenges/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ challengeIds }),
+    })
+  }
+
   async getChallengePendingPosts(
     challengeId: string,
     params?: { page?: number; limit?: number }

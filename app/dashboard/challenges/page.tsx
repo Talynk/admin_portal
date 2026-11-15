@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Trophy,
   Users,
@@ -45,6 +46,7 @@ import {
   Rocket,
   MoreHorizontal,
   RotateCcw,
+  Trash2,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -91,12 +93,18 @@ export default function ChallengesPage() {
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, activeTab])
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [page, debouncedSearch, activeTab])
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
-  const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | null>(null)
+  const [actionType, setActionType] = useState<"approve" | "reject" | "stop" | "delete" | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [startNowChallengeId, setStartNowChallengeId] = useState<string | null>(null)
   const [daysFilter, setDaysFilter] = useState(30)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const { stats, growthAnalytics, loading: statsLoading, error: statsError, refetchGrowth } = useChallengeStats(daysFilter)
   
@@ -109,7 +117,7 @@ export default function ChallengesPage() {
 
   const displayChallenges = challenges
 
-  const handleAction = (challenge: any, action: "approve" | "reject" | "stop") => {
+  const handleAction = (challenge: any, action: "approve" | "reject" | "stop" | "delete") => {
     setSelectedChallenge(challenge)
     setActionType(action)
     setActionDialogOpen(true)
@@ -131,13 +139,28 @@ export default function ChallengesPage() {
         case "stop":
           result = await apiClient.stopChallenge(selectedChallenge.id)
           break
+        case "delete":
+          result = await apiClient.deleteChallenge(selectedChallenge.id)
+          break
       }
 
       if (result?.success) {
+        const actionLabel =
+          actionType === "approve" ? "approved" :
+          actionType === "reject" ? "rejected" :
+          actionType === "delete" ? "deleted" :
+          "stopped"
         toast({
           title: "Success",
-          description: `Challenge ${actionType === "approve" ? "approved" : actionType === "reject" ? "rejected" : "stopped"} successfully`,
+          description: `Challenge ${actionLabel} successfully`,
         })
+        if (actionType === "delete") {
+          setSelectedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(selectedChallenge.id)
+            return next
+          })
+        }
         refetch()
         if (stats) {
           // Refetch stats to update counts
@@ -204,6 +227,59 @@ export default function ChallengesPage() {
       toast({ title: "Restore failed", variant: "destructive" })
     } finally {
       setRestoreLoadingId(null)
+    }
+  }
+
+  const isDeletable = (challenge: any) => challenge.status === "rejected" || challenge.status === "stopped"
+
+  const toggleSelected = (challengeId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(challengeId)
+      else next.delete(challengeId)
+      return next
+    })
+  }
+
+  const toggleSelectAllOnPage = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const challenge of displayChallenges) {
+        if (checked) next.add(challenge.id)
+        else next.delete(challenge.id)
+      }
+      return next
+    })
+  }
+
+  const allOnPageSelected =
+    displayChallenges.length > 0 && displayChallenges.every((c) => selectedIds.has(c.id))
+
+  const executeBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    setIsBulkDeleting(true)
+    try {
+      const result = await apiClient.bulkDeleteChallenges(Array.from(selectedIds))
+      if (result?.success) {
+        toast({
+          title: "Bulk delete complete",
+          description: (result as any).message || "Challenges processed.",
+        })
+        setSelectedIds(new Set())
+        refetch()
+        if (stats) window.location.reload()
+      } else {
+        toast({
+          title: "Error",
+          description: result?.error || "Failed to bulk delete challenges",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" })
+    } finally {
+      setIsBulkDeleting(false)
+      setBulkDeleteDialogOpen(false)
     }
   }
 
@@ -441,6 +517,22 @@ export default function ChallengesPage() {
                       className="pl-9"
                     />
                   </div>
+                  {selectedIds.size > 0 && (
+                    <div className="flex items-center justify-between rounded-md border bg-muted/50 px-4 py-2 mb-4">
+                      <p className="text-sm font-medium">
+                        {selectedIds.size} challenge{selectedIds.size === 1 ? "" : "s"} selected
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                          Clear selection
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => setBulkDeleteDialogOpen(true)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete selected
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {loading ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -454,10 +546,17 @@ export default function ChallengesPage() {
                       </p>
                     </div>
                   ) : (
-                    <DataTableShell minWidth="960px">
+                    <DataTableShell minWidth="1000px">
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-10">
+                              <Checkbox
+                                checked={allOnPageSelected}
+                                onCheckedChange={(checked) => toggleSelectAllOnPage(checked === true)}
+                                aria-label="Select all challenges on this page"
+                              />
+                            </TableHead>
                             <TableHead>Challenge</TableHead>
                             <TableHead>Organizer</TableHead>
                             <TableHead>Status</TableHead>
@@ -475,6 +574,13 @@ export default function ChallengesPage() {
                               className="cursor-pointer hover:bg-muted/50 transition-colors"
                               onClick={() => router.push(`/dashboard/challenges/${challenge.id}`)}
                             >
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedIds.has(challenge.id)}
+                                  onCheckedChange={(checked) => toggleSelected(challenge.id, checked === true)}
+                                  aria-label={`Select ${challenge.name}`}
+                                />
+                              </TableCell>
                               <TableCell>
                                 <div className="min-w-0 max-w-[240px]">
                                   <div className="flex items-center gap-2">
@@ -634,6 +740,18 @@ export default function ChallengesPage() {
                                         </DropdownMenuItem>
                                       </>
                                     )}
+                                    {isDeletable(challenge) && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-red-600"
+                                          onClick={() => handleAction(challenge, "delete")}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete permanently
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </TableCell>
@@ -686,6 +804,7 @@ export default function ChallengesPage() {
                 {actionType === "approve" && "Approve Challenge"}
                 {actionType === "reject" && "Reject Challenge"}
                 {actionType === "stop" && "Stop Challenge"}
+                {actionType === "delete" && "Delete Challenge Permanently"}
               </DialogTitle>
               <DialogDescription>
                 {actionType === "approve" &&
@@ -694,6 +813,8 @@ export default function ChallengesPage() {
                   `Are you sure you want to reject "${selectedChallenge?.name}"?`}
                 {actionType === "stop" &&
                   `Stop "${selectedChallenge?.name}"? Participation closes immediately, but the challenge and its posts are kept and can be restored.`}
+                {actionType === "delete" &&
+                  `Permanently delete "${selectedChallenge?.name}"? This removes the challenge and all of its participants and submitted posts. This cannot be undone.`}
               </DialogDescription>
             </DialogHeader>
             {actionType === "reject" && (
@@ -721,7 +842,7 @@ export default function ChallengesPage() {
                 Cancel
               </Button>
               <Button
-                variant={actionType === "reject" || actionType === "stop" ? "destructive" : "default"}
+                variant={actionType === "reject" || actionType === "stop" || actionType === "delete" ? "destructive" : "default"}
                 onClick={executeAction}
                 disabled={isActionLoading}
               >
@@ -735,6 +856,43 @@ export default function ChallengesPage() {
                     {actionType === "approve" && "Approve"}
                     {actionType === "reject" && "Reject"}
                     {actionType === "stop" && "Stop"}
+                    {actionType === "delete" && "Delete permanently"}
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk delete confirmation */}
+        <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete {selectedIds.size} challenge{selectedIds.size === 1 ? "" : "s"} permanently</DialogTitle>
+              <DialogDescription>
+                Only rejected or stopped challenges are actually deletable — any selected challenge
+                that's still pending, approved, active, or ended will be skipped automatically.
+                Deleted challenges and all of their participants and submitted posts cannot be recovered.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setBulkDeleteDialogOpen(false)}
+                disabled={isBulkDeleting}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={executeBulkDelete} disabled={isBulkDeleting}>
+                {isBulkDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete {selectedIds.size} challenge{selectedIds.size === 1 ? "" : "s"}
                   </>
                 )}
               </Button>
