@@ -372,6 +372,33 @@ class ApiClient {
     return this.request(`/admin/users/${userId}`)
   }
 
+  async getDevices(params?: {
+    page?: number
+    limit?: number
+    fingerprint?: string
+    claimed?: boolean
+    activeSinceDays?: number
+  }) {
+    const queryParams = new URLSearchParams()
+    const page = typeof params?.page === 'number' && params.page >= 1 ? params.page : 1
+    const limit = typeof params?.limit === 'number' && params.limit >= 1 && params.limit <= 100 ? params.limit : 20
+    queryParams.append('page', String(page))
+    queryParams.append('limit', String(limit))
+
+    if (typeof params?.fingerprint === 'string' && params.fingerprint.trim().length > 0) {
+      queryParams.append('fingerprint', params.fingerprint.trim())
+    }
+    if (typeof params?.claimed === 'boolean') {
+      queryParams.append('claimed', params.claimed ? 'true' : 'false')
+    }
+    if (typeof params?.activeSinceDays === 'number' && params.activeSinceDays > 0) {
+      queryParams.append('activeSinceDays', String(params.activeSinceDays))
+    }
+
+    const queryString = queryParams.toString()
+    return this.request(`/admin/devices${queryString ? `?${queryString}` : ''}`)
+  }
+
   async createUser(userData: {
     username: string
     email: string

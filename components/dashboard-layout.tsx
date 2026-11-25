@@ -33,6 +33,7 @@ import {
   LifeBuoy,
   Scale,
   Music,
+  Fingerprint,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -46,6 +47,7 @@ import { Toaster } from "@/components/ui/toaster"
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "User Management", href: "/dashboard/users", icon: Users },
+  { name: "Anonymous Users", href: "/dashboard/users/anonymous", icon: Fingerprint },
   { name: "Content Management", href: "/dashboard/content", icon: Video },
   { name: "Appeals", href: "/dashboard/appeals", icon: Scale },
   { name: "Challenges", href: "/dashboard/challenges", icon: Trophy },

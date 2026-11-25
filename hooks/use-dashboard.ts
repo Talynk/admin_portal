@@ -4,6 +4,8 @@ import { apiClient } from '@/lib/api-client'
 interface DashboardStats {
   period: string
   totalUsers: number
+  anonymousDeviceCount: number
+  totalAudience: number
   totalVideos: number
   pendingReviews: number
   flaggedContents: number
@@ -44,6 +46,8 @@ export function useDashboard(): UseDashboardReturn {
         setStats({
           period: data.period || '7d',
           totalUsers: statsData.totalUsers || 0,
+          anonymousDeviceCount: statsData.anonymousDeviceCount || 0,
+          totalAudience: statsData.totalAudience || statsData.totalUsers || 0,
           totalVideos: statsData.totalVideos || 0,
           pendingReviews: statsData.pendingReviews || 0,
           flaggedContents: statsData.flaggedContents || 0,
@@ -58,6 +62,8 @@ export function useDashboard(): UseDashboardReturn {
         setStats({
           period: '7d',
           totalUsers: 0,
+          anonymousDeviceCount: 0,
+          totalAudience: 0,
           totalVideos: 0,
           pendingReviews: 0,
           flaggedContents: 0,
