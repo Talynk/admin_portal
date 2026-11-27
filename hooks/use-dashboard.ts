@@ -48,13 +48,19 @@ export function useDashboard(): UseDashboardReturn {
           totalUsers: statsData.totalUsers || 0,
           anonymousDeviceCount: statsData.anonymousDeviceCount || 0,
           totalAudience: statsData.totalAudience || statsData.totalUsers || 0,
-          totalVideos: statsData.totalVideos || 0,
+          // "Total X" cards are labeled as all-time totals, so they must read
+          // from statsAllTime, not the 7-day-scoped `stats` object -- mixing
+          // the two is what made "Total Videos" (215, last 7 days) look wrong
+          // next to "Total Posts" (1,155, all-time), and produced a nonsense
+          // 715% "Engagement Rate" (7-day engagements over a tiny 7-day post
+          // count).
+          totalVideos: allTimeStatsData.totalVideos ?? statsData.totalVideos ?? 0,
           pendingReviews: statsData.pendingReviews || 0,
           flaggedContents: statsData.flaggedContents || 0,
-          totalViews: statsData.totalViews || 0,
+          totalViews: allTimeStatsData.totalViewEvents ?? statsData.totalViews ?? 0,
           totalPosts: allTimeStatsData.totalPosts ?? statsData.totalPosts ?? 0,
-          totalEngagements: statsData.totalEngagements || 0,
-          engagementRate: statsData.engagementRate || 0,
+          totalEngagements: allTimeStatsData.totalEngagements ?? statsData.totalEngagements ?? 0,
+          engagementRate: allTimeStatsData.engagementRate ?? statsData.engagementRate ?? 0,
           recentContent: data.recentContent || []
         })
       } else {
