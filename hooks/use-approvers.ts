@@ -118,6 +118,20 @@ export function useApprovers(params: UseApproversParams = {}) {
     }
   }
 
+  const updateApproverPermissions = async (approverId: string, permissions: string[]) => {
+    try {
+      const response = await apiClient.setApproverPermissions(approverId, permissions)
+      if (response.success) {
+        await fetchApprovers() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
   const activateApprover = async (approverId: string) => {
     try {
       const response = await apiClient.activateApprover(approverId)
@@ -201,6 +215,7 @@ export function useApprovers(params: UseApproversParams = {}) {
     createApproverInvitation,
     resendApproverInvite,
     updateApprover,
+    updateApproverPermissions,
     activateApprover,
     suspendApprover,
     deactivateApprover,

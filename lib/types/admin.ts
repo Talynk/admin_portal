@@ -547,6 +547,7 @@ export interface Approver {
     approvalRate: number
     averageResponseTime: number
   }
+  permissions?: string[]
 }
 
 /** Shared shape of the invite and resend-invite responses. */

@@ -37,6 +37,7 @@ export interface Post {
   flagged?: boolean
   frozen?: boolean
   featured?: boolean
+  is_shadow_banned?: boolean
   moderationNotes?: string
   category?: {
     id: number
@@ -306,6 +307,34 @@ export function usePosts(params: UsePostsParams = {}) {
     }
   }
 
+  const shadowBanPost = async (postId: string, reason?: string) => {
+    try {
+      const response = await apiClient.shadowBanPost(postId, reason)
+      if (response.success) {
+        await fetchPosts() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
+  const unShadowBanPost = async (postId: string) => {
+    try {
+      const response = await apiClient.unShadowBanPost(postId)
+      if (response.success) {
+        await fetchPosts() // Refresh the list
+        return { success: true, data: response.data }
+      } else {
+        return { success: false, error: response.error }
+      }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'An error occurred' }
+    }
+  }
+
   const flagPost = async (postId: string, reason: string) => {
     try {
       const response = await apiClient.flagPost(postId, reason)
@@ -350,6 +379,8 @@ export function usePosts(params: UsePostsParams = {}) {
     suspendPost,
     featurePost,
     unfeaturePost,
+    shadowBanPost,
+    unShadowBanPost,
     flagPost,
     unflagPost,
   }

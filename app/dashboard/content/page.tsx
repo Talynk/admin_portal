@@ -83,6 +83,7 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  EyeOff,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
@@ -117,6 +118,8 @@ export default function ContentPage() {
     | "delete"
     | "feature"
     | "unfeature"
+    | "shadow_ban"
+    | "unshadow_ban"
     | null
   >(null);
   const [actionReason, setActionReason] = useState("");
@@ -139,6 +142,44 @@ export default function ContentPage() {
   const [advancedSearchLoading, setAdvancedSearchLoading] = useState(false);
   const [advancedSearchRun, setAdvancedSearchRun] = useState(false);
   const [page, setPage] = useState(1);
+  const [platformStats, setPlatformStats] = useState<{
+    videos: number;
+    images: number;
+    draft: number;
+    active: number;
+    suspended: number;
+    featured: number;
+  } | null>(null);
+  const [platformStatsLoading, setPlatformStatsLoading] = useState(true);
+
+  // The stat cards below are platform-wide totals, not "whatever's on this
+  // page" -- fetch them once from the same all-time aggregate the main
+  // dashboard uses, instead of filtering the current (20-row) page of posts.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await apiClient.getDashboardStats();
+        if (cancelled || !response.success || !response.data) return;
+        const responseData = response.data as any;
+        const data = responseData.data || responseData;
+        const allTime = data.statsAllTime || {};
+        setPlatformStats({
+          videos: allTime.totalVideosByType ?? 0,
+          images: allTime.totalImages ?? 0,
+          draft: allTime.byStatus?.draft ?? 0,
+          active: allTime.byStatus?.active ?? 0,
+          suspended: allTime.byStatus?.suspended ?? 0,
+          featured: allTime.totalFeatured ?? 0,
+        });
+      } finally {
+        if (!cancelled) setPlatformStatsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Debounce search so we don't refetch on every keystroke (normalize: trim + collapse whitespace)
   useEffect(() => {
@@ -191,6 +232,8 @@ export default function ContentPage() {
     suspendPost,
     featurePost,
     unfeaturePost,
+    shadowBanPost,
+    unShadowBanPost,
     flagPost,
     unflagPost,
   } = usePosts({
@@ -354,13 +397,26 @@ export default function ContentPage() {
         case "unfeature":
           result = await unfeaturePost(selectedVideo.id);
           break;
+        case "shadow_ban":
+          result = await shadowBanPost(selectedVideo.id, actionReason || undefined);
+          break;
+        case "unshadow_ban":
+          result = await unShadowBanPost(selectedVideo.id);
+          break;
         case "delete":
           result = await deletePost(selectedVideo.id);
           break;
       }
 
       if (result?.success) {
-        const verb = actionType === "suspend" ? "suspended" : `${actionType}d`;
+        const verb =
+          actionType === "suspend"
+            ? "suspended"
+            : actionType === "shadow_ban"
+              ? "shadow banned"
+              : actionType === "unshadow_ban"
+                ? "un-shadow-banned"
+                : `${actionType}d`;
         toast({
           title: "Success",
           description: `Post ${verb} successfully`,
@@ -530,10 +586,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : videos.filter((v) => getContentType(v) === "video")
-                        .length}
+                  {platformStatsLoading ? "..." : (platformStats?.videos ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">Video content</p>
               </CardContent>
@@ -545,10 +598,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : videos.filter((v) => getContentType(v) === "image")
-                        .length}
+                  {platformStatsLoading ? "..." : (platformStats?.images ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">Image content</p>
               </CardContent>
@@ -562,9 +612,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : videos.filter((v) => v.status === "draft").length}
+                  {platformStatsLoading ? "..." : (platformStats?.draft ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Draft posts
@@ -580,9 +628,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : videos.filter((v) => v.status === "active").length}
+                  {platformStatsLoading ? "..." : (platformStats?.active ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">Active posts</p>
               </CardContent>
@@ -596,12 +642,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading
-                    ? "..."
-                    : videos.filter(
-                        (v) =>
-                          v.status === "suspended" || (v as any).is_suspended === true || (v as any).suspended === true
-                      ).length}
+                  {platformStatsLoading ? "..." : (platformStats?.suspended ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">Suspended posts</p>
               </CardContent>
@@ -615,7 +656,7 @@ export default function ContentPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "..." : videos.filter((v) => (v as any).is_featured === true || (v as any).featured === true).length}
+                  {platformStatsLoading ? "..." : (platformStats?.featured ?? 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Highlighted content
@@ -880,6 +921,14 @@ export default function ContentPage() {
                                 </Badge>
                               </div>
                             )}
+                            {(video as any).is_shadow_banned && (
+                              <div className="absolute top-2 left-2">
+                                <Badge className="bg-slate-700 text-white">
+                                  <EyeOff className="w-3 h-3 mr-1" />
+                                  Shadow Banned
+                                </Badge>
+                              </div>
+                            )}
                           </div>
                           <CardContent className="p-4">
                             <div className="flex flex-col gap-2 mb-2">
@@ -951,6 +1000,17 @@ export default function ContentPage() {
                                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleVideoAction(video, "feature")}>
                                     <Star className="h-3 w-3 mr-1" />
                                     Feature
+                                  </Button>
+                                )}
+                                {(video as any).is_shadow_banned ? (
+                                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleVideoAction(video, "unshadow_ban")}>
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    Lift Shadow Ban
+                                  </Button>
+                                ) : (
+                                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleVideoAction(video, "shadow_ban")}>
+                                    <EyeOff className="h-3 w-3 mr-1" />
+                                    Shadow Ban
                                   </Button>
                                 )}
                                 <Button
@@ -1169,6 +1229,12 @@ export default function ContentPage() {
                                         Featured
                                       </Badge>
                                     )}
+                                    {(video as any).is_shadow_banned && (
+                                      <Badge className="bg-slate-200 text-slate-800 text-xs">
+                                        <EyeOff className="w-3 h-3 mr-1" />
+                                        Shadow Banned
+                                      </Badge>
+                                    )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1257,6 +1323,17 @@ export default function ContentPage() {
                                         Add to featured
                                       </DropdownMenuItem>
                                     )}
+                                    {(video as any).is_shadow_banned ? (
+                                      <DropdownMenuItem onClick={() => handleVideoAction(video, "unshadow_ban")}>
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Lift shadow ban
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem onClick={() => handleVideoAction(video, "shadow_ban")}>
+                                        <EyeOff className="mr-2 h-4 w-4" />
+                                        Shadow ban
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       className="text-red-600"
@@ -1324,6 +1401,8 @@ export default function ContentPage() {
                 {actionType === "suspend" && "Suspend Post"}
                 {actionType === "feature" && "Add to Featured"}
                 {actionType === "unfeature" && "Remove from Featured"}
+                {actionType === "shadow_ban" && "Shadow Ban Post"}
+                {actionType === "unshadow_ban" && "Lift Shadow Ban"}
                 {actionType === "delete" && "Delete Content"}
               </DialogTitle>
               <DialogDescription>
@@ -1337,6 +1416,10 @@ export default function ContentPage() {
                   `Are you sure you want to feature "${selectedVideo?.title}"? This will highlight it for all users.`}
                 {actionType === "unfeature" &&
                   `Are you sure you want to remove "${selectedVideo?.title}" from featured? This will remove the highlight.`}
+                {actionType === "shadow_ban" &&
+                  `Shadow ban "${selectedVideo?.title}"? The owner and their followers won't notice anything — the post stays visible to them, search, and direct links, but it's dropped from the For You feed, Explore, and challenge rankings. No notification is sent.`}
+                {actionType === "unshadow_ban" &&
+                  `Lift the shadow ban on "${selectedVideo?.title}"? It becomes eligible for the feed, Explore, and challenge rankings again.`}
                 {actionType === "delete" &&
                   `Are you sure you want to delete "${selectedVideo?.title}"? This action cannot be undone.`}
               </DialogDescription>
@@ -1346,7 +1429,9 @@ export default function ContentPage() {
                 <Label htmlFor="reason">
                   {requiresReason
                     ? "Reason (required, included in notification to owner)"
-                    : "Reason (optional)"}
+                    : actionType === "shadow_ban"
+                      ? "Reason (optional, internal only — never shown to the owner)"
+                      : "Reason (optional)"}
                 </Label>
                 <Textarea
                   id="reason"
@@ -1406,6 +1491,8 @@ export default function ContentPage() {
                     {actionType === "suspend" && "Suspend Post"}
                     {actionType === "feature" && "Add to Featured"}
                     {actionType === "unfeature" && "Remove from Featured"}
+                    {actionType === "shadow_ban" && "Shadow Ban"}
+                    {actionType === "unshadow_ban" && "Lift Shadow Ban"}
                     {actionType === "delete" && "Delete Content"}
                   </>
                 )}

@@ -1258,6 +1258,41 @@ class ApiClient {
     })
   }
 
+  async shadowBanPost(postId: string, reason?: string) {
+    return this.request(`/admin/posts/${postId}/shadow-ban`, {
+      method: 'PUT',
+      body: JSON.stringify({ shadow_banned: true, reason }),
+    })
+  }
+
+  async unShadowBanPost(postId: string) {
+    return this.request(`/admin/posts/${postId}/shadow-ban`, {
+      method: 'PUT',
+      body: JSON.stringify({ shadow_banned: false }),
+    })
+  }
+
+  async shadowBanUser(userId: string, reason?: string) {
+    return this.request(`/admin/users/${userId}/shadow-ban`, {
+      method: 'PUT',
+      body: JSON.stringify({ shadow_banned: true, reason }),
+    })
+  }
+
+  async unShadowBanUser(userId: string) {
+    return this.request(`/admin/users/${userId}/shadow-ban`, {
+      method: 'PUT',
+      body: JSON.stringify({ shadow_banned: false }),
+    })
+  }
+
+  async setApproverPermissions(approverId: string, permissions: string[]) {
+    return this.request(`/admin/approvers/${approverId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions }),
+    })
+  }
+
   async flagPost(postId: string, reason: string) {
     return this.request(`/admin/videos/${postId}/flag`, {
       method: 'POST',

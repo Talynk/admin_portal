@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DataTableShell, TruncateCell } from "@/components/data-table-shell"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
@@ -56,12 +57,27 @@ import { Approver, ApproverInvitationResult } from "@/lib/types/admin"
 import { ApproverInviteStatus } from "@/components/approver-invite-status"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+// Every action an approver could already do before per-approver permissions
+// existed, plus the newer, more sensitive ones (currently just shadow-ban)
+// that an admin must grant explicitly. Keep in sync with the backend
+// default in prisma/schema.prisma's Approver.permissions.
+const PERMISSION_OPTIONS: { value: string; label: string; description: string }[] = [
+  { value: "approve_posts", label: "Approve posts", description: "Activate pending content" },
+  { value: "reject_posts", label: "Reject posts", description: "Reject pending content" },
+  { value: "suspend_posts", label: "Suspend posts", description: "Suspend active content" },
+  { value: "review_flagged", label: "Review flagged content", description: "Resolve flagged-content reports" },
+  { value: "review_challenges", label: "Review challenge documents", description: "Approve/reject participant documents" },
+  { value: "shadow_ban", label: "Shadow ban", description: "Quietly exclude a post from discovery — not granted by default" },
+]
+
 export default function ApproversPage() {
   const router = useRouter()
   const [selectedApprover, setSelectedApprover] = useState<Approver | null>(null)
   const [addApproverDialogOpen, setAddApproverDialogOpen] = useState(false)
   const [viewApproverDialogOpen, setViewApproverDialogOpen] = useState(false)
   const [editApproverDialogOpen, setEditApproverDialogOpen] = useState(false)
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false)
+  const [pendingPermissions, setPendingPermissions] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const debouncedSearch = useDebouncedValue(searchTerm, 400)
   const [statusFilter, setStatusFilter] = useState("all")
@@ -104,6 +120,7 @@ export default function ApproversPage() {
     createApproverInvitation,
     resendApproverInvite,
     updateApprover,
+    updateApproverPermissions,
     activateApprover,
     suspendApprover,
     deactivateApprover,
@@ -595,6 +612,16 @@ export default function ApproversPage() {
                                         <Edit className="mr-2 h-4 w-4" />
                                         Edit
                                       </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setSelectedApprover(approver)
+                                          setPendingPermissions(approver.permissions || [])
+                                          setPermissionsDialogOpen(true)
+                                        }}
+                                      >
+                                        <Shield className="mr-2 h-4 w-4" />
+                                        Manage Permissions
+                                      </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       {canResendInvite(approver) && (
                                         <DropdownMenuItem
@@ -997,6 +1024,80 @@ export default function ApproversPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewApproverDialogOpen(false)}>
                 Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Permissions Dialog */}
+        <Dialog open={permissionsDialogOpen} onOpenChange={setPermissionsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Manage Permissions</DialogTitle>
+              <DialogDescription>
+                Choose which actions {selectedApprover?.username || "this approver"} can take.
+                Unchecked actions are rejected by the server even if attempted directly, not just
+                hidden in their UI.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              {PERMISSION_OPTIONS.map((perm) => (
+                <label
+                  key={perm.value}
+                  className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50"
+                >
+                  <Checkbox
+                    checked={pendingPermissions.includes(perm.value)}
+                    onCheckedChange={(checked) => {
+                      setPendingPermissions((prev) =>
+                        checked
+                          ? [...prev, perm.value]
+                          : prev.filter((p) => p !== perm.value)
+                      )
+                    }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium leading-none">{perm.label}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{perm.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setPermissionsDialogOpen(false)}
+                disabled={isActionLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!selectedApprover) return
+                  setIsActionLoading(true)
+                  const result = await updateApproverPermissions(selectedApprover.id, pendingPermissions)
+                  setIsActionLoading(false)
+                  if (result.success) {
+                    toast({ title: "Permissions updated" })
+                    setPermissionsDialogOpen(false)
+                  } else {
+                    toast({
+                      title: "Failed to update permissions",
+                      description: result.error,
+                      variant: "destructive",
+                    })
+                  }
+                }}
+                disabled={isActionLoading}
+              >
+                {isActionLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Permissions"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
